@@ -839,3 +839,31 @@ func mustTarget(t *testing.T, s *Store, id int64) *Target {
 	}
 	return v
 }
+
+// A target that states no address family can change family under its own
+// history. The back-office needs to say which one its measurements used,
+// and above all when they used both.
+func TestFamilyOfAddresses(t *testing.T) {
+	cases := []struct {
+		name   string
+		addrs  []string
+		family int
+		mixed  bool
+	}{
+		{"only IPv4", []string{"192.0.2.1", "192.0.2.9"}, 4, false},
+		{"only IPv6", []string{"2001:db8::1"}, 6, false},
+		{"both, which is the defect worth naming",
+			[]string{"192.0.2.1", "2001:db8::1"}, 0, true},
+		{"both, the other way round",
+			[]string{"2001:db8::1", "192.0.2.1"}, 0, true},
+		{"nothing measured yet", nil, 0, false},
+		{"unparseable entries are ignored", []string{"not-an-address", "192.0.2.1"}, 4, false},
+		{"an IPv4-mapped address counts as IPv4", []string{"::ffff:192.0.2.1"}, 4, false},
+	}
+	for _, c := range cases {
+		f, m := familyOfAddresses(c.addrs)
+		if f != c.family || m != c.mixed {
+			t.Errorf("%s: got family %d mixed %v, want %d %v", c.name, f, m, c.family, c.mixed)
+		}
+	}
+}

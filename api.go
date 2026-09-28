@@ -547,10 +547,17 @@ func (a *API) targetsGet(w http.ResponseWriter, r *http.Request) {
 		LastError   string   `json:"last_error,omitempty"`
 		LastErrorTS int64    `json:"last_error_ts,omitempty"`
 		Addresses   []string `json:"addresses,omitempty"`
+		// For a target that states no family: the one its measurements
+		// actually used, and whether they mixed the two.
+		MeasuredFamily int  `json:"measured_family,omitempty"`
+		MixedFamily    bool `json:"mixed_family,omitempty"`
 	}
 	out := make([]targetWithError, 0, len(ts))
 	for _, t := range ts {
 		row := targetWithError{Target: t, Addresses: addrs[t.ID]}
+		if t.Family == 0 {
+			row.MeasuredFamily, row.MixedFamily = familyOfAddresses(addrs[t.ID])
+		}
 		if e, ok := errs[t.ID]; ok {
 			row.LastError, row.LastErrorTS = e.Err, e.TS
 		}
