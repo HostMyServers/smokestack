@@ -104,6 +104,8 @@
     "as_one_addr": "bare denne adressen · {n} traceruter til navnets andre adresser utelatt",
     "as_no_trace": "ingen traceroute er ennå registrert for dette målet",
     "as_no_as": "traceruten viste ingen mellomliggende autonome systemer: stille rutere, eller oppslag som ennå ikke har svart",
+    "twin": "Sammenlign med IPv{f}",
+    "twin_hint": "Samme tjeneste målt i den andre adressefamilien. De to krysser ulike nett: to serier å sammenligne, aldri én å ta gjennomsnittet av.",
     "ris": "I global ruting (RIPE RIS)",
     "ris_line": "{prefix} annonseres av {origin} og ses av {peers} collector-peers.",
     "ris_up": "Nett som ses foran",

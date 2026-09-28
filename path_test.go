@@ -725,3 +725,94 @@ func TestRouteSaysWhyItIsEmpty(t *testing.T) {
 		t.Error("and it must carry the gap, so the two ends are not drawn touching")
 	}
 }
+
+// IPv4 and IPv6 cross different networks, so the pair is two targets to
+// compare, never one series to average. Creating the twin copies the
+// settings, states the family on both sides, and the two find each other.
+func TestTwinTarget(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	id, err := store.CreateTarget(&Target{CategoryID: cat, Slug: "netflix", Title: "Netflix",
+		Host: "www.netflix.com", Proto: "icmp", IntervalS: 30, Packets: 10, SpacingMs: 200,
+		TimeoutMs: 1000, Public: true, Enabled: true, LossWarn: 5, KeepDays: 90})
+	if err != nil {
+		t.Fatal(err)
+	}
+	twin, err := store.CreateTwin(id)
+	if err != nil {
+		t.Fatalf("creating the twin: %v", err)
+	}
+	if twin.Family != 6 {
+		t.Errorf("the twin must measure the other family, got IPv%d", twin.Family)
+	}
+	if twin.Slug != "netflix-v6" || twin.Title != "Netflix (IPv6)" {
+		t.Errorf("slug and title: %q / %q", twin.Slug, twin.Title)
+	}
+	// The settings are the same, which is the point: the two series are
+	// comparable only if they were measured the same way.
+	if twin.IntervalS != 30 || twin.Packets != 10 || twin.SpacingMs != 200 ||
+		twin.LossWarn != 5 || twin.KeepDays != 90 || !twin.Public {
+		t.Errorf("settings were not carried over: %+v", twin)
+	}
+	// A target left on automatic is pinned to IPv4, so each half states
+	// what it measures rather than one guessing.
+	orig, _ := store.TargetByID(id)
+	if orig.Family != 4 {
+		t.Errorf("the original should now state IPv4, got %d", orig.Family)
+	}
+	// Each one finds the other, by what it measures rather than by a name.
+	back, err := store.FindTwin(twin)
+	if err != nil || back.ID != id {
+		t.Errorf("the twin should point back at the original: %v", err)
+	}
+	fwd, err := store.FindTwin(orig)
+	if err != nil || fwd.ID != twin.ID {
+		t.Errorf("the original should find its twin: %v", err)
+	}
+	// Twice is refused, with the existing one named.
+	if _, err := store.CreateTwin(id); err == nil {
+		t.Error("a second twin must be refused")
+	}
+	// A literal address exists in one family only.
+	lit, err := store.CreateTarget(&Target{CategoryID: cat, Slug: "quad9", Title: "Quad9",
+		Host: "9.9.9.9", Proto: "icmp", IntervalS: 60, Packets: 10, SpacingMs: 100,
+		TimeoutMs: 1000, Family: 4, Public: true, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateTwin(lit); err == nil {
+		t.Error("a literal address cannot have a twin in the other family")
+	}
+	// A pair built by hand is recognised too: same host, proto and port.
+	h4, _ := store.CreateTarget(&Target{CategoryID: cat, Slug: "a4", Title: "A4",
+		Host: "example.net", Proto: "tcp", Port: 443, Family: 4, IntervalS: 60, Packets: 5,
+		SpacingMs: 500, TimeoutMs: 2000, Public: true, Enabled: true})
+	h6, _ := store.CreateTarget(&Target{CategoryID: cat, Slug: "a6", Title: "A6",
+		Host: "example.net", Proto: "tcp", Port: 443, Family: 6, IntervalS: 60, Packets: 5,
+		SpacingMs: 500, TimeoutMs: 2000, Public: true, Enabled: true})
+	got, err := store.FindTwin(mustTarget(t, store, h4))
+	if err != nil || got.ID != h6 {
+		t.Errorf("a hand-made pair must be recognised: %v", err)
+	}
+	// A different port is a different service, not a twin.
+	other, _ := store.CreateTarget(&Target{CategoryID: cat, Slug: "a6b", Title: "A6b",
+		Host: "example.net", Proto: "tcp", Port: 80, Family: 6, IntervalS: 60, Packets: 5,
+		SpacingMs: 500, TimeoutMs: 2000, Public: true, Enabled: true})
+	_ = other
+	if got, _ := store.FindTwin(mustTarget(t, store, h4)); got != nil && got.ID != h6 {
+		t.Error("a different port must not be taken for a twin")
+	}
+}
+
+func mustTarget(t *testing.T, s *Store, id int64) *Target {
+	t.Helper()
+	v, err := s.TargetByID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}

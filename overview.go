@@ -54,6 +54,12 @@ type OverviewTarget struct {
 	Since     *int64   `json:"since"`
 	Hours     []string `json:"hours"`
 	Spark     Spark    `json:"spark"`
+	// Family, and the twin measuring the same service in the other one.
+	// The pair is the point: two families cross different networks, and the
+	// comparison is what the split exists for.
+	Family    int    `json:"family,omitempty"`
+	TwinSlug  string `json:"twin_slug,omitempty"`
+	TwinTitle string `json:"twin_title,omitempty"`
 }
 
 type OverviewCategory struct {
@@ -249,8 +255,14 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 			}
 			ot := &OverviewTarget{ID: t.ID, Slug: t.Slug, Title: t.Title, Host: t.Host, Proto: t.Proto,
 				Interval: t.IntervalS, Featured: feat[t.ID], Public: t.Public,
-				AddrCount: len(addrs[t.ID]), PinIP: t.PinIP,
+				AddrCount: len(addrs[t.ID]), PinIP: t.PinIP, Family: t.Family,
 				Hours: make([]string, 48)}
+			// The target measuring the same service in the other family, so
+			// each page can offer the comparison the pair exists for. Only
+			// when that one is visible to this caller.
+			if twin, err := s.FindTwin(t); err == nil && (!publicOnly || twin.Public) {
+				ot.TwinSlug, ot.TwinTitle = twin.Slug, twin.Title
+			}
 
 			var base, day, cur ovAgg
 			for _, r := range baseRows[t.ID] {

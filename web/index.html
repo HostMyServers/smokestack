@@ -521,6 +521,9 @@ function renderDetail() {
     <div class="crumb"><a href="/" id="bk">← ${esc(t("common.back_home"))}</a><span class="faint">/</span><span style="color:${acc}">${esc(cname(tg._cat))}</span></div>
     <div class="dh"><h1>${esc(tg.title)}</h1><span class="badge b-${k === "nodata" ? "n" : k}">${esc(t("status." + (k === "nodata" ? "nodata" : k + "_long")))}</span></div>
     <div class="tags"><span class="tag mono">${esc(tg.host)}</span><span class="tag">${esc(tg.proto.toUpperCase())} · ${tg.interval_s} s</span>
+      ${tg.family ? `<span class="tag">IPv${tg.family}</span>` : ""}
+      ${tg.twin_slug ? `<a class="tag" href="/t/${encodeURIComponent(tg.twin_slug)}"
+        title="${esc(t("detail.twin_hint"))}">${esc(t("detail.twin", { f: tg.family === 4 ? 6 : 4 }))} →</a>` : ""}
       ${tg.public === false ? `<span class="tag" style="background:var(--warn-soft);color:var(--warn)">${esc(t("status.private"))}</span>` : ""}
       ${tg.base_ms != null ? `<span class="tag">ref. ${n2(tg.base_ms)} ms</span>` : ""}</div>
     ${(SHARE && t("share.banner")) ? `<div class="note-share">${esc(t("share.banner", {

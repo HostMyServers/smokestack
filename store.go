@@ -460,6 +460,85 @@ func (s *Store) TargetByID(id int64) (*Target, error) {
 	return ts[0], nil
 }
 
+// otherFamily is the address family a twin measures: 4 becomes 6 and 6
+// becomes 4. A target left on automatic has no twin, since it does not
+// state which family it measures.
+func otherFamily(f int) int {
+	switch f {
+	case 4:
+		return 6
+	case 6:
+		return 4
+	}
+	return 0
+}
+
+// FindTwin returns the target measuring the same service in the other
+// address family. Twins are recognised by what they measure — same host,
+// same protocol, same port, the other family — rather than by a stored
+// link: a pair built by hand years ago is a pair all the same, and renaming
+// either one does not break it.
+func (s *Store) FindTwin(t *Target) (*Target, error) {
+	want := otherFamily(t.Family)
+	if want == 0 {
+		return nil, sql.ErrNoRows
+	}
+	var id int64
+	err := s.cfg.QueryRow(
+		`SELECT id FROM targets
+		  WHERE archived_at=0 AND id<>? AND family=? AND proto=? AND port=?
+		    AND lower(host)=lower(?) ORDER BY id LIMIT 1`,
+		t.ID, want, t.Proto, t.Port, t.Host).Scan(&id)
+	if err != nil {
+		return nil, err
+	}
+	return s.TargetByID(id)
+}
+
+// CreateTwin measures the same service in the other address family, as a
+// target of its own. The two families cross different networks, with
+// different latency and different failures: one series holding both would
+// average away exactly what the pair exists to show.
+//
+// A target left on automatic is pinned to IPv4 in the process, because a
+// pair only means something when each side states what it measures.
+func (s *Store) CreateTwin(id int64) (*Target, error) {
+	t, err := s.TargetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if t.ArchivedAt != 0 {
+		return nil, fmt.Errorf("this target is archived")
+	}
+	if ip := net.ParseIP(t.Host); ip != nil {
+		return nil, fmt.Errorf("%s is a literal address: it exists in one family only, "+
+			"so add the other address as its own target", t.Host)
+	}
+	if t.Family == 0 {
+		// Automatic resolves IPv4 first in practice: state it, so the pair
+		// is two explicit halves rather than one guess and one certainty.
+		t.Family = 4
+		if err := s.UpdateTarget(t); err != nil {
+			return nil, err
+		}
+	}
+	if twin, err := s.FindTwin(t); err == nil {
+		return twin, fmt.Errorf("%s already measures this over IPv%d", twin.Slug, twin.Family)
+	}
+	want := otherFamily(t.Family)
+	twin := *t
+	twin.ID, twin.Family, twin.ArchivedAt = 0, want, 0
+	twin.Slug = fmt.Sprintf("%s-v%d", strings.TrimSuffix(
+		strings.TrimSuffix(t.Slug, "-v4"), "-v6"), want)
+	twin.Title = fmt.Sprintf("%s (IPv%d)", strings.TrimSuffix(
+		strings.TrimSuffix(t.Title, " (IPv4)"), " (IPv6)"), want)
+	newID, err := s.CreateTarget(&twin)
+	if err != nil {
+		return nil, err
+	}
+	return s.TargetByID(newID)
+}
+
 // TargetBySlug finds a target by the slug its public page uses.
 func (s *Store) TargetBySlug(slug string) (*Target, error) {
 	var id int64

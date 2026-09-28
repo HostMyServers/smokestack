@@ -104,6 +104,8 @@
     "as_one_addr": "solo esta dirección · {n} traceroutes a otras direcciones de este nombre excluidos",
     "as_no_trace": "todavía no hay ningún traceroute registrado para este destino",
     "as_no_as": "el traceroute no reveló ningún sistema autónomo intermedio: routers silenciosos, o consultas aún sin respuesta",
+    "twin": "Comparar con IPv{f}",
+    "twin_hint": "El mismo servicio medido en la otra familia de direcciones. Ambas atraviesan redes distintas: son dos series que comparar, nunca una que promediar.",
     "ris": "En el enrutamiento global (RIPE RIS)",
     "ris_line": "{prefix} lo anuncia {origin} y lo ven {peers} pares de recolectores.",
     "ris_up": "Redes vistas delante",
