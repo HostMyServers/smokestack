@@ -867,3 +867,39 @@ func TestFamilyOfAddresses(t *testing.T) {
 		}
 	}
 }
+
+// The targets a fresh instance starts with are RIPE Atlas anchors, not
+// public resolvers: an anchor exists to be measured, which is consent its
+// operator actually gave. The shape of the list is checked here; the names
+// themselves were resolved before being written.
+func TestDefaultAnchors(t *testing.T) {
+	if len(defaultAnchors) < 3 {
+		t.Fatalf("a first run needs a few targets, got %d", len(defaultAnchors))
+	}
+	seenSlug, seenHost, countries := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	for _, a := range defaultAnchors {
+		if seenSlug[a.slug] || seenHost[a.host] {
+			t.Errorf("duplicate default target: %s / %s", a.slug, a.host)
+		}
+		seenSlug[a.slug], seenHost[a.host] = true, true
+		if !strings.HasSuffix(a.host, ".anchors.atlas.ripe.net") {
+			t.Errorf("%s is not an Atlas anchor: a default target must be a host "+
+				"whose operator put it there to be measured", a.host)
+		}
+		if net.ParseIP(strings.TrimSuffix(a.host, ".anchors.atlas.ripe.net")) != nil {
+			t.Errorf("%s should be a name, so that a decommissioned anchor fails "+
+				"visibly rather than pinging whoever inherits the address", a.host)
+		}
+		countries[strings.SplitN(a.host, "-", 2)[0]] = true
+		if a.title == "" || a.slug == "" {
+			t.Errorf("a default target needs a title and a slug: %+v", a)
+		}
+	}
+	// Spread matters: an instance is installed anywhere, and a monitoring
+	// tool whose first screen shows one region teaches that the internet is
+	// that region.
+	if len(countries) < 3 {
+		t.Errorf("the default targets span %d countries, which is not a picture "+
+			"of the internet", len(countries))
+	}
+}
