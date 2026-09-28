@@ -157,6 +157,14 @@ Two settings matter:
 
 The mark belongs to its target alone. A route change towards one destination is never drawn on another target's graph, and the event names both ends of the path — this instance's AS, the AS announcing the address measured, and that address.
 
+## Anycast destinations
+
+An anycast address is one address served from many places, and which instance answers is a routing decision remade continuously by networks you do not control. The median then steps — 8 ms becoming 34 ms because the nearest instance withdrew — without anything being wrong.
+
+Pinning does not help: the address was never the ambiguity, since the same address is a different machine depending on where the packets end up. On such a target, route changes are frequent and are the reading rather than the alarm; a latency step that coincides with one is almost always an instance change, while a step without one is worth looking at. Raise the thresholds or turn alerting off, and read the percentile bands rather than the median alone — two plateaux in one graph is normal here.
+
+To follow one specific instance rather than the service, target its unicast address when the operator publishes one.
+
 ## Let the instance tell you
 
 Rather than reading graphs, press **Why this loss?** next to a target. It
