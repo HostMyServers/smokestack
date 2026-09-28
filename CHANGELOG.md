@@ -3,9 +3,14 @@
 Versions are published as signed releases; servers with automatic updates
 install the newest one directly, whatever versions came in between.
 
+## Unreleased
+
+- **IPv4 and IPv6 as a pair of targets** (#27). A name with both an A and an AAAA record is two destinations: different transit, different latency, independent failures. **Also IPv6** next to a target copies it — host, protocol, port, interval, packets, spacing, timeout, thresholds, retention — and sets the copy to the other family, as `<name>-v6`; each public page then links to the other, so the comparison is one click away. A target on automatic is set to **IPv6** in the process and the new half becomes `<name>-v4`: automatic never stated a family, so nothing deliberate is overridden, and the bare name goes to the family that is not the legacy one. A name without an AAAA record is refused rather than paired with a target that can only fail. A target that already states IPv4 keeps its name and gains `<name>-v6`. A single series holding both would average away exactly what the pair exists to show — the same reason a rotating pool is no longer measured as one path. Pairs are recognised by what they measure rather than by a stored link, so one built by hand is recognised as one too.
+
 ## 0.3.1
 
 Two defects users were living with, two settings that were hardcoded, and the route display made honest. Nothing in this version requires attention on upgrade: no protocol change, no migration to run by hand, no setting to revisit. The one migration attaches existing route events to the target they describe, on first start.
+
 
 - **Fixed: a route with no intermediate AS was drawn as if the two ends touched** (#30). When no hop of the traceroute could be attributed to an autonomous system — silent routers, private addressing, or Team Cymru lookups that had not answered yet — the page showed your network next to the target's network and nothing in between, which reads as "these two are neighbours". That is a claim, and usually a false one. The unknown segment is now marked as such, and the route says why it is empty: no traceroute recorded for this target yet, or a traceroute that revealed no autonomous system. Translated into the ten languages.
 

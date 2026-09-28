@@ -104,6 +104,8 @@
     "as_one_addr": "alleen dit adres · {n} traceroutes naar andere adressen van deze naam weggelaten",
     "as_no_trace": "nog geen traceroute vastgelegd voor dit doel",
     "as_no_as": "de traceroute toonde geen tussenliggend autonoom systeem: stille routers, of opzoekingen nog zonder antwoord",
+    "twin": "Vergelijk met IPv{f}",
+    "twin_hint": "Dezelfde dienst gemeten in de andere adresfamilie. Beide doorkruisen andere netwerken: twee reeksen om te vergelijken, nooit één om te middelen.",
     "ris": "In globale routering (RIPE RIS)",
     "ris_line": "{prefix} wordt aangekondigd door {origin} en gezien door {peers} collector-peers.",
     "ris_up": "Netwerken die ervoor gezien worden",

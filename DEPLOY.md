@@ -781,6 +781,16 @@ The token is stored **hashed**: a copy of the database hands over no working
 link, and the link is shown once, when created. Creations and revocations are
 in the audit log.
 
+### IPv4 and IPv6: a pair of targets
+
+A name that has both an A and an AAAA record is two destinations, not one. The two families cross different transit, arrive with different latency, and fail independently — an operator can lose IPv6 entirely for a day without a single IPv4 packet going missing. Measuring them as one series would average that away, which is precisely what you want to see.
+
+So smokestack keeps them as two targets, and offers to build the pair: **Also IPv6** next to a target copies it — same host, protocol, port, interval, packets, spacing, timeout, thresholds, retention — and sets the copy to the other family, as `<name>-v6`. Each of the two public pages then carries a link to the other, so the comparison is one click away.
+
+A target left on **automatic** is set to **IPv6** when you build the pair, and the new half is `<name>-v4`. Automatic never stated a family, so nothing deliberate is being overridden, and the bare name is worth giving to the family that is not the legacy one. If the name has no AAAA record there is no pair to build and the action says so, rather than creating a target that can only fail. On a target that already states IPv4, *Also IPv6* leaves its name alone and adds `<name>-v6`: a deliberate choice is not rewritten.
+
+Two limits worth knowing. A target whose host is a **literal address** has no twin, since an address belongs to one family: add the other address as its own target. And a pair is recognised by what it measures — same host, protocol and port, the other family — rather than by a stored link, so a pair you built by hand years ago is recognised as one, and renaming either side does not break it.
+
 ### Thresholds, per target
 
 What separates **ok**, **warn** and **crit** is settable, per target and for the instance as a whole. The shipped defaults are the values that were hardcoded before: warn above **0.4 %** loss, critical above **3 %**, and warn when the median is more than **1.4×** the seven-day baseline. *Settings → Default thresholds* changes them for every target, and each target's own form overrides them where it matters.

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -458,6 +460,118 @@ func (s *Store) TargetByID(id int64) (*Target, error) {
 		return nil, sql.ErrNoRows
 	}
 	return ts[0], nil
+}
+
+// lookupIPv6 is the resolver used to decide whether a name has an IPv6
+// destination. A variable so tests do not depend on the DNS of the machine
+// they run on.
+var lookupIPv6 = func(host string) ([]net.IP, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return net.DefaultResolver.LookupIP(ctx, "ip6", host)
+}
+
+func hasAAAA(host string) (bool, error) {
+	ips, err := lookupIPv6(host)
+	if err != nil {
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) && (dnsErr.IsNotFound || dnsErr.Err == "no such host") {
+			return false, nil // the name resolves, just not in IPv6
+		}
+		return false, err
+	}
+	return len(ips) > 0, nil
+}
+
+// otherFamily is the address family a twin measures: 4 becomes 6 and 6
+// becomes 4. A target left on automatic has no twin, since it does not
+// state which family it measures.
+func otherFamily(f int) int {
+	switch f {
+	case 4:
+		return 6
+	case 6:
+		return 4
+	}
+	return 0
+}
+
+// FindTwin returns the target measuring the same service in the other
+// address family. Twins are recognised by what they measure — same host,
+// same protocol, same port, the other family — rather than by a stored
+// link: a pair built by hand years ago is a pair all the same, and renaming
+// either one does not break it.
+func (s *Store) FindTwin(t *Target) (*Target, error) {
+	want := otherFamily(t.Family)
+	if want == 0 {
+		return nil, sql.ErrNoRows
+	}
+	var id int64
+	err := s.cfg.QueryRow(
+		`SELECT id FROM targets
+		  WHERE archived_at=0 AND id<>? AND family=? AND proto=? AND port=?
+		    AND lower(host)=lower(?) ORDER BY id LIMIT 1`,
+		t.ID, want, t.Proto, t.Port, t.Host).Scan(&id)
+	if err != nil {
+		return nil, err
+	}
+	return s.TargetByID(id)
+}
+
+// CreateTwin measures the same service in the other address family, as a
+// target of its own. The two families cross different networks, with
+// different latency and different failures: one series holding both would
+// average away exactly what the pair exists to show.
+//
+// A target left on automatic is pinned to IPv4 in the process, because a
+// pair only means something when each side states what it measures.
+func (s *Store) CreateTwin(id int64) (*Target, error) {
+	t, err := s.TargetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if t.ArchivedAt != 0 {
+		return nil, fmt.Errorf("this target is archived")
+	}
+	if ip := net.ParseIP(t.Host); ip != nil {
+		return nil, fmt.Errorf("%s is a literal address: it exists in one family only, "+
+			"so add the other address as its own target", t.Host)
+	}
+	if t.Family == 0 {
+		// Automatic never stated a family, so nothing deliberate is being
+		// overridden here — and the bare name is worth giving to the family
+		// that is not the legacy one. The target keeps IPv6 and the twin
+		// takes the -v4 suffix, provided the name actually has an AAAA.
+		// Without one there is no pair to build, and saying so beats
+		// creating a target that can only fail.
+		v6, err := hasAAAA(t.Host)
+		if err != nil {
+			return nil, fmt.Errorf("resolving %s: %w", t.Host, err)
+		}
+		if !v6 {
+			return nil, fmt.Errorf("%s has no AAAA record: there is no IPv6 "+
+				"destination to pair with", t.Host)
+		}
+		t.Family = 6
+		if err := s.UpdateTarget(t); err != nil {
+			return nil, err
+		}
+	}
+	if twin, err := s.FindTwin(t); err == nil {
+		return twin, fmt.Errorf("%s already measures this over IPv%d", twin.Slug, twin.Family)
+	}
+	want := otherFamily(t.Family)
+	twin := *t
+	twin.ID, twin.Family, twin.ArchivedAt = 0, want, 0
+	twin.Slug = fmt.Sprintf("%s-v%d", strings.TrimSuffix(
+		strings.TrimSuffix(t.Slug, "-v4"), "-v6"), want)
+	twin.Title = fmt.Sprintf("%s (IPv%d)", strings.TrimSuffix(
+		strings.TrimSuffix(t.Title, " (IPv4)"), " (IPv6)"), want)
+	newID, err := s.CreateTarget(&twin)
+	if err != nil {
+		return nil, err
+	}
+	return s.TargetByID(newID)
 }
 
 // TargetBySlug finds a target by the slug its public page uses.

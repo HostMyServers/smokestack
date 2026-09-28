@@ -60,6 +60,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/v1/admin/targets/{id}", a.auth(a.targetsPatch))
 	mux.HandleFunc("DELETE /api/v1/admin/targets/{id}", a.auth(a.targetsDelete))
 	mux.HandleFunc("POST /api/v1/admin/targets/{id}/check", a.auth(a.targetsCheck))
+	mux.HandleFunc("POST /api/v1/admin/targets/{id}/twin", a.auth(a.targetsTwin))
 	mux.HandleFunc("GET /api/v1/admin/channels", a.need(RoleAdmin, a.channelsGet))
 	mux.HandleFunc("PUT /api/v1/admin/channels", a.need(RoleAdmin, a.channelsPut))
 	mux.HandleFunc("POST /api/v1/admin/channels/test", a.need(RoleAdmin, a.channelsTest))
@@ -646,6 +647,24 @@ func (a *API) probeStatus(w http.ResponseWriter, r *http.Request, u *User) {
 // targetsPatch updates an existing target. Only the fields present in the
 // body change; "public": false keeps a target out of the public site while
 // it keeps being measured.
+// targetsTwin measures the same service in the other address family, as a
+// target of its own. IPv4 and IPv6 cross different networks, so they are
+// two series to compare, never one series to average.
+func (a *API) targetsTwin(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "invalid identifier")
+		return
+	}
+	twin, err := a.store.CreateTwin(id)
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"target": twin,
+		"note": fmt.Sprintf("%s now measures this over IPv%d", twin.Slug, twin.Family)})
+}
+
 func (a *API) targetsPatch(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
