@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -460,6 +462,27 @@ func (s *Store) TargetByID(id int64) (*Target, error) {
 	return ts[0], nil
 }
 
+// lookupIPv6 is the resolver used to decide whether a name has an IPv6
+// destination. A variable so tests do not depend on the DNS of the machine
+// they run on.
+var lookupIPv6 = func(host string) ([]net.IP, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return net.DefaultResolver.LookupIP(ctx, "ip6", host)
+}
+
+func hasAAAA(host string) (bool, error) {
+	ips, err := lookupIPv6(host)
+	if err != nil {
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) && (dnsErr.IsNotFound || dnsErr.Err == "no such host") {
+			return false, nil // the name resolves, just not in IPv6
+		}
+		return false, err
+	}
+	return len(ips) > 0, nil
+}
+
 // otherFamily is the address family a twin measures: 4 becomes 6 and 6
 // becomes 4. A target left on automatic has no twin, since it does not
 // state which family it measures.
@@ -515,9 +538,21 @@ func (s *Store) CreateTwin(id int64) (*Target, error) {
 			"so add the other address as its own target", t.Host)
 	}
 	if t.Family == 0 {
-		// Automatic resolves IPv4 first in practice: state it, so the pair
-		// is two explicit halves rather than one guess and one certainty.
-		t.Family = 4
+		// Automatic never stated a family, so nothing deliberate is being
+		// overridden here — and the bare name is worth giving to the family
+		// that is not the legacy one. The target keeps IPv6 and the twin
+		// takes the -v4 suffix, provided the name actually has an AAAA.
+		// Without one there is no pair to build, and saying so beats
+		// creating a target that can only fail.
+		v6, err := hasAAAA(t.Host)
+		if err != nil {
+			return nil, fmt.Errorf("resolving %s: %w", t.Host, err)
+		}
+		if !v6 {
+			return nil, fmt.Errorf("%s has no AAAA record: there is no IPv6 "+
+				"destination to pair with", t.Host)
+		}
+		t.Family = 6
 		if err := s.UpdateTarget(t); err != nil {
 			return nil, err
 		}

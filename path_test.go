@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -742,14 +743,20 @@ func TestTwinTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The name has an AAAA record, so the undecided target keeps the bare
+	// name in IPv6 and the twin takes the legacy family with the suffix.
+	old := lookupIPv6
+	lookupIPv6 = func(string) ([]net.IP, error) { return []net.IP{net.ParseIP("2001:db8::1")}, nil }
+	defer func() { lookupIPv6 = old }()
+
 	twin, err := store.CreateTwin(id)
 	if err != nil {
 		t.Fatalf("creating the twin: %v", err)
 	}
-	if twin.Family != 6 {
-		t.Errorf("the twin must measure the other family, got IPv%d", twin.Family)
+	if twin.Family != 4 {
+		t.Errorf("the twin must take the legacy family, got IPv%d", twin.Family)
 	}
-	if twin.Slug != "netflix-v6" || twin.Title != "Netflix (IPv6)" {
+	if twin.Slug != "netflix-v4" || twin.Title != "Netflix (IPv4)" {
 		t.Errorf("slug and title: %q / %q", twin.Slug, twin.Title)
 	}
 	// The settings are the same, which is the point: the two series are
@@ -758,11 +765,11 @@ func TestTwinTarget(t *testing.T) {
 		twin.LossWarn != 5 || twin.KeepDays != 90 || !twin.Public {
 		t.Errorf("settings were not carried over: %+v", twin)
 	}
-	// A target left on automatic is pinned to IPv4, so each half states
-	// what it measures rather than one guessing.
+	// A target left on automatic now states IPv6: nothing deliberate was
+	// overridden, and the bare name goes to the family that is not legacy.
 	orig, _ := store.TargetByID(id)
-	if orig.Family != 4 {
-		t.Errorf("the original should now state IPv4, got %d", orig.Family)
+	if orig.Family != 6 {
+		t.Errorf("the original should now state IPv6, got %d", orig.Family)
 	}
 	// Each one finds the other, by what it measures rather than by a name.
 	back, err := store.FindTwin(twin)
@@ -787,6 +794,22 @@ func TestTwinTarget(t *testing.T) {
 	if _, err := store.CreateTwin(lit); err == nil {
 		t.Error("a literal address cannot have a twin in the other family")
 	}
+	// A name with no AAAA has no pair to build, and says so rather than
+	// creating a target that can only fail.
+	lookupIPv6 = func(string) ([]net.IP, error) { return nil, nil }
+	v4only, err := store.CreateTarget(&Target{CategoryID: cat, Slug: "legacy", Title: "Legacy",
+		Host: "v4only.example.net", Proto: "icmp", IntervalS: 60, Packets: 10, SpacingMs: 100,
+		TimeoutMs: 1000, Public: true, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateTwin(v4only); err == nil {
+		t.Error("a name without an AAAA record has no IPv6 half")
+	}
+	if got := mustTarget(t, store, v4only); got.Family != 0 {
+		t.Errorf("a refused pair must leave the target as it was, got family %d", got.Family)
+	}
+	lookupIPv6 = func(string) ([]net.IP, error) { return []net.IP{net.ParseIP("2001:db8::1")}, nil }
 	// A pair built by hand is recognised too: same host, proto and port.
 	h4, _ := store.CreateTarget(&Target{CategoryID: cat, Slug: "a4", Title: "A4",
 		Host: "example.net", Proto: "tcp", Port: 443, Family: 4, IntervalS: 60, Packets: 5,

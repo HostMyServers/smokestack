@@ -787,7 +787,7 @@ A name that has both an A and an AAAA record is two destinations, not one. The t
 
 So smokestack keeps them as two targets, and offers to build the pair: **Also IPv6** next to a target copies it — same host, protocol, port, interval, packets, spacing, timeout, thresholds, retention — and sets the copy to the other family, as `<name>-v6`. Each of the two public pages then carries a link to the other, so the comparison is one click away.
 
-A target left on **automatic** is set to IPv4 when you build the pair. Automatic resolves IPv4 in practice, so the change is not a change of behaviour; it makes each half state what it measures, which is what makes the pair readable a year later.
+A target left on **automatic** is set to **IPv6** when you build the pair, and the new half is `<name>-v4`. Automatic never stated a family, so nothing deliberate is being overridden, and the bare name is worth giving to the family that is not the legacy one. If the name has no AAAA record there is no pair to build and the action says so, rather than creating a target that can only fail. On a target that already states IPv4, *Also IPv6* leaves its name alone and adds `<name>-v6`: a deliberate choice is not rewritten.
 
 Two limits worth knowing. A target whose host is a **literal address** has no twin, since an address belongs to one family: add the other address as its own target. And a pair is recognised by what it measures — same host, protocol and port, the other family — rather than by a stored link, so a pair you built by hand years ago is recognised as one, and renaming either side does not break it.
 

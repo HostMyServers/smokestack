@@ -618,13 +618,14 @@ async function viewTargets(m){
           <button class="btn s" data-trace="${t.id}">Traceroute</button>
           <button class="btn s" data-twin="${t.id}" data-fam="${t.family||0}"
             title="Measure the same service in the other address family, as its own target">
-            Also IPv${(t.family||4)===4?6:4}</button>
+            ${t.family===4?"Also IPv6":t.family===6?"Also IPv4":"Split v4 / v6"}</button>
           <button class="btn d s" data-del="${t.id}">Delete</button></td>
         </tr>`).join("")+`</tbody></table>`:`<div class="empty">No target yet.</div>`;
     document.querySelectorAll("[data-twin]").forEach(b=>b.onclick=async()=>{
-      const fam=parseInt(b.dataset.fam,10)||0, want=fam===4?6:fam===6?4:6;
-      if(fam===0&&!confirm("This target is on automatic, which resolves IPv4 in practice. "+
-        "Creating the pair sets it to IPv4 explicitly and adds an IPv6 target beside it. Continue?")) return;
+      const fam=parseInt(b.dataset.fam,10)||0, want=fam===4?6:fam===6?4:4;
+      if(fam===0&&!confirm("This target never stated an address family. Building the pair gives "+
+        "the bare name to IPv6 and adds the IPv4 half beside it, as <name>-v4. "+
+        "Refused if the name has no AAAA record. Continue?")) return;
       try{const r=await api("POST","/api/v1/admin/targets/"+b.dataset.twin+"/twin",{});
         toast(r.note||("Now measured over IPv"+want));render();}
       catch(e){toast(e.message,true);}
