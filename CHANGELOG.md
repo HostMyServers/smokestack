@@ -3,6 +3,10 @@
 Versions are published as signed releases; servers with automatic updates
 install the newest one directly, whatever versions came in between.
 
+## Unreleased
+
+- **Anycast destinations are documented** (#39). One address served from many places steps in latency when the routing moves you between instances, and nothing pins that away — pinning freezes the address, and with anycast the address was never the ambiguity. `DEPLOY.md` and the wiki now say what the tool shows on such a target (a route map with several branches, route changes that are the reading rather than the alarm, and the difference between a latency step with and without one), and what to do about it: raise the thresholds, read the bands rather than the median, and target a unicast address when you want one instance rather than the service.
+
 ## 0.4.0
 
 Five of the seven issues opened by a tester in one afternoon, the route of a target made honest in three ways, and two settings that should never have been hardcoded.

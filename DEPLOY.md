@@ -781,6 +781,25 @@ The token is stored **hashed**: a copy of the database hands over no working
 link, and the link is shown once, when created. Creations and revocations are
 in the audit log.
 
+### Anycast destinations
+
+An anycast address is one address served from many places. Which instance answers you is a routing decision, remade continuously by networks you do not control, and it can change without anything being wrong. The measurements then step: a median that moves from 8 ms to 34 ms because the nearest instance withdrew, not because a link degraded.
+
+**Nothing pins this away.** Pinning freezes the address measured, and with anycast the address was never the ambiguity — the same address is a different machine depending on where the packets end up. A name resolving to several addresses is a different problem with a real fix; this one has none, and it is worth saying so rather than implying the tool has it covered.
+
+What the instance does give you, on an anycast target:
+
+- **the route map shows the divergence.** Several branches towards the same destination means the traceroutes did not arrive the same way, which is the signature of having been served by different instances;
+- **a route change is recorded as an event**, with the AS path before and after. On an anycast target these are frequent and are not incidents: they are the reading, not the alarm. Nobody is alerted for them;
+- **a latency step that coincides with a route change** is almost always an instance change. A step with no route change is worth looking at.
+
+Two habits make such a target readable:
+
+- **raise its thresholds**, or turn its alerting off. A target whose median legitimately steps between two plateaux will otherwise warn every time the world reroutes;
+- **read the percentile bands rather than the median alone.** Two plateaux in one graph is normal here; a band that widens on one plateau is the thing worth a ticket.
+
+If what you want is the health of one specific instance rather than of the service, target that instance's unicast address, when the operator publishes one. Measuring the anycast address answers a different and equally legitimate question — *what does a user in my network actually get* — and that answer includes the rerouting.
+
 ### A target states which family it measures
 
 The address family is a choice made at creation: **IPv4** or **IPv6**. Older versions also offered **Auto**, which resolved a name to IPv4 when there was one and fell back to IPv6 otherwise — without saying which it had done.
