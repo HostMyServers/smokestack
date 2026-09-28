@@ -475,3 +475,179 @@ func TestRotatingTargetIsNotARouteChange(t *testing.T) {
 		}
 	}
 }
+
+// A category emptied by the operator must be deletable. Deleting a target
+// archives it so its history survives, and those archived rows used to be
+// counted as live ones: the category could never be removed, and the message
+// pointed at targets the operator could no longer see.
+func TestDeleteCategoryIgnoresArchivedTargets(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, err := store.CreateCategory("resolvers", "Résolveurs", "Resolvers", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []int64
+	for _, slug := range []string{"quad9", "cloudflare", "google"} {
+		id, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+			Host: "192.0.2.9", Proto: "icmp", IntervalS: 60, Packets: 10, SpacingMs: 100,
+			TimeoutMs: 1000, Public: true, Enabled: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := store.DeleteCategory(cat); err == nil {
+		t.Fatal("a category holding live targets must not be deleted")
+	}
+	for _, id := range ids {
+		if err := store.ArchiveTarget(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.DeleteCategory(cat); err != nil {
+		t.Fatalf("once every target is archived the category must go: %v", err)
+	}
+	// The history survives. targets.category_id carries ON DELETE CASCADE,
+	// so an archived target left in the deleted category would have been
+	// deleted with it, measurements included.
+	arch, err := store.ArchivedTargets()
+	if err != nil || len(arch) != 3 {
+		t.Fatalf("the three archived targets must remain: %d, %v", len(arch), err)
+	}
+	holder, err := store.archiveCategoryID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range arch {
+		if a.CategoryID != holder {
+			t.Errorf("%s should have moved to the archive category, it is in %d",
+				a.Slug, a.CategoryID)
+		}
+	}
+	// The archive itself is not deletable while it holds history: doing so
+	// would destroy exactly what it exists to keep.
+	if err := store.DeleteCategory(holder); err == nil {
+		t.Error("deleting the archive category must be refused while it holds targets")
+	}
+	if got, _ := store.ArchivedTargets(); len(got) != 3 {
+		t.Errorf("the refused deletion must change nothing: %d left", len(got))
+	}
+	// Once purged, it goes like any other.
+	for _, a := range arch {
+		if err := store.PurgeTarget(a.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.DeleteCategory(holder); err != nil {
+		t.Errorf("an empty archive category must be deletable: %v", err)
+	}
+}
+
+// Foreign keys are enforced, which is what makes the archive category
+// necessary rather than decorative. A test suite running without them would
+// be more permissive than production and would hide the cascade.
+func TestForeignKeysAreEnforced(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var on int
+	if err := store.cfg.QueryRow(`PRAGMA foreign_keys`).Scan(&on); err != nil {
+		t.Fatal(err)
+	}
+	if on != 1 {
+		t.Fatal("foreign keys must be on: targets cascade from their category")
+	}
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	if _, err := store.CreateTarget(&Target{CategoryID: cat + 999, Slug: "orphan",
+		Title: "orphan", Host: "192.0.2.9", Proto: "icmp", IntervalS: 60, Packets: 10,
+		SpacingMs: 100, TimeoutMs: 1000, Enabled: true}); err == nil {
+		t.Error("a target in a category that does not exist must be refused")
+	}
+}
+
+// Thresholds are per target, and rejected when they would make the states
+// incoherent.
+func TestTargetThresholdValidation(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	mk := func(slug string, warn, crit, factor float64) error {
+		_, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+			Host: "192.0.2.9", Proto: "icmp", IntervalS: 60, Packets: 10, SpacingMs: 100,
+			TimeoutMs: 1000, Public: true, Enabled: true,
+			LossWarn: warn, LossCrit: crit, LatFactor: factor})
+		return err
+	}
+	if err := mk("ok", 8, 20, 3); err != nil {
+		t.Fatalf("a plausible set must be accepted: %v", err)
+	}
+	if err := mk("backwards", 20, 8, 0); err == nil {
+		t.Error("a critical threshold below the warning one must be refused")
+	}
+	if err := mk("over", 0, 140, 0); err == nil {
+		t.Error("a loss threshold above 100 %% must be refused")
+	}
+	if err := mk("tiny-factor", 0, 0, 1.01); err == nil {
+		t.Error("a latency factor barely above 1 must be refused")
+	}
+	if err := mk("defaults", 0, 0, 0); err != nil {
+		t.Errorf("zero means instance default and must be accepted: %v", err)
+	}
+	// Stored and read back.
+	got, err := store.TargetBySlug("ok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LossWarn != 8 || got.LossCrit != 20 || got.LatFactor != 3 {
+		t.Errorf("thresholds not persisted: %+v", got)
+	}
+}
+
+// The Forwarded header of RFC 7239 is read in preference to the older
+// X-Forwarded-For, and in both only the element the proxy vouches for counts.
+func TestClientIPHeaders(t *testing.T) {
+	req := func(remote string, h map[string]string) *http.Request {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = remote
+		for k, v := range h {
+			r.Header.Set(k, v)
+		}
+		return r
+	}
+	cases := []struct {
+		name, remote string
+		headers      map[string]string
+		want         string
+	}{
+		{"direct connection, headers ignored", "198.51.100.7:4242",
+			map[string]string{"Forwarded": "for=203.0.113.1"}, "198.51.100.7"},
+		{"Forwarded from a local proxy", "127.0.0.1:5555",
+			map[string]string{"Forwarded": `for=203.0.113.1;proto=https`}, "203.0.113.1"},
+		{"Forwarded wins over the legacy header", "127.0.0.1:5555",
+			map[string]string{"Forwarded": "for=203.0.113.1",
+				"X-Forwarded-For": "198.51.100.9"}, "203.0.113.1"},
+		{"a client-supplied element is pushed left and ignored", "127.0.0.1:5555",
+			map[string]string{"Forwarded": `for="1.2.3.4", for=203.0.113.1`}, "203.0.113.1"},
+		{"quoted IPv6 with a port", "127.0.0.1:5555",
+			map[string]string{"Forwarded": `for="[2001:db8::1]:4711"`}, "2001:db8::1"},
+		{"obfuscated identifiers are not addresses", "127.0.0.1:5555",
+			map[string]string{"Forwarded": "for=_hidden, for=unknown"}, "127.0.0.1"},
+		{"the legacy header still works", "127.0.0.1:5555",
+			map[string]string{"X-Forwarded-For": "1.2.3.4, 203.0.113.1"}, "203.0.113.1"},
+		{"nothing at all", "127.0.0.1:5555", nil, "127.0.0.1"},
+	}
+	for _, c := range cases {
+		if got := clientIP(req(c.remote, c.headers)); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}

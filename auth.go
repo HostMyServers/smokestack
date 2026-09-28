@@ -356,18 +356,64 @@ func (l *attemptLimiter) allow(key string) bool {
 // clientIP ne croit l'en-tete X-Forwarded-For que si la connexion vient
 // d'un reverse proxy local : expose directement, un client pourrait sinon
 // forger cet en-tete pour contourner la limitation des tentatives.
+// clientIP is the address the request came from, as seen through a reverse
+// proxy running on this host. RFC 7239 defines Forwarded, which supersedes
+// the ad-hoc X-Forwarded-For; both are read, Forwarded first, and the
+// legacy header is kept because most deployments still send it.
+//
+// In either header the LAST element is used, not the first. A proxy appends
+// the peer it actually saw, so what a client puts there itself is pushed to
+// the left and ignored: the rightmost element is the only one the proxy
+// vouches for. The headers are read at all only when the request arrives
+// from the loopback, which is where a local reverse proxy sits.
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
 	}
-	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
-		if xf := r.Header.Get("X-Forwarded-For"); xf != "" {
-			parts := strings.Split(xf, ",")
-			return strings.TrimSpace(parts[len(parts)-1])
-		}
+	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+		return host
+	}
+	if f := forwardedFor(r.Header.Get("Forwarded")); f != "" {
+		return f
+	}
+	if xf := r.Header.Get("X-Forwarded-For"); xf != "" {
+		parts := strings.Split(xf, ",")
+		return strings.TrimSpace(parts[len(parts)-1])
 	}
 	return host
+}
+
+// forwardedFor reads the last for= parameter of an RFC 7239 Forwarded
+// header. The syntax allows several comma-separated elements, each a list of
+// semicolon-separated parameters, and an address may be quoted and carry a
+// port, an obfuscated identifier, or the IPv6 bracket form.
+func forwardedFor(h string) string {
+	if h == "" {
+		return ""
+	}
+	out := ""
+	for _, element := range strings.Split(h, ",") {
+		for _, param := range strings.Split(element, ";") {
+			k, v, ok := strings.Cut(param, "=")
+			if !ok || !strings.EqualFold(strings.TrimSpace(k), "for") {
+				continue
+			}
+			v = strings.TrimSpace(v)
+			v = strings.Trim(v, `"`)
+			if v == "" || strings.HasPrefix(v, "_") || strings.EqualFold(v, "unknown") {
+				continue // obfuscated or unknown identifier, RFC 7239 §6.2 and §6.3
+			}
+			if host, _, err := net.SplitHostPort(v); err == nil {
+				v = host
+			}
+			v = strings.Trim(v, "[]")
+			if net.ParseIP(v) != nil {
+				out = v
+			}
+		}
+	}
+	return out
 }
 
 // ------------------------------------------------------- garde d'acces

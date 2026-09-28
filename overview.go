@@ -70,20 +70,76 @@ type Overview struct {
 	Counts      map[string]int      `json:"counts"`
 }
 
-func classify(sent, lost int64, med, base float64) string {
+// classify turns one window of measurements into a state. The thresholds
+// come from the target, which falls back to the instance defaults: a link
+// known to be poor should not shout every day, and a link that matters can
+// be watched more closely than the rest.
+func classify(sent, lost int64, med, base float64, th Thresholds) string {
 	if sent == 0 {
 		return "nodata"
 	}
+	th = th.orDefaults()
 	loss := float64(lost) * 100 / float64(sent)
 	switch {
-	case loss > 3:
+	case loss > th.LossCrit:
 		return "crit"
-	case loss > 0.4:
+	case loss > th.LossWarn:
 		return "warn"
-	case base > 0 && med > base*1.4 && med-base > 1:
+	case base > 0 && med > base*th.LatFactor && med-base > latMinDeltaMs:
 		return "warn"
 	}
 	return "ok"
+}
+
+// latMinDeltaMs keeps a proportional rise from raising anything when the
+// absolute move is negligible: 40 % more than 0.2 ms is still 0.2 ms.
+const latMinDeltaMs = 1.0
+
+// Thresholds is what separates ok, warn and crit for one target. A zero
+// field means "follow the instance default", so a target created before
+// these existed behaves exactly as it did.
+type Thresholds struct {
+	LossWarn  float64 `json:"loss_warn,omitempty"`  // percent
+	LossCrit  float64 `json:"loss_crit,omitempty"`  // percent
+	LatFactor float64 `json:"lat_factor,omitempty"` // median over baseline
+}
+
+// DefaultThresholds are the values used before they could be set, kept as
+// the shipped defaults so nothing moves for an instance that never touches
+// them.
+func DefaultThresholds() Thresholds {
+	return Thresholds{LossWarn: 0.4, LossCrit: 3, LatFactor: 1.4}
+}
+
+func (t Thresholds) orDefaults() Thresholds {
+	d := DefaultThresholds()
+	if t.LossWarn <= 0 {
+		t.LossWarn = d.LossWarn
+	}
+	if t.LossCrit <= 0 {
+		t.LossCrit = d.LossCrit
+	}
+	if t.LatFactor <= 1 {
+		t.LatFactor = d.LatFactor
+	}
+	if t.LossCrit < t.LossWarn {
+		t.LossCrit = t.LossWarn
+	}
+	return t
+}
+
+// merge resolves one target's thresholds against the instance defaults.
+func (t Thresholds) merge(base Thresholds) Thresholds {
+	if t.LossWarn <= 0 {
+		t.LossWarn = base.LossWarn
+	}
+	if t.LossCrit <= 0 {
+		t.LossCrit = base.LossCrit
+	}
+	if t.LatFactor <= 1 {
+		t.LatFactor = base.LatFactor
+	}
+	return t.orDefaults()
 }
 
 type ovAgg struct {
@@ -159,6 +215,7 @@ func rowMed(r ovRow) float64 {
 // debut du defaut.
 func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, error) {
 	addrs := s.TargetAddresses(now - 24*3600)
+	siteTh := s.Site().Thresholds.orDefaults()
 	cats, err := s.Tree(publicOnly)
 	if err != nil {
 		return nil, err
@@ -225,6 +282,9 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 					cur.add(r.sent, r.lost, r.sk)
 				}
 			}
+			// The target's own thresholds, or the instance defaults.
+			th := Thresholds{LossWarn: t.LossWarn, LossCrit: t.LossCrit,
+				LatFactor: t.LatFactor}.merge(siteTh)
 			baseMed := base.q(0.5)
 			if baseMed == nil {
 				baseMed = day.q(0.5)
@@ -238,7 +298,7 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 			if med != nil {
 				m = *med
 			}
-			ot.Status = classify(cur.sent, cur.lost, m, bm)
+			ot.Status = classify(cur.sent, cur.lost, m, bm, th)
 			ot.MedMs, ot.BaseMs = med, baseMed
 			if cur.sent > 0 {
 				l := float64(cur.lost) * 100 / float64(cur.sent)
@@ -253,7 +313,7 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 				if v := slots[i].q(0.5); v != nil {
 					sm = *v
 				}
-				ot.Hours[i] = classify(slots[i].sent, slots[i].lost, sm, bm)
+				ot.Hours[i] = classify(slots[i].sent, slots[i].lost, sm, bm, th)
 			}
 			for i := range sparks {
 				ot.Spark.T = append(ot.Spark.T, sparkStart+int64(i)*300)
@@ -266,7 +326,7 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 			if ot.Status == "warn" || ot.Status == "crit" {
 				since, okRun, open := now, 0, true
 				for i := len(mins) - 1; i >= 0 && open; i-- {
-					if classify(mins[i].sent, mins[i].lost, rowMed(mins[i]), bm) == "ok" {
+					if classify(mins[i].sent, mins[i].lost, rowMed(mins[i]), bm, th) == "ok" {
 						if okRun++; okRun >= 2 {
 							open = false
 						}
@@ -280,7 +340,7 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 						if rows[i].b >= since {
 							continue
 						}
-						if classify(rows[i].sent, rows[i].lost, rowMed(rows[i]), bm) == "ok" {
+						if classify(rows[i].sent, rows[i].lost, rowMed(rows[i]), bm, th) == "ok" {
 							break
 						}
 						since = rows[i].b

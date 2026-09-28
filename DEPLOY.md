@@ -8,7 +8,7 @@ probes a few hundred targets.
 ## Contents
 
 1. [Requirements](#1-requirements)
-2. [Install in one command](#2-install-in-one-command)
+2. [Install in one command](#2-install-in-one-command) — and [from source](#building-from-source)
 3. [Put it behind HTTPS](#3-put-it-behind-https)
 4. [First steps](#4-first-steps)
 5. [Updating](#5-updating)
@@ -118,6 +118,53 @@ script does not run in a terminal.
 Running the installer again on an installed server **upgrades it in place**
 and keeps the configuration and the data.
 
+### Building from source
+
+For anyone who prefers doing it by hand, or who wants a binary built on their own machine rather than a downloaded package. Go 1.22 or later is the only build dependency; there is no C toolchain, no node, no asset pipeline. The web interface is embedded in the binary.
+
+```sh
+git clone https://github.com/nkglfr/smokestack
+cd smokestack
+make build                  # produces dist/smokestack and prints its version
+```
+
+`make build` is a single `CGO_ENABLED=0 go build -trimpath`, so the result is one static binary that runs on any Linux of the same architecture. To build it yourself, without make:
+
+```sh
+CGO_ENABLED=0 go build -trimpath \
+  -ldflags "-X main.Version=$(git describe --tags --always) -X main.BuildDate=$(date -u +%Y-%m-%d)" \
+  -o smokestack .
+```
+
+The version and build date are injected at link time. A binary built without them reports `dev`, which is harmless but makes the update check useless, since it cannot tell what it is running.
+
+**Cross-compiling** is a matter of two variables, the binary being static:
+
+```sh
+GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o smokestack-arm64 .
+```
+
+**Installing what you built**, with the same layout, service units and user as a release package:
+
+```sh
+sudo ./install.sh --package dist/smokestack     # or: make install
+```
+
+**Running it without installing anything**, which is the quickest way to try it. The data directory is not a flag: it comes from `data_dir` in the configuration file, and a configuration file that does not exist is written with the defaults on first start. So point `-config` at a path of your own:
+
+```sh
+mkdir -p try && cd try
+cat > config.json <<'EOF'
+{ "data_dir": "./data", "listen": "127.0.0.1:8080" }
+EOF
+sudo setcap cap_net_raw+ep ../dist/smokestack   # ICMP needs the capability
+../dist/smokestack -config ./config.json
+```
+
+It creates its databases under `./data`, installs a three-target demo set, serves `http://127.0.0.1:8080`, and prints a setup code to enter at `/admin` to create the first account — the code is also written to `data/setup-code`. `-listen`, `-ip` and `-port` override the listen address without touching the file. Without the capability it still starts, but ICMP targets fail and say so; TCP targets work. Run from an arbitrary directory it also says that in-place updates are unavailable, which is expected: they need the `/opt/smokestack/releases/<version>/` layout that `install.sh` creates.
+
+**Checks before proposing a change**: `make test` runs `go vet ./...` and the test suite, which is what the CI runs too. `make tidy` keeps `go.mod` in order. `make dist` builds the release packages locally, and additionally verifies the branding variables.
+
 ### File layout
 
 ```
@@ -189,7 +236,7 @@ server {
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Forwarded "for=$remote_addr;proto=$scheme";
         proxy_set_header X-Forwarded-Proto $scheme;
     }
     location /api/v1/live {             # server-sent events
@@ -200,9 +247,9 @@ server {
 }
 ```
 
-`X-Forwarded-For` is trusted **only when the proxy runs on the same host**
-(connection from loopback). If the proxy is on another machine, login rate
-limiting applies to the proxy's address.
+`Forwarded` is the header of RFC 7239, which supersedes the ad-hoc `X-Forwarded-For`. smokestack reads both — `Forwarded` first — so an existing configuration keeps working, and `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` remains valid if you already have it. The form above is preferable for one more reason than its age: it states the address nginx actually saw and nothing else, where `$proxy_add_x_forwarded_for` appends to whatever the client sent.
+
+Either header is trusted **only when the proxy runs on the same host** (connection from the loopback), and only its **last** element is used — a proxy appends the peer it saw, so anything a client put there itself is pushed to the left and ignored. If the proxy is on another machine, login rate limiting applies to the proxy's address.
 
 ## 4. First steps
 
@@ -733,6 +780,21 @@ remember which ticket or which AS it was for.
 The token is stored **hashed**: a copy of the database hands over no working
 link, and the link is shown once, when created. Creations and revocations are
 in the audit log.
+
+### Thresholds, per target
+
+What separates **ok**, **warn** and **crit** is settable, per target and for the instance as a whole. The shipped defaults are the values that were hardcoded before: warn above **0.4 %** loss, critical above **3 %**, and warn when the median is more than **1.4×** the seven-day baseline. *Settings → Default thresholds* changes them for every target, and each target's own form overrides them where it matters.
+
+A zero in a target's field means "follow the instance", so a target created before these existed behaves exactly as it did.
+
+Two cases this is for:
+
+- **a link known to be poor.** A rural radio hop, a consumer line, a destination that rate-limits ICMP: it loses 2 % permanently, nothing is wrong, and a permanently red row teaches everybody to ignore the colour. Raise its thresholds — say warn at 5 %, critical at 15 % — and the row goes back to meaning something;
+- **a link that must not degrade.** A transit you pay for, an anchor towards a customer: warn at 0.1 % rather than 0.4, and the graph tells you before anybody calls.
+
+The latency factor works the same way. A path whose median moves with the load — a satellite link, a busy peering — is better watched at 3× than at 1.4×; a stable fibre path is worth watching at 1.2×. In every case a rise of **less than a millisecond raises nothing**, whatever the factor: 40 % more than 0.2 ms is still 0.2 ms, and that rule is not settable because it exists to stop arithmetic from producing alerts nobody can act on.
+
+Thresholds change the **state shown**, not the measurements: history is untouched, and a target you made tolerant can be made strict again with its whole past intact. Alerting follows the same states, so raising a target's thresholds also stops it waking anybody — which is usually the point. To keep a target measured and simply never be woken for it, use *Alerts* in the target list instead.
 
 ### Interval and retention, per target
 
