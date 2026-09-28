@@ -227,6 +227,22 @@ func OpenStore(dir string) (*Store, error) {
 	addColumn(cfg, "targets", "loss_warn REAL NOT NULL DEFAULT 0")
 	addColumn(cfg, "targets", "loss_crit REAL NOT NULL DEFAULT 0")
 	addColumn(cfg, "targets", "lat_factor REAL NOT NULL DEFAULT 0")
+	// Parametres de categorie : liaison dynamique. Une valeur non nulle ici
+	// s'applique a toutes les cibles de la categorie qui n'en declarent pas
+	// une elle-meme, et un changement les suit toutes immediatement.
+	for _, c := range []string{
+		"interval_s INTEGER NOT NULL DEFAULT 0",
+		"packets INTEGER NOT NULL DEFAULT 0",
+		"spacing_ms INTEGER NOT NULL DEFAULT 0",
+		"timeout_ms INTEGER NOT NULL DEFAULT 0",
+		"keep_days INTEGER NOT NULL DEFAULT 0",
+		"trace_hours INTEGER NOT NULL DEFAULT 0",
+		"loss_warn REAL NOT NULL DEFAULT 0",
+		"loss_crit REAL NOT NULL DEFAULT 0",
+		"lat_factor REAL NOT NULL DEFAULT 0",
+	} {
+		addColumn(cfg, "categories", c)
+	}
 	migrateTCPPorts(cfg)
 	migratePathEventScope(cfg)
 
@@ -329,6 +345,217 @@ type Category struct {
 	MenuEN   string    `json:"menu_en"`
 	Public   bool      `json:"public"`
 	Targets  []*Target `json:"targets"`
+	// Params : valeurs appliquees aux cibles de la categorie qui n'en
+	// declarent pas. Liaison dynamique : les changer ici change ce que
+	// mesurent toutes celles qui heritent, sans les toucher une par une.
+	Params TargetParams `json:"params"`
+}
+
+// TargetParams est l'ensemble des reglages qu'une cible peut heriter de sa
+// categorie, puis de l'instance. Zero signifie « pas de valeur a ce
+// niveau », a tous les niveaux, ce qui rend la cascade lisible : la
+// premiere valeur non nulle en descendant gagne.
+type TargetParams struct {
+	IntervalS  int64   `json:"interval_s,omitempty"`
+	Packets    int     `json:"packets,omitempty"`
+	SpacingMs  int     `json:"spacing_ms,omitempty"`
+	TimeoutMs  int     `json:"timeout_ms,omitempty"`
+	KeepDays   int     `json:"keep_days,omitempty"`
+	TraceHours int     `json:"trace_hours,omitempty"`
+	LossWarn   float64 `json:"loss_warn,omitempty"`
+	LossCrit   float64 `json:"loss_crit,omitempty"`
+	LatFactor  float64 `json:"lat_factor,omitempty"`
+}
+
+const catParamCols = `interval_s,packets,spacing_ms,timeout_ms,keep_days,
+                      trace_hours,loss_warn,loss_crit,lat_factor`
+
+func scanParams(scan func(...any) error) (TargetParams, error) {
+	var p TargetParams
+	err := scan(&p.IntervalS, &p.Packets, &p.SpacingMs, &p.TimeoutMs,
+		&p.KeepDays, &p.TraceHours, &p.LossWarn, &p.LossCrit, &p.LatFactor)
+	return p, err
+}
+
+// CategoryParams reads the parameters of every category, once, so that
+// resolving a list of targets costs one query rather than one per target.
+func (s *Store) CategoryParams() map[int64]TargetParams {
+	out := map[int64]TargetParams{}
+	rows, err := s.cfg.Query(`SELECT id,` + catParamCols + ` FROM categories`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		p, err := scanParams(func(dst ...any) error {
+			return rows.Scan(append([]any{&id}, dst...)...)
+		})
+		if err == nil {
+			out[id] = p
+		}
+	}
+	return out
+}
+
+// SetCategoryParams stores what the category lends to its targets. The
+// values are checked against the same limits as a target's own, so a
+// category cannot push a target into a state the target itself would have
+// been refused.
+func (s *Store) SetCategoryParams(id int64, p TargetParams) error {
+	if err := checkParams(p); err != nil {
+		return err
+	}
+	_, err := s.cfg.Exec(
+		`UPDATE categories SET interval_s=?,packets=?,spacing_ms=?,timeout_ms=?,
+		        keep_days=?,trace_hours=?,loss_warn=?,loss_crit=?,lat_factor=?
+		  WHERE id=?`,
+		p.IntervalS, p.Packets, p.SpacingMs, p.TimeoutMs, p.KeepDays,
+		p.TraceHours, p.LossWarn, p.LossCrit, p.LatFactor, id)
+	if err == nil {
+		s.notifyTargets() // the probe picks up the new interval immediately
+	}
+	return err
+}
+
+// targetCols is the column list every target query shares, so adding a
+// column is one edit rather than five.
+const targetCols = `id,category_id,slug,title,host,proto,interval_s,packets,
+	        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor`
+
+// inheritableFields maps the name the interface uses to the column it
+// clears. Only these can be inherited; the host, the protocol, the port and
+// the family are what makes a target a target rather than a copy of its
+// neighbours, and they are never lent by a category.
+var inheritableFields = map[string]string{
+	"interval_s": "interval_s", "packets": "packets", "spacing_ms": "spacing_ms",
+	"timeout_ms": "timeout_ms", "keep_days": "keep_days",
+	"trace_hours": "trace_hours", "loss_warn": "loss_warn",
+	"loss_crit": "loss_crit", "lat_factor": "lat_factor",
+}
+
+// InheritCounts says, per field, how many live targets of a category take
+// their value from it. An edit that reaches twenty targets should say so
+// before it is saved, not after somebody notices the graphs changed shape.
+func (s *Store) InheritCounts(catID int64) map[string]int {
+	out := map[string]int{}
+	for name, col := range inheritableFields {
+		var n int
+		s.cfg.QueryRow(`SELECT COUNT(*) FROM targets
+		                 WHERE category_id=? AND archived_at=0 AND `+col+`=0`,
+			catID).Scan(&n)
+		out[name] = n
+	}
+	return out
+}
+
+// ResetToInherit clears the named fields on every live target of a category,
+// so the category's value applies to them. Every target of an instance
+// upgrading to this version carries explicit values, so without this a
+// category parameter would change nothing and look broken.
+func (s *Store) ResetToInherit(catID int64, fields []string) (int64, error) {
+	if len(fields) == 0 {
+		return 0, fmt.Errorf("name at least one parameter to reset")
+	}
+	set := make([]string, 0, len(fields))
+	for _, f := range fields {
+		col, ok := inheritableFields[f]
+		if !ok {
+			return 0, fmt.Errorf("%q is not a parameter a category can lend", f)
+		}
+		set = append(set, col+"=0")
+	}
+	res, err := s.cfg.Exec(`UPDATE targets SET `+strings.Join(set, ",")+
+		` WHERE category_id=? AND archived_at=0`, catID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	s.notifyTargets()
+	return n, nil
+}
+
+// CategoryWouldBreak reports the first target of a category that its current
+// parameters would push outside the limits — a 10-second interval lent to a
+// 20-packet target, say. It returns an empty string when all of them hold.
+func (s *Store) CategoryWouldBreak(catID int64) (string, error) {
+	rows, err := s.cfg.Query(`SELECT `+targetCols+
+		` FROM targets WHERE category_id=? AND archived_at=0`, catID)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	ts, err := scanTargets(rows)
+	if err != nil {
+		return "", err
+	}
+	params := s.CategoryParams()[catID]
+	shipped := shippedParams()
+	for _, t := range ts {
+		eff := *t
+		eff.inherit(params)
+		eff.inherit(shipped)
+		if err := checkTarget(&eff); err != nil {
+			return fmt.Sprintf("these values do not work for %s (%s): %v",
+				t.Title, t.Slug, err), nil
+		}
+	}
+	return "", nil
+}
+
+// inherit fills the zero fields of a target from its category. It is the
+// whole of the dynamic binding: nothing is copied into the target, so a
+// change to the category is seen by every target that did not state its own
+// value, at the next read.
+func (t *Target) inherit(p TargetParams) {
+	if t.IntervalS == 0 {
+		t.IntervalS = p.IntervalS
+	}
+	if t.Packets == 0 {
+		t.Packets = p.Packets
+	}
+	if t.SpacingMs == 0 {
+		t.SpacingMs = p.SpacingMs
+	}
+	if t.TimeoutMs == 0 {
+		t.TimeoutMs = p.TimeoutMs
+	}
+	if t.KeepDays == 0 {
+		t.KeepDays = p.KeepDays
+	}
+	if t.TraceHours == 0 {
+		t.TraceHours = p.TraceHours
+	}
+	if t.LossWarn == 0 {
+		t.LossWarn = p.LossWarn
+	}
+	if t.LossCrit == 0 {
+		t.LossCrit = p.LossCrit
+	}
+	if t.LatFactor == 0 {
+		t.LatFactor = p.LatFactor
+	}
+}
+
+// shippedParams are the last resort, below the category and the instance:
+// what a target measures when nobody said anything anywhere.
+func shippedParams() TargetParams {
+	return TargetParams{IntervalS: 60, Packets: 20, SpacingMs: 500, TimeoutMs: 2000}
+}
+
+// resolve fills a list of targets from their category, then from what the
+// binary ships. Callers that mean to edit a target read the raw row
+// instead: the difference between "inherits 60 s" and "states 60 s" is the
+// whole point, and an edit form that resolved would quietly turn the first
+// into the second.
+func (s *Store) resolve(ts []*Target) []*Target {
+	params := s.CategoryParams()
+	shipped := shippedParams()
+	for _, t := range ts {
+		t.inherit(params[t.CategoryID])
+		t.inherit(shipped)
+	}
+	return ts
 }
 
 func (s *Store) ProbeID(slug, name, location string, local bool) (int64, error) {
@@ -361,7 +588,13 @@ func (s *Store) ActiveTargets() ([]*Target, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanTargets(rows)
+	ts, err := scanTargets(rows)
+	if err != nil {
+		return nil, err
+	}
+	// The probe needs effective values: a target inheriting its interval
+	// must be measured at the category's, not at zero.
+	return s.resolve(ts), nil
 }
 
 func scanTargets(rows *sql.Rows) ([]*Target, error) {
@@ -384,8 +617,8 @@ func scanTargets(rows *sql.Rows) ([]*Target, error) {
 
 func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 	rows, err := s.cfg.Query(
-		`SELECT id,parent_id,slug,menu_fr,menu_en,public
-		   FROM categories ORDER BY position, id`)
+		`SELECT id,parent_id,slug,menu_fr,menu_en,public,` + catParamCols +
+			` FROM categories ORDER BY position, id`)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +630,10 @@ func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 		c := &Category{Targets: []*Target{}}
 		var pub int
 		var parent sql.NullInt64
-		if err := rows.Scan(&c.ID, &parent, &c.Slug, &c.MenuFR, &c.MenuEN, &pub); err != nil {
+		if err := rows.Scan(&c.ID, &parent, &c.Slug, &c.MenuFR, &c.MenuEN, &pub,
+			&c.Params.IntervalS, &c.Params.Packets, &c.Params.SpacingMs,
+			&c.Params.TimeoutMs, &c.Params.KeepDays, &c.Params.TraceHours,
+			&c.Params.LossWarn, &c.Params.LossCrit, &c.Params.LatFactor); err != nil {
 			return nil, err
 		}
 		if parent.Valid {
@@ -427,6 +663,9 @@ func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Effective values: the tree feeds the overview and the public pages,
+	// which show what a target measures, not what its row happens to hold.
+	targets = s.resolve(targets)
 	for _, t := range targets {
 		if publicOnly && !t.Public {
 			continue
@@ -925,13 +1164,20 @@ func checkTarget(t *Target) error {
 			return fmt.Errorf("a TCP target needs a port between 1 and 65535")
 		}
 	}
-	if t.Packets < 3 || t.Packets > 50 {
-		return fmt.Errorf("packets must be between 3 and 50")
+	// Zero means "inherit from the category, then from what the binary
+	// ships". The caller validates the effective values separately, so a
+	// target cannot end up measuring something the limits would refuse.
+	if t.Packets != 0 && (t.Packets < 3 || t.Packets > 50) {
+		return fmt.Errorf("packets must be 0 (inherit) or between 3 and 50")
 	}
 	// Any interval from 10 seconds to a day: what actually matters is that
 	// the burst fits in it, which the next check enforces.
-	if t.IntervalS < 10 || t.IntervalS > 86400 {
-		return fmt.Errorf("interval_s must be between 10 seconds and 86400 (one day)")
+	if t.IntervalS != 0 && (t.IntervalS < 10 || t.IntervalS > 86400) {
+		return fmt.Errorf("interval_s must be 0 (inherit) or between 10 seconds " +
+			"and 86400 (one day)")
+	}
+	if t.SpacingMs < 0 || t.TimeoutMs < 0 {
+		return fmt.Errorf("spacing_ms and timeout_ms must not be negative")
 	}
 	// Checked here rather than only in the API, so creation and update
 	// share the same limits whatever the caller.
@@ -959,8 +1205,34 @@ func checkTarget(t *Target) error {
 	if t.LatFactor != 0 && (t.LatFactor < 1.05 || t.LatFactor > 100) {
 		return fmt.Errorf("lat_factor must be 0 (instance default) or between 1.05 and 100")
 	}
-	if int64(t.Packets*t.SpacingMs+t.TimeoutMs) > t.IntervalS*1000*3/4 {
+	if t.IntervalS > 0 && t.Packets > 0 &&
+		int64(t.Packets*t.SpacingMs+t.TimeoutMs) > t.IntervalS*1000*3/4 {
 		return fmt.Errorf("packets x spacing_ms + timeout_ms exceeds 75%% of the interval")
+	}
+	return nil
+}
+
+// checkParams validates what a category lends to its targets, against the
+// same limits a target's own values face. A category must not be able to
+// push a target into a state the target itself would have been refused.
+func checkParams(p TargetParams) error {
+	t := &Target{Proto: "icmp", Host: "192.0.2.1", Title: "check",
+		IntervalS: p.IntervalS, Packets: p.Packets, SpacingMs: p.SpacingMs,
+		TimeoutMs: p.TimeoutMs, KeepDays: p.KeepDays, TraceHours: p.TraceHours,
+		LossWarn: p.LossWarn, LossCrit: p.LossCrit, LatFactor: p.LatFactor}
+	return checkTarget(t)
+}
+
+// checkEffective validates a target as it will actually be measured, once
+// its category and the shipped values have filled its gaps. A category set
+// to a 10-second interval cannot make a 20-packet target overrun its burst
+// without somebody being told.
+func (s *Store) checkEffective(t *Target) error {
+	eff := *t
+	eff.inherit(s.CategoryParams()[t.CategoryID])
+	eff.inherit(shippedParams())
+	if err := checkTarget(&eff); err != nil {
+		return fmt.Errorf("with the values inherited from its category: %w", err)
 	}
 	return nil
 }
@@ -968,6 +1240,9 @@ func checkTarget(t *Target) error {
 // UpdateTarget saves an existing target, including its visibility.
 func (s *Store) UpdateTarget(t *Target) error {
 	if err := checkTarget(t); err != nil {
+		return err
+	}
+	if err := s.checkEffective(t); err != nil {
 		return err
 	}
 	_, err := s.cfg.Exec(
@@ -983,6 +1258,9 @@ func (s *Store) UpdateTarget(t *Target) error {
 
 func (s *Store) CreateTarget(t *Target) (int64, error) {
 	if err := checkTarget(t); err != nil {
+		return 0, err
+	}
+	if err := s.checkEffective(t); err != nil {
 		return 0, err
 	}
 	res, err := s.cfg.Exec(

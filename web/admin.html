@@ -161,6 +161,26 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,
   c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 // Échapper ne protège pas un href : javascript:… reste cliquable. Toute
 // URL qui vient d'ailleurs (pair, PeeringDB) passe par ici.
+// An empty numeric field means "inherit", which the API spells as zero.
+const num0=v=>{const t=String(v==null?"":v).trim();return t===""?0:parseInt(t,10)||0;};
+// What this target would inherit if its fields stay empty, shown under them.
+async function showInherited(catID){
+  const box=$("#tinh"); if(!box) return;
+  if(!catID){box.style.display="none";return;}
+  try{
+    const r=await api("GET","/api/v1/admin/categories/"+catID+"/params");
+    const p=r.params||{}, shipped={interval_s:60,packets:20,spacing_ms:500,timeout_ms:2000};
+    const eff=k=>p[k]||shipped[k];
+    box.innerHTML="Left empty, this target measures "+eff("packets")+" packets spaced by "+
+      eff("spacing_ms")+" ms every "+eff("interval_s")+" s, timing out after "+eff("timeout_ms")+
+      " ms"+(Object.keys(p).length?" — from this category":" — the shipped values, this category lending none")+
+      ". Changing the category later changes this target with it.";
+    box.style.display="";
+    ["interval_s","packets","spacing_ms","timeout_ms"].forEach((k,i)=>{
+      const el=$("#"+["tiv","tpk","tsp","tto"][i]); if(el) el.placeholder=String(eff(k));
+    });
+  }catch(e){box.style.display="none";}
+}
 const escURL=s=>{const v=String(s==null?"":s).trim();
   return /^https?:\/\/[^\s]+$/i.test(v)?esc(v):"";};
 const dt=ts=>ts?new Date(ts*1000).toLocaleString("en-GB",
@@ -400,8 +420,8 @@ async function viewTargets(m){
           <div style="font-size:11px;color:var(--ink3);margin-top:3px">A target states which family it
             measures. The two cross different networks and fail independently, so measure both with
             <em>Also IPv6</em>, which keeps them as two comparable series.</div></div>
-        <div class="field"><label>Interval (seconds, 10 to 86400)</label>
-          <input id="tiv" type="number" min="10" max="86400" value="60" list="ivs">
+        <div class="field"><label>Interval (seconds, 10 to 86400 — empty inherits from the category)</label>
+          <input id="tiv" type="number" min="10" max="86400" placeholder="—" list="ivs">
           <datalist id="ivs">${[[30,"30 s"],[60,"1 min"],[120,"2 min"],[300,"5 min"],[600,"10 min"],
             [1800,"30 min"],[3600,"1 hour"]].map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</datalist>
           <div style="font-size:11px;color:var(--ink3);margin-top:3px">The burst must fit:
@@ -417,9 +437,13 @@ async function viewTargets(m){
           <div style="font-size:11px;color:var(--ink3);margin-top:3px">Median compared with the
             seven-day baseline. 1.4 means "40 % slower than usual". A rise of less than a
             millisecond never raises anything, whatever the factor.</div></div>
-        <div class="field"><label>Packets</label><input id="tpk" type="number" value="20"></div>
-        <div class="field"><label>Spacing (ms)</label><input id="tsp" type="number" value="500"></div>
-        <div class="field"><label>Timeout (ms)</label><input id="tto" type="number" value="2000"></div>
+        <div class="field"><label>Packets <span class="faint" style="font-weight:400">— empty inherits</span></label>
+          <input id="tpk" type="number" placeholder="—"></div>
+        <div class="field"><label>Spacing (ms) <span class="faint" style="font-weight:400">— empty inherits</span></label>
+          <input id="tsp" type="number" placeholder="—"></div>
+        <div class="field"><label>Timeout (ms) <span class="faint" style="font-weight:400">— empty inherits</span></label>
+          <input id="tto" type="number" placeholder="—"></div>
+        <div class="note" id="tinh" style="grid-column:1/-1;display:none"></div>
         <div class="field"><label>Reference traceroute every (hours, 0 = instance default)</label>
           <input id="thrs" type="number" min="0" max="720" value="0"></div>
         <div class="field"><label>Pinned address (optional)</label>
@@ -473,7 +497,31 @@ async function viewTargets(m){
         <button class="btn s" data-cup="${c.id}" title="Move up">↑</button>
         <button class="btn s" data-cdown="${c.id}" title="Move down">↓</button>
         <button class="btn s" data-csave="${c.id}">Rename</button>
-        <button class="btn d s" data-cdel="${c.id}">Delete</button></td></tr>`).join("")+
+        <button class="btn s" data-cpar="${c.id}">Parameters</button>
+        <button class="btn d s" data-cdel="${c.id}">Delete</button></td></tr>
+      <tr id="cpar${c.id}" hidden><td colspan="4" style="background:var(--bg2)">
+        <p class="note" style="margin-top:0">A value here applies to every target of this category
+          that leaves the field empty. Changing it changes what those targets measure, at once —
+          the count next to each field is how many that is right now. Empty means the category lends
+          nothing and the target keeps what it has.</p>
+        <div class="row2">${[["interval_s","Interval (s)",10,86400,1],
+                             ["packets","Packets",3,50,1],
+                             ["spacing_ms","Spacing (ms)",0,60000,1],
+                             ["timeout_ms","Timeout (ms)",0,60000,1],
+                             ["keep_days","Keep (days)",0,3650,1],
+                             ["trace_hours","Reference traceroute (h)",0,720,1],
+                             ["loss_warn","Warn above loss (%)",0,100,0.1],
+                             ["loss_crit","Critical above loss (%)",0,100,0.1],
+                             ["lat_factor","Latency factor",0,100,0.05]]
+          .map(([k,label,min,max,step])=>`<div class="field"><label>${esc(label)}
+            <span class="faint" style="font-weight:400" id="cnt-${c.id}-${k}"></span></label>
+            <input id="cp-${c.id}-${k}" type="number" min="${min}" max="${max}" step="${step}"
+              value="${(c.params&&c.params[k])||""}" placeholder="—"></div>`).join("")}</div>
+        <div class="acts">
+          <button class="btn p s" data-cpsave="${c.id}">Save parameters</button>
+          <button class="btn s" data-cpreset="${c.id}"
+            title="Clear these fields on every target of the category, so its values apply">
+            Make its targets inherit…</button></div></td></tr>`).join("")+
     `</tbody></table>`:`<div class="empty">No category yet.</div>`;
   document.querySelectorAll("[data-csave]").forEach(b=>b.onclick=async()=>{
     const id=b.dataset.csave;
@@ -481,6 +529,40 @@ async function viewTargets(m){
       {menu_en:document.querySelector(`[data-cen="${id}"]`).value,
        menu_fr:document.querySelector(`[data-cfr="${id}"]`).value});
       toast("Category renamed");render();}catch(e){toast(e.message,true);}
+  });
+  document.querySelectorAll("[data-cpar]").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.cpar, row=document.getElementById("cpar"+id);
+    row.hidden=!row.hidden;
+    if(row.hidden) return;
+    // How many targets take each value from the category, so the edit states
+    // its own reach before it is saved.
+    try{const r=await api("GET","/api/v1/admin/categories/"+id+"/params");
+      Object.entries(r.inheriting||{}).forEach(([k,n])=>{
+        const el=document.getElementById("cnt-"+id+"-"+k);
+        if(el) el.textContent=n?`· ${n} target${n>1?"s":""} inherit${n>1?"":"s"}`:"· none inherits";
+      });}catch(e){/* the fields still work without the counts */}
+  });
+  document.querySelectorAll("[data-cpsave]").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.cpsave, body={};
+    ["interval_s","packets","spacing_ms","timeout_ms","keep_days","trace_hours",
+     "loss_warn","loss_crit","lat_factor"].forEach(k=>{
+      const v=(document.getElementById("cp-"+id+"-"+k).value||"").trim();
+      body[k]=v===""?0:parseFloat(v);
+    });
+    try{const r=await api("PUT","/api/v1/admin/categories/"+id+"/params",body);
+      toast("Parameters saved");render();}catch(e){toast(e.message,true);}
+  });
+  document.querySelectorAll("[data-cpreset]").forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.cpreset;
+    const fields=["interval_s","packets","spacing_ms","timeout_ms","keep_days","trace_hours",
+      "loss_warn","loss_crit","lat_factor"].filter(k=>
+        (document.getElementById("cp-"+id+"-"+k).value||"").trim()!=="");
+    if(!fields.length){toast("Set a value on this category first",true);return;}
+    if(!confirm("Clear "+fields.join(", ")+" on every target of this category, so the category's "+
+      "values apply to all of them? Measurements are untouched; only what the next one does changes."))
+      return;
+    try{const r=await api("POST","/api/v1/admin/categories/"+id+"/reset",{fields});
+      toast(r.targets+" target(s) now inherit");render();}catch(e){toast(e.message,true);}
   });
   const move=async(id,dir)=>{
     try{await api("POST","/api/v1/admin/categories/"+id+"/move?dir="+dir);render();}
@@ -522,17 +604,26 @@ async function viewTargets(m){
     // it keeps it visible, so editing something else does not silently
     // change what it measures.
     if((EDIT.family||0)===0){ $("#tfamauto").hidden=false; $("#tfam").value="0"; }
-    $("#tiv").value=String(EDIT.interval_s); $("#tkeep").value=EDIT.keep_days||0; $("#tpk").value=EDIT.packets; $("#tsp").value=EDIT.spacing_ms;
-    $("#tto").value=EDIT.timeout_ms; $("#tpub").checked=!!EDIT.public;
+    // Zero is stored for a field that inherits, and the form shows it empty:
+    // the difference between "inherits 60 s" and "states 60 s" is the whole
+    // point, and prefilling would quietly turn the first into the second.
+    const z=v=>(v?String(v):"");
+    $("#tiv").value=z(EDIT.interval_s); $("#tkeep").value=EDIT.keep_days||0;
+    $("#tpk").value=z(EDIT.packets); $("#tsp").value=z(EDIT.spacing_ms);
+    $("#tto").value=z(EDIT.timeout_ms); $("#tpub").checked=!!EDIT.public;
     $("#canceledit").onclick=()=>{EDIT=null;render();};
-  } else { $("#tiv").value="60"; }
+  }
+  // A new target inherits by default, which is what makes a category
+  // parameter worth setting.
+  showInherited($("#tcat").value);
+  $("#tcat").onchange=()=>showInherited($("#tcat").value);
   syncProto();
   $("#savetgt").onclick=async()=>{
     const body={category_id:parseInt($("#tcat").value,10),title:$("#ttitle").value,
       host:cleanHost($("#thost").value),family:parseInt($("#tfam").value,10),proto:$("#tproto").value,
       port:$("#tproto").value==="tcp"?parseInt($("#tport").value||"0",10):0,
-      interval_s:parseInt($("#tiv").value,10), keep_days:parseInt($("#tkeep").value||"0",10),packets:parseInt($("#tpk").value,10),
-      spacing_ms:parseInt($("#tsp").value,10),timeout_ms:parseInt($("#tto").value,10),
+      interval_s:num0($("#tiv").value), keep_days:parseInt($("#tkeep").value||"0",10),
+      packets:num0($("#tpk").value), spacing_ms:num0($("#tsp").value), timeout_ms:num0($("#tto").value),
       pin_ip:$("#tpin").value.trim(), alerts_off:!$("#talert").checked,
       trace_hours:parseInt($("#thrs").value||"0",10), hide_host:$("#thide").checked,
       loss_warn:parseFloat($("#tlw").value||"0"), loss_crit:parseFloat($("#tlc").value||"0"),

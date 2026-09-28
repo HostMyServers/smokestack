@@ -827,6 +827,21 @@ A target left on **automatic** is set to **IPv6** when you build the pair, and t
 
 Two limits worth knowing. A target whose host is a **literal address** has no twin, since an address belongs to one family: add the other address as its own target. And a pair is recognised by what it measures — same host, protocol and port, the other family — rather than by a stored link, so a pair you built by hand years ago is recognised as one, and renaming either side does not break it.
 
+### Parameters on a category, inherited by its targets
+
+Configuring twenty targets identically, one by one, is work nobody should do twice — and changing them afterwards is the same work again. A category therefore lends its parameters to its targets: **interval, packets, spacing, timeout, retention, reference traceroute interval and the three thresholds**. Not the host, the protocol, the port or the address family, which are what makes a target a target rather than a copy of its neighbours.
+
+The binding is **dynamic**. Nothing is copied into a target at creation: a field left empty reads the category's value every time, so changing the category changes what every inheriting target measures, at once. The cascade is the category, then what the binary ships (20 packets spaced by 500 ms every 60 s, 2 s timeout), and the first value found going down wins.
+
+Two things make that safe to use:
+
+- **each field says how far it reaches.** *Parameters* on a category shows, next to every field, how many of its targets currently take their value from it. An edit that retunes twelve targets says so before you save it, not after somebody notices the graphs changed shape;
+- **a category cannot break a target.** Values are checked against the same limits a target's own face, and against every target that inherits them: a 10-second interval lent to a target sending 30 packets is refused, naming the target, rather than quietly producing a burst that cannot fit.
+
+**Existing targets all carry explicit values**, so a category parameter changes nothing for them until you say so. *Make its targets inherit…* clears the fields you have set on the category, on every target of that category, in one action — with the list spelled out in the confirmation. Measurements are untouched: only what the next one does changes.
+
+A target's own form shows the difference plainly. An empty field means inherit, and a line under the fields says what the target will actually measure if they stay empty, and from where. A field that holds a number states it, and no category change will move it.
+
 ### Thresholds, per target
 
 What separates **ok**, **warn** and **crit** is settable, per target and for the instance as a whole. The shipped defaults are the values that were hardcoded before: warn above **0.4 %** loss, critical above **3 %**, and warn when the median is more than **1.4×** the seven-day baseline. *Settings → Default thresholds* changes them for every target, and each target's own form overrides them where it matters.

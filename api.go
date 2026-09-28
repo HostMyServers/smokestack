@@ -68,6 +68,9 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/v1/admin/alerts", a.need(RoleAdmin, a.alertsPut))
 	mux.HandleFunc("POST /api/v1/admin/categories", a.auth(a.categoriesPost))
 	mux.HandleFunc("PATCH /api/v1/admin/categories/{id}", a.auth(a.categoriesPatch))
+	mux.HandleFunc("GET /api/v1/admin/categories/{id}/params", a.auth(a.categoryParamsGet))
+	mux.HandleFunc("PUT /api/v1/admin/categories/{id}/params", a.auth(a.categoryParamsPut))
+	mux.HandleFunc("POST /api/v1/admin/categories/{id}/reset", a.auth(a.categoryReset))
 	mux.HandleFunc("POST /api/v1/admin/categories/{id}/move", a.auth(a.categoriesMove))
 	mux.HandleFunc("DELETE /api/v1/admin/categories/{id}", a.auth(a.categoriesDelete))
 	mux.HandleFunc("POST /api/v1/admin/events", a.auth(a.eventsPost))
@@ -831,6 +834,79 @@ func (a *API) categoriesPatch(w http.ResponseWriter, r *http.Request) {
 	}
 	go ovCache.build()
 	writeJSON(w, map[string]any{"ok": true})
+}
+
+// categoryParamsGet answers with the category's parameters and, per field,
+// how many of its targets take their value from it.
+func (a *API) categoryParamsGet(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "invalid identifier")
+		return
+	}
+	writeJSON(w, map[string]any{
+		"params":     a.store.CategoryParams()[id],
+		"inheriting": a.store.InheritCounts(id),
+	})
+}
+
+// categoryParamsPut stores what a category lends to its targets. Dynamic
+// binding: the values are not copied anywhere, so changing them changes what
+// every inheriting target measures, at once. The answer says how many that
+// is, because an edit should state its own reach.
+func (a *API) categoryParamsPut(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "invalid identifier")
+		return
+	}
+	var p TargetParams
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	if err := a.store.SetCategoryParams(id, p); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	// A category value that would make an inheriting target overrun its
+	// burst is refused before it takes effect, naming the target.
+	if bad, err := a.store.CategoryWouldBreak(id); err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	} else if bad != "" {
+		writeErr(w, 400, bad)
+		return
+	}
+	go ovCache.build()
+	writeJSON(w, map[string]any{"ok": true, "inheriting": a.store.InheritCounts(id)})
+}
+
+// categoryReset puts targets of a category back to inheriting: the named
+// fields are cleared on every target of the category, so the category's
+// value applies. Without it, a category parameter would change nothing on
+// an instance whose targets all carry explicit values — which is every
+// instance upgrading to this version.
+func (a *API) categoryReset(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "invalid identifier")
+		return
+	}
+	var in struct {
+		Fields []string `json:"fields"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	n, err := a.store.ResetToInherit(id, in.Fields)
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	go ovCache.build()
+	writeJSON(w, map[string]any{"targets": n})
 }
 
 func (a *API) categoriesDelete(w http.ResponseWriter, r *http.Request) {
