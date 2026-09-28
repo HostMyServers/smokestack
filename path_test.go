@@ -903,3 +903,173 @@ func TestDefaultAnchors(t *testing.T) {
 			"of the internet", len(countries))
 	}
 }
+
+// Parameters set on a category apply to every target that leaves the field
+// empty, and changing them changes what those targets measure at once —
+// dynamic binding, rather than values copied into each target at creation.
+func TestCategoryParameterInheritance(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("transit", "Transit", "Transit", true)
+	mk := func(slug string, interval int64, packets int) int64 {
+		id, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+			Host: "192.0.2.9", Proto: "icmp", Family: 4, IntervalS: interval,
+			Packets: packets, SpacingMs: 0, TimeoutMs: 0, Public: true, Enabled: true})
+		if err != nil {
+			t.Fatalf("%s: %v", slug, err)
+		}
+		return id
+	}
+	inherits := mk("inherits", 0, 0)
+	states := mk("states", 300, 5)
+
+	// Nothing set on the category: the shipped values fill the gaps.
+	eff := func(id int64) *Target {
+		for _, x := range mustActive(t, store) {
+			if x.ID == id {
+				return x
+			}
+		}
+		t.Fatalf("target %d not found", id)
+		return nil
+	}
+	if e := eff(inherits); e.IntervalS != 60 || e.Packets != 20 || e.SpacingMs != 500 {
+		t.Errorf("shipped values should fill the gaps: %d/%d/%d",
+			e.IntervalS, e.Packets, e.SpacingMs)
+	}
+
+	// Set on the category: the inheriting target follows, the explicit one
+	// does not.
+	if err := store.SetCategoryParams(cat, TargetParams{IntervalS: 30, Packets: 10,
+		SpacingMs: 200, TimeoutMs: 1000, LossWarn: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if e := eff(inherits); e.IntervalS != 30 || e.Packets != 10 || e.LossWarn != 5 {
+		t.Errorf("the category's values should apply: %d/%d/%v",
+			e.IntervalS, e.Packets, e.LossWarn)
+	}
+	if e := eff(states); e.IntervalS != 300 || e.Packets != 5 {
+		t.Errorf("a target that states its own values keeps them: %d/%d",
+			e.IntervalS, e.Packets)
+	}
+
+	// Dynamic binding: change the category, the inheriting target changes
+	// with it, and nothing was written to the target itself.
+	if err := store.SetCategoryParams(cat, TargetParams{IntervalS: 120, Packets: 10,
+		SpacingMs: 200, TimeoutMs: 1000}); err != nil {
+		t.Fatal(err)
+	}
+	if e := eff(inherits); e.IntervalS != 120 {
+		t.Errorf("the change should follow: interval %d", e.IntervalS)
+	}
+	var stored int64
+	store.cfg.QueryRow(`SELECT interval_s FROM targets WHERE id=?`, inherits).Scan(&stored)
+	if stored != 0 {
+		t.Errorf("nothing should be copied into the target, it holds %d", stored)
+	}
+
+	// The counts tell the operator how far an edit reaches, before he saves.
+	counts := store.InheritCounts(cat)
+	if counts["interval_s"] != 1 || counts["spacing_ms"] != 2 {
+		t.Errorf("inherit counts: %+v", counts)
+	}
+}
+
+// Every target of an instance upgrading to this version carries explicit
+// values, so a category parameter would change nothing without a way to put
+// them back to inheriting.
+func TestResetToInherit(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	for _, slug := range []string{"a", "b"} {
+		if _, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+			Host: "192.0.2.9", Proto: "icmp", Family: 4, IntervalS: 600, Packets: 30,
+			SpacingMs: 500, TimeoutMs: 2000, Public: true, Enabled: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store.SetCategoryParams(cat, TargetParams{IntervalS: 60, Packets: 10,
+		SpacingMs: 200, TimeoutMs: 1000})
+	// Explicit values win, so the category changed nothing yet.
+	if e := mustActive(t, store)[0]; e.IntervalS != 600 {
+		t.Fatalf("explicit value should still win: %d", e.IntervalS)
+	}
+	n, err := store.ResetToInherit(cat, []string{"interval_s", "packets"})
+	if err != nil || n != 2 {
+		t.Fatalf("two targets expected, got %d: %v", n, err)
+	}
+	for _, e := range mustActive(t, store) {
+		if e.IntervalS != 60 || e.Packets != 10 {
+			t.Errorf("%s should now inherit: %d/%d", e.Slug, e.IntervalS, e.Packets)
+		}
+		// Only the named fields were cleared.
+		var sp int
+		store.cfg.QueryRow(`SELECT spacing_ms FROM targets WHERE id=?`, e.ID).Scan(&sp)
+		if sp != 500 {
+			t.Errorf("spacing was not named and must be untouched, got %d", sp)
+		}
+	}
+	if _, err := store.ResetToInherit(cat, []string{"host"}); err == nil {
+		t.Error("the host is not something a category lends")
+	}
+	if _, err := store.ResetToInherit(cat, nil); err == nil {
+		t.Error("resetting nothing must be refused rather than silently doing nothing")
+	}
+}
+
+// A category must not be able to push a target into a state the target
+// itself would have been refused.
+func TestCategoryCannotBreakItsTargets(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	// 30 packets spaced by 500 ms plus a 2 s timeout needs a long interval.
+	if _, err := store.CreateTarget(&Target{CategoryID: cat, Slug: "slow", Title: "Slow",
+		Host: "192.0.2.9", Proto: "icmp", Family: 4, Packets: 30, SpacingMs: 500,
+		TimeoutMs: 2000, IntervalS: 0, Public: true, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	// A 10-second interval lent by the category would not fit that burst.
+	if err := store.SetCategoryParams(cat, TargetParams{IntervalS: 10}); err != nil {
+		t.Fatalf("storing is allowed, the check is separate: %v", err)
+	}
+	bad, err := store.CategoryWouldBreak(cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bad == "" {
+		t.Error("a category value that breaks a target must be reported")
+	}
+	if !strings.Contains(bad, "Slow") {
+		t.Errorf("the report must name the target: %q", bad)
+	}
+	// Values a target would be refused are refused on the category too.
+	if err := checkParams(TargetParams{Packets: 500}); err == nil {
+		t.Error("a category cannot lend 500 packets")
+	}
+	if err := checkParams(TargetParams{LossCrit: 1, LossWarn: 9}); err == nil {
+		t.Error("a critical threshold below the warning one is incoherent anywhere")
+	}
+	if err := checkParams(TargetParams{}); err != nil {
+		t.Errorf("a category lending nothing is valid: %v", err)
+	}
+}
+
+func mustActive(t *testing.T, s *Store) []*Target {
+	t.Helper()
+	ts, err := s.ActiveTargets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ts
+}
