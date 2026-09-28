@@ -344,6 +344,11 @@ type ASRoute struct {
 	Pending bool        `json:"pending"` // the destination AS is being looked up
 	Graph   *ASGraph    `json:"graph,omitempty"`
 	RIS     *RISView    `json:"ris,omitempty"`
+	// Why the middle of the route is empty, when it is. Drawing the two
+	// ends with nothing between them says "these networks are adjacent",
+	// which is a claim, and usually a false one. Naming the reason is the
+	// difference between an answer and a blank.
+	Empty string `json:"empty,omitempty"` // "no-trace" | "no-as"
 }
 
 // asRouteFrom builds the middle of the route from a traceroute, leaving out
@@ -371,6 +376,12 @@ func asRouteFrom(tr *Traceroute, originASN, destASN string) ([]ASPathHop, bool) 
 	// unknown, and saying so is better than implying a direct link.
 	gap := !tr.Reached
 	if lastKnown >= 0 && lastKnown < len(tr.Hops)-1 {
+		gap = true
+	}
+	// Not one hop carried an autonomous system, although the traceroute ran:
+	// the path between the two ends is unknown, not empty. Without this a
+	// traceroute that reached its destination drew the two ends touching.
+	if lastKnown < 0 && len(tr.Hops) > 0 {
 		gap = true
 	}
 	if destASN != "" && lastKnown >= 0 {
@@ -504,10 +515,22 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 	if err != nil || len(trs) == 0 {
 		trs, _ = a.store.Traceroutes(id, nil, 1)
 	}
+	if len(trs) == 0 {
+		// Nothing was recorded yet. A reference path is taken once a day by
+		// default, and an anomaly traceroute only when something degrades,
+		// so a freshly added target legitimately has none.
+		out.Empty = "no-trace"
+	}
 	if len(trs) > 0 {
 		tr := trs[0]
 		out.TS, out.Kind, out.Reached = tr.TS, tr.Kind, tr.Reached
 		out.Path, out.Gap = asRouteFrom(tr, originASN, destASN)
+		if len(out.Path) == 0 {
+			// The traceroute ran but no hop could be attributed to an AS:
+			// the lookups have not answered yet, or the routers in between
+			// stayed silent.
+			out.Empty = "no-as"
+		}
 	} else {
 		// No traceroute at all: the two ends are still worth showing, with
 		// the middle explicitly unknown. RIS can even supply the

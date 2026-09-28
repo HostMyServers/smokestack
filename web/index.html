@@ -382,7 +382,7 @@ async function renderASPath(tg) {
   if (v.origin) parts.push(node(v.origin, "self", t("detail.as_here")));
   for (const h of (v.path || [])) parts.push(node(h, "", ""));
   // An unknown segment is said, not hidden: the ends do not touch.
-  if (v.gap) parts.push(`<span class="asnode unknown" title="${esc(t("detail.as_gap_hint"))}">
+  if (v.gap || v.empty) parts.push(`<span class="asnode unknown" title="${esc(t("detail.as_gap_hint"))}">
     <span class="asn">?</span><span class="asname">${esc(t("detail.as_gap"))}</span></span>`);
   if (v.dest) parts.push(node(v.dest, "dest", t("detail.as_target")));
   else if (v.pending) parts.push(`<span class="asnode unknown"><span class="asn">…</span>
@@ -415,6 +415,10 @@ async function renderASPath(tg) {
     // A name answering from several machines was traced to several places.
     // Saying which address this route belongs to is the whole point.
     if (g && g.other_addrs) bits.push(t("detail.as_one_addr", { n: g.other_addrs }));
+    // Say why nothing sits between the two ends, rather than let the reader
+    // conclude that these two networks are neighbours.
+    if (v.empty) bits.push(t(v.empty === "no-trace"
+      ? "detail.as_no_trace" : "detail.as_no_as"));
     meta.textContent = bits.join(" · ");
   }
 }

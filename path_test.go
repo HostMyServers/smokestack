@@ -651,3 +651,77 @@ func TestClientIPHeaders(t *testing.T) {
 		}
 	}
 }
+
+// A traceroute that reached its destination but attributed no hop to an AS
+// used to draw the two ends of the route touching, which claims the two
+// networks are neighbours. An unknown middle must be said, not implied.
+func TestRouteWithoutAnyASIsAGap(t *testing.T) {
+	// Reached, three hops, none carrying an AS: private addressing, silent
+	// routers, or lookups that have not answered yet.
+	blind := &Traceroute{Reached: true, Hops: []Hop{
+		hopAS("10.0.0.1", ""), hopAS("10.0.0.2", ""), hopAS("203.0.113.5", "")}}
+	mid, gap := asRouteFrom(blind, "AS64500", "AS29222")
+	if len(mid) != 0 {
+		t.Errorf("no AS could be attributed, the middle must stay empty: %+v", mid)
+	}
+	if !gap {
+		t.Error("an unknown middle must be reported as a gap, not drawn as adjacency")
+	}
+	// A traceroute with no hops at all is a different case: nothing ran.
+	if _, gap := asRouteFrom(&Traceroute{Reached: true}, "AS64500", "AS29222"); gap {
+		t.Error("an empty traceroute is not a gap in a measured path")
+	}
+}
+
+// The route endpoint says why its middle is empty, rather than leaving the
+// reader to conclude that the two ends are neighbours.
+func TestRouteSaysWhyItIsEmpty(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	site := store.Site()
+	site.ASN = "AS64500"
+	site.PublicTraceroutes = true
+	store.SetSite(site)
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	id, err := store.CreateTarget(&Target{CategoryID: cat, Slug: "t", Title: "T",
+		Host: "192.0.2.9", Proto: "icmp", IntervalS: 60, Packets: 10, SpacingMs: 100,
+		TimeoutMs: 1000, Public: true, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := &API{store: store, asn: NewASNService(store, nil, "")}
+	get := func() ASRoute {
+		w := httptest.NewRecorder()
+		api.asPathView(w, httptest.NewRequest("GET",
+			fmt.Sprintf("/api/v1/aspath?target=%d", id), nil))
+		if w.Code != 200 {
+			t.Fatalf("HTTP %d: %s", w.Code, w.Body)
+		}
+		var v ASRoute
+		if err := json.Unmarshal(w.Body.Bytes(), &v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	// A target added a minute ago has no traceroute: references are taken
+	// once a day, anomalies only when something degrades.
+	if v := get(); v.Empty != "no-trace" {
+		t.Errorf("a target without any traceroute should say so, got %q", v.Empty)
+	}
+	// One that ran but revealed no AS says something different.
+	if err := store.SaveTraceroute(&Traceroute{TargetID: id, ProbeID: 1,
+		TS: time.Now().Unix(), Kind: "reference", Family: 4, Dest: "192.0.2.9",
+		Reached: true, Hops: []Hop{hopAS("10.0.0.1", ""), hopAS("192.0.2.9", "")}}); err != nil {
+		t.Fatal(err)
+	}
+	v := get()
+	if v.Empty != "no-as" {
+		t.Errorf("a traceroute without any AS should say so, got %q", v.Empty)
+	}
+	if !v.Gap {
+		t.Error("and it must carry the gap, so the two ends are not drawn touching")
+	}
+}

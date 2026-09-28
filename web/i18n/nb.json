@@ -102,6 +102,8 @@
     "as_gap_hint": "Traceroute viste ikke denne delen av veien: de ruterne svarte ikke, eller målet ble ikke nådd.",
     "as_map_note": "{n} traceroutes · heltrukken: nåværende vei, stiplet: sett tidligere",
     "as_one_addr": "bare denne adressen · {n} traceruter til navnets andre adresser utelatt",
+    "as_no_trace": "ingen traceroute er ennå registrert for dette målet",
+    "as_no_as": "traceruten viste ingen mellomliggende autonome systemer: stille rutere, eller oppslag som ennå ikke har svart",
     "ris": "I global ruting (RIPE RIS)",
     "ris_line": "{prefix} annonseres av {origin} og ses av {peers} collector-peers.",
     "ris_up": "Nett som ses foran",
