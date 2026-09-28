@@ -22,7 +22,13 @@ jobs:
       - name: Resolve dependencies
         run: test -f go.sum || go mod tidy
       - name: Vet and test
-        run: make test
+        run: |
+          set -o pipefail
+          make test 2>&1 | tee /tmp/test.log || {
+            grep -E "^(---|    ---| *[a-z_]+\.go:|FAIL|ok|# )" /tmp/test.log | tail -30 \
+              | while IFS= read -r line; do echo "::error title=test::$line"; done
+            exit 1
+          }
       - name: Build and self-test
         run: |
           make build
