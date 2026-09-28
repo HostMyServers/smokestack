@@ -115,27 +115,64 @@ func seed(store *Store) error {
 	if n > 0 {
 		return nil
 	}
-	catID, err := store.CreateCategory("dns-publics", "DNS publics", "Public DNS", true)
+	catID, err := store.CreateCategory("anchors", "Sondes de référence",
+		"Reference anchors", true)
 	if err != nil {
 		return err
 	}
-	demo := []struct{ title, host string }{
-		{"Cloudflare", "1.1.1.1"},
-		{"Quad9", "9.9.9.9"},
-		{"Google", "8.8.8.8"},
-	}
-	for _, d := range demo {
+	// The first targets of a fresh instance are RIPE Atlas anchors, and the
+	// choice is deliberate on two counts.
+	//
+	// Consent: an anchor exists to be measured. Its operator put it there
+	// for that, which is not true of a public resolver — nobody asked
+	// Cloudflare, Quad9 or Google whether every new installation of this
+	// tool could start pinging them, and "everyone does it" is not an
+	// authorisation.
+	//
+	// And a monitoring tool that ships pointing at three American platforms
+	// teaches, in its very first screen, that those are what the internet
+	// is made of. Anchors are run by universities, exchange points and
+	// operators in many countries, which is both more accurate and a better
+	// first lesson.
+	//
+	// These are a starting point to replace: the targets worth watching are
+	// your transit providers, your exchange points and the services your
+	// users actually depend on.
+	for _, d := range defaultAnchors {
 		t := &Target{
-			CategoryID: catID, Slug: d.host, Title: d.title, Host: d.host,
-			Proto: "icmp", IntervalS: 60, Packets: 20, SpacingMs: 500,
+			CategoryID: catID, Slug: d.slug, Title: d.title, Host: d.host,
+			Proto: "icmp", Family: 4, IntervalS: 60, Packets: 20, SpacingMs: 500,
 			TimeoutMs: 2000, Public: true, Enabled: true,
 		}
 		if _, err := store.CreateTarget(t); err != nil {
 			return err
 		}
 	}
-	log.Printf("demo set created: %d targets", len(demo))
+	log.Printf("first targets created: %d RIPE Atlas anchors, to be replaced "+
+		"by the networks you actually depend on", len(defaultAnchors))
 	return nil
+}
+
+// defaultAnchors are RIPE Atlas anchors, chosen for geographic spread rather
+// than for proximity: an instance is installed anywhere, and three anchors on
+// three continents show at a glance that the tool measures distance. Their
+// names are stable — the naming scheme is <country>-<city>-as<asn> — and a
+// name that stops resolving fails visibly rather than silently. Each of the
+// four was resolved before being written here rather than recalled from
+// memory, which is how three invented names were caught.
+//
+// The hosts are a research network, a university backbone, a Latin American
+// operator and a Japanese one, which is a truer picture of the internet than
+// three American platforms.
+var defaultAnchors = []struct{ slug, title, host string }{
+	{"anchor-nl-ams", "RIPE Atlas anchor — Amsterdam (NL)",
+		"nl-ams-as1101.anchors.atlas.ripe.net"},
+	{"anchor-ch-zrh", "RIPE Atlas anchor — Zurich (CH)",
+		"ch-zrh-as559.anchors.atlas.ripe.net"},
+	{"anchor-cl-scl", "RIPE Atlas anchor — Santiago (CL)",
+		"cl-scl-as27678.anchors.atlas.ripe.net"},
+	{"anchor-jp-tyo", "RIPE Atlas anchor — Tokyo (JP)",
+		"jp-tyo-as2497.anchors.atlas.ripe.net"},
 }
 
 func main() {

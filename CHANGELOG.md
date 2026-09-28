@@ -5,6 +5,8 @@ install the newest one directly, whatever versions came in between.
 
 ## Unreleased
 
+- **A fresh instance no longer starts by pinging public DNS resolvers** (#40). It creates four RIPE Atlas anchors instead — Amsterdam, Zurich, Santiago, Tokyo. An anchor exists to be measured, which is consent its operator actually gave; nobody ever asked Cloudflare, Quad9 or Google whether every new installation of a monitoring tool could start pinging them, and "everybody does it" is not an authorisation. A tool that ships pointing at three American platforms also teaches, on its first screen, that those are what the internet is made of, where anchors are run by research networks, universities, exchange points and operators in many countries. They remain a starting point to replace with your own transit, exchanges and services, and `DEPLOY.md` says so. Existing instances are untouched: the set is only created when the database is empty.
+
 - **Anycast destinations are documented** (#39). One address served from many places steps in latency when the routing moves you between instances, and nothing pins that away — pinning freezes the address, and with anycast the address was never the ambiguity. `DEPLOY.md` and the wiki now say what the tool shows on such a target (a route map with several branches, route changes that are the reading rather than the alarm, and the difference between a latency step with and without one), and what to do about it: raise the thresholds, read the bands rather than the median, and target a unicast address when you want one instance rather than the service.
 
 ## 0.4.0

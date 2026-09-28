@@ -253,6 +253,15 @@ Either header is trusted **only when the proxy runs on the same host** (connecti
 
 ## 4. First steps
 
+### The targets a fresh instance starts with
+
+A new installation creates four targets: RIPE Atlas anchors in Amsterdam, Zurich, Santiago and Tokyo. They are a starting point, and they are deliberately not public DNS resolvers.
+
+An **anchor exists to be measured**. Its operator installed it for that, which is consent actually given — where nobody ever asked Cloudflare, Quad9 or Google whether every new installation of a monitoring tool could start pinging them. "Everybody does it" is not an authorisation, and a tool that ships pointing at three American platforms also teaches, on its first screen, that those are what the internet is made of. Anchors are run by research networks, universities, exchange points and operators in many countries, which is both more accurate and a better first lesson.
+
+**Replace them.** The targets worth watching are your transit providers, your exchange points, and the services your users actually depend on. The anchors are there so the first screen is not empty and so you can tell within a minute whether the probe works; they are not a monitoring plan. Delete them once you have your own — deleting a target archives it, so the history you built in the meantime survives.
+
+
 1. Open `https://latency.example.net/admin` and log in with the printed credentials.
 ### Search engines
 
