@@ -511,15 +511,63 @@ func TestDeleteCategoryIgnoresArchivedTargets(t *testing.T) {
 	if err := store.DeleteCategory(cat); err != nil {
 		t.Fatalf("once every target is archived the category must go: %v", err)
 	}
-	// The history survives, and nothing points at a category that is gone.
+	// The history survives. targets.category_id carries ON DELETE CASCADE,
+	// so an archived target left in the deleted category would have been
+	// deleted with it, measurements included.
 	arch, err := store.ArchivedTargets()
 	if err != nil || len(arch) != 3 {
 		t.Fatalf("the three archived targets must remain: %d, %v", len(arch), err)
 	}
+	holder, err := store.archiveCategoryID()
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, a := range arch {
-		if a.CategoryID == cat {
-			t.Error("an archived target still points at the deleted category")
+		if a.CategoryID != holder {
+			t.Errorf("%s should have moved to the archive category, it is in %d",
+				a.Slug, a.CategoryID)
 		}
+	}
+	// The archive itself is not deletable while it holds history: doing so
+	// would destroy exactly what it exists to keep.
+	if err := store.DeleteCategory(holder); err == nil {
+		t.Error("deleting the archive category must be refused while it holds targets")
+	}
+	if got, _ := store.ArchivedTargets(); len(got) != 3 {
+		t.Errorf("the refused deletion must change nothing: %d left", len(got))
+	}
+	// Once purged, it goes like any other.
+	for _, a := range arch {
+		if err := store.PurgeTarget(a.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.DeleteCategory(holder); err != nil {
+		t.Errorf("an empty archive category must be deletable: %v", err)
+	}
+}
+
+// Foreign keys are enforced, which is what makes the archive category
+// necessary rather than decorative. A test suite running without them would
+// be more permissive than production and would hide the cascade.
+func TestForeignKeysAreEnforced(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var on int
+	if err := store.cfg.QueryRow(`PRAGMA foreign_keys`).Scan(&on); err != nil {
+		t.Fatal(err)
+	}
+	if on != 1 {
+		t.Fatal("foreign keys must be on: targets cascade from their category")
+	}
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	if _, err := store.CreateTarget(&Target{CategoryID: cat + 999, Slug: "orphan",
+		Title: "orphan", Host: "192.0.2.9", Proto: "icmp", IntervalS: 60, Packets: 10,
+		SpacingMs: 100, TimeoutMs: 1000, Enabled: true}); err == nil {
+		t.Error("a target in a category that does not exist must be refused")
 	}
 }
 

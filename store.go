@@ -370,7 +370,7 @@ func scanTargets(rows *sql.Rows) ([]*Target, error) {
 		if err := rows.Scan(&t.ID, &t.CategoryID, &t.Slug, &t.Title, &t.Host,
 			&t.Proto, &t.IntervalS, &t.Packets, &t.SpacingMs, &t.TimeoutMs,
 			&pub, &en, &t.Family, &t.Port, &t.PinIP, &off, &t.ArchivedAt, &t.TraceHours, &hide, &t.KeepDays,
-		&t.LossWarn, &t.LossCrit, &t.LatFactor); err != nil {
+			&t.LossWarn, &t.LossCrit, &t.LatFactor); err != nil {
 			return nil, err
 		}
 		t.Public, t.Enabled, t.AlertsOff = pub == 1, en == 1, off == 1
@@ -533,6 +533,20 @@ func (s *Store) UpdateCategory(id int64, fr, en *string, public *bool) error {
 
 // DeleteCategory refuses to remove a category that still holds targets,
 // rather than silently orphaning their measurements.
+// archiveCategoryID returns the category that holds archived targets,
+// creating it on first use. It exists because targets.category_id carries
+// ON DELETE CASCADE: an archived target left in a category being deleted
+// would be deleted with it, taking its history along. Parking it here keeps
+// the foreign key satisfied and the measurements intact.
+func (s *Store) archiveCategoryID() (int64, error) {
+	var id int64
+	err := s.cfg.QueryRow(`SELECT id FROM categories WHERE slug='archive'`).Scan(&id)
+	if err == nil {
+		return id, nil
+	}
+	return s.CreateCategory("archive", "Archive", "Archive", false)
+}
+
 func (s *Store) DeleteCategory(id int64) error {
 	// Archived targets are not counted. Deleting a target archives it so its
 	// history survives, and those rows kept the category: a category the
@@ -547,9 +561,27 @@ func (s *Store) DeleteCategory(id int64) error {
 	if n > 0 {
 		return fmt.Errorf("this category still holds %d target(s): move or delete them first", n)
 	}
-	// The archived ones lose their category rather than point at a row that
-	// no longer exists. They are listed on their own, never by category.
-	s.cfg.Exec(`UPDATE targets SET category_id=0 WHERE category_id=? AND archived_at>0`, id)
+	var archived int
+	s.cfg.QueryRow(`SELECT COUNT(*) FROM targets WHERE category_id=? AND archived_at>0`,
+		id).Scan(&archived)
+	if archived > 0 {
+		arch, err := s.archiveCategoryID()
+		if err != nil {
+			return fmt.Errorf("archive category: %w", err)
+		}
+		if arch == id {
+			// The archive itself. Deleting it would destroy the history it
+			// exists to hold, so it goes only once it is empty.
+			return fmt.Errorf("this category holds %d archived target(s) and their "+
+				"measurements: purge them from the archived targets list first", archived)
+		}
+		if _, err := s.cfg.Exec(
+			`UPDATE targets SET category_id=? WHERE category_id=? AND archived_at>0`,
+			arch, id); err != nil {
+			return fmt.Errorf("moving %d archived target(s) out of the way: %w",
+				archived, err)
+		}
+	}
 	res, err := s.cfg.Exec(`DELETE FROM categories WHERE id=?`, id)
 	if err != nil {
 		return err
