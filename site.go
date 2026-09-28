@@ -47,6 +47,8 @@ type Site struct {
 	// PublicTraceroutes shows anomaly traceroutes on public pages. Off by
 	// default: hops reveal the inside of the operator's network.
 	PublicTraceroutes bool `json:"public_traceroutes"`
+	// Thresholds applied to every target that does not set its own.
+	Thresholds Thresholds `json:"thresholds,omitempty"`
 }
 
 func defaultSite() Site {
@@ -61,6 +63,7 @@ func defaultSite() Site {
 		Timezone:    "Europe/Paris",
 		DefaultLang: "en",
 		Description: "Latency and packet loss measured from our network to public destinations.",
+		Thresholds:  DefaultThresholds(),
 	}
 }
 
@@ -144,6 +147,9 @@ func (a *API) sitePut(w http.ResponseWriter, r *http.Request) {
 	if v.Title == "" {
 		v.Title = defaultSite().Title
 	}
+	// Des seuils vides ou incoherents reprennent les valeurs livrees plutot
+	// que de rendre chaque cible « ok » en toutes circonstances.
+	v.Thresholds = v.Thresholds.orDefaults()
 	if err := a.store.SetSite(v); err != nil {
 		writeErr(w, 500, err.Error())
 		return

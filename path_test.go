@@ -475,3 +475,131 @@ func TestRotatingTargetIsNotARouteChange(t *testing.T) {
 		}
 	}
 }
+
+// A category emptied by the operator must be deletable. Deleting a target
+// archives it so its history survives, and those archived rows used to be
+// counted as live ones: the category could never be removed, and the message
+// pointed at targets the operator could no longer see.
+func TestDeleteCategoryIgnoresArchivedTargets(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, err := store.CreateCategory("resolvers", "Résolveurs", "Resolvers", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []int64
+	for _, slug := range []string{"quad9", "cloudflare", "google"} {
+		id, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+			Host: "192.0.2.9", Proto: "icmp", IntervalS: 60, Packets: 10, SpacingMs: 100,
+			TimeoutMs: 1000, Public: true, Enabled: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := store.DeleteCategory(cat); err == nil {
+		t.Fatal("a category holding live targets must not be deleted")
+	}
+	for _, id := range ids {
+		if err := store.ArchiveTarget(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.DeleteCategory(cat); err != nil {
+		t.Fatalf("once every target is archived the category must go: %v", err)
+	}
+	// The history survives, and nothing points at a category that is gone.
+	arch, err := store.ArchivedTargets()
+	if err != nil || len(arch) != 3 {
+		t.Fatalf("the three archived targets must remain: %d, %v", len(arch), err)
+	}
+	for _, a := range arch {
+		if a.CategoryID == cat {
+			t.Error("an archived target still points at the deleted category")
+		}
+	}
+}
+
+// Thresholds are per target, and rejected when they would make the states
+// incoherent.
+func TestTargetThresholdValidation(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	mk := func(slug string, warn, crit, factor float64) error {
+		_, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+			Host: "192.0.2.9", Proto: "icmp", IntervalS: 60, Packets: 10, SpacingMs: 100,
+			TimeoutMs: 1000, Public: true, Enabled: true,
+			LossWarn: warn, LossCrit: crit, LatFactor: factor})
+		return err
+	}
+	if err := mk("ok", 8, 20, 3); err != nil {
+		t.Fatalf("a plausible set must be accepted: %v", err)
+	}
+	if err := mk("backwards", 20, 8, 0); err == nil {
+		t.Error("a critical threshold below the warning one must be refused")
+	}
+	if err := mk("over", 0, 140, 0); err == nil {
+		t.Error("a loss threshold above 100 %% must be refused")
+	}
+	if err := mk("tiny-factor", 0, 0, 1.01); err == nil {
+		t.Error("a latency factor barely above 1 must be refused")
+	}
+	if err := mk("defaults", 0, 0, 0); err != nil {
+		t.Errorf("zero means instance default and must be accepted: %v", err)
+	}
+	// Stored and read back.
+	got, err := store.TargetBySlug("ok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LossWarn != 8 || got.LossCrit != 20 || got.LatFactor != 3 {
+		t.Errorf("thresholds not persisted: %+v", got)
+	}
+}
+
+// The Forwarded header of RFC 7239 is read in preference to the older
+// X-Forwarded-For, and in both only the element the proxy vouches for counts.
+func TestClientIPHeaders(t *testing.T) {
+	req := func(remote string, h map[string]string) *http.Request {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.RemoteAddr = remote
+		for k, v := range h {
+			r.Header.Set(k, v)
+		}
+		return r
+	}
+	cases := []struct {
+		name, remote string
+		headers      map[string]string
+		want         string
+	}{
+		{"direct connection, headers ignored", "198.51.100.7:4242",
+			map[string]string{"Forwarded": "for=203.0.113.1"}, "198.51.100.7"},
+		{"Forwarded from a local proxy", "127.0.0.1:5555",
+			map[string]string{"Forwarded": `for=203.0.113.1;proto=https`}, "203.0.113.1"},
+		{"Forwarded wins over the legacy header", "127.0.0.1:5555",
+			map[string]string{"Forwarded": "for=203.0.113.1",
+				"X-Forwarded-For": "198.51.100.9"}, "203.0.113.1"},
+		{"a client-supplied element is pushed left and ignored", "127.0.0.1:5555",
+			map[string]string{"Forwarded": `for="1.2.3.4", for=203.0.113.1`}, "203.0.113.1"},
+		{"quoted IPv6 with a port", "127.0.0.1:5555",
+			map[string]string{"Forwarded": `for="[2001:db8::1]:4711"`}, "2001:db8::1"},
+		{"obfuscated identifiers are not addresses", "127.0.0.1:5555",
+			map[string]string{"Forwarded": "for=_hidden, for=unknown"}, "127.0.0.1"},
+		{"the legacy header still works", "127.0.0.1:5555",
+			map[string]string{"X-Forwarded-For": "1.2.3.4, 203.0.113.1"}, "203.0.113.1"},
+		{"nothing at all", "127.0.0.1:5555", nil, "127.0.0.1"},
+	}
+	for _, c := range cases {
+		if got := clientIP(req(c.remote, c.headers)); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}

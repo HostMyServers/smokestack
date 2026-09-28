@@ -678,6 +678,10 @@ func (a *API) targetsPatch(w http.ResponseWriter, r *http.Request) {
 		KeepDays   *int    `json:"keep_days"`
 		Public     *bool   `json:"public"`
 		Enabled    *bool   `json:"enabled"`
+		// Seuils propres a la cible. 0 remet la valeur de l'instance.
+		LossWarn  *float64 `json:"loss_warn"`
+		LossCrit  *float64 `json:"loss_crit"`
+		LatFactor *float64 `json:"lat_factor"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeErr(w, 400, err.Error())
@@ -724,6 +728,16 @@ func (a *API) targetsPatch(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.AlertsOff != nil {
 		t.AlertsOff = *in.AlertsOff
+	}
+	// checkTarget validates the three together, so they are only copied here.
+	if in.LossWarn != nil {
+		t.LossWarn = *in.LossWarn
+	}
+	if in.LossCrit != nil {
+		t.LossCrit = *in.LossCrit
+	}
+	if in.LatFactor != nil {
+		t.LatFactor = *in.LatFactor
 	}
 	if in.KeepDays != nil {
 		if *in.KeepDays < 0 || *in.KeepDays > 3650 {

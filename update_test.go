@@ -38,10 +38,50 @@ func TestCompareVersions(t *testing.T) {
 }
 
 func TestClassify(t *testing.T) {
-	if classify(0, 0, 0, 0) != "nodata" || classify(100, 5, 10, 10) != "crit" ||
-		classify(1000, 5, 10, 10) != "warn" || classify(100, 0, 20, 10) != "warn" ||
-		classify(100, 0, 0.14, 0.09) != "ok" || classify(100, 0, 11, 10) != "ok" {
-		t.Error("regles d'etat incorrectes")
+	// A zero Thresholds means "instance defaults", which are the values that
+	// were hardcoded before they could be set: nothing moves for an instance
+	// that never touches them.
+	var d Thresholds
+	if classify(0, 0, 0, 0, d) != "nodata" || classify(100, 5, 10, 10, d) != "crit" ||
+		classify(1000, 5, 10, 10, d) != "warn" || classify(100, 0, 20, 10, d) != "warn" ||
+		classify(100, 0, 0.14, 0.09, d) != "ok" || classify(100, 0, 11, 10, d) != "ok" {
+		t.Error("default state rules are wrong")
+	}
+}
+
+// A target known to be badly connected can accept more loss, and a target
+// that matters can be watched more closely than the rest.
+func TestClassifyPerTargetThresholds(t *testing.T) {
+	// 5 % loss: critical by default, still fine on a link declared poor.
+	lax := Thresholds{LossWarn: 8, LossCrit: 20}
+	if got := classify(100, 5, 10, 10, lax); got != "ok" {
+		t.Errorf("a tolerant target should stay ok at 5%% loss, got %q", got)
+	}
+	if got := classify(100, 25, 10, 10, lax); got != "crit" {
+		t.Errorf("even a tolerant target turns critical at 25%%, got %q", got)
+	}
+	// The opposite: a link that must not lose anything.
+	strict := Thresholds{LossWarn: 0.1, LossCrit: 0.5}
+	if got := classify(1000, 3, 10, 10, strict); got != "warn" {
+		t.Errorf("a strict target should warn at 0.3%% loss, got %q", got)
+	}
+	// Latency: a factor of 3 on a jittery path, where 1.4 would shout.
+	if got := classify(100, 0, 20, 10, Thresholds{LatFactor: 3}); got != "ok" {
+		t.Errorf("twice the baseline is fine at factor 3, got %q", got)
+	}
+	if got := classify(100, 0, 40, 10, Thresholds{LatFactor: 3}); got != "warn" {
+		t.Errorf("four times the baseline exceeds factor 3, got %q", got)
+	}
+	// An absolute move of less than a millisecond never raises anything,
+	// whatever the factor: 40 % more than 0.2 ms is still 0.2 ms.
+	if got := classify(100, 0, 0.3, 0.1, Thresholds{LatFactor: 1.1}); got != "ok" {
+		t.Errorf("a negligible absolute rise must stay ok, got %q", got)
+	}
+	// A target setting only one value keeps the instance default for the
+	// other, and an incoherent pair is repaired rather than refused.
+	m := Thresholds{LossWarn: 5}.merge(DefaultThresholds())
+	if m.LossWarn != 5 || m.LossCrit < m.LossWarn {
+		t.Errorf("merge with the defaults: %+v", m)
 	}
 }
 
