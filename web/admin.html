@@ -395,8 +395,11 @@ async function viewTargets(m){
           <input id="tport" list="ports" placeholder="443">
           <datalist id="ports">${COMMON_PORTS.map(([p,l])=>`<option value="${p}">${p} — ${l}</option>`).join("")}</datalist></div>
         <div class="field"><label>Address family</label><select id="tfam">
-          <option value="0">Auto (literal address, else IPv4 then IPv6)</option>
-          <option value="4">IPv4 only</option><option value="6">IPv6 only</option></select></div>
+          <option value="4">IPv4</option><option value="6">IPv6</option>
+          <option value="0" id="tfamauto" hidden>Auto (legacy: IPv4 if there is one, else IPv6)</option></select>
+          <div style="font-size:11px;color:var(--ink3);margin-top:3px">A target states which family it
+            measures. The two cross different networks and fail independently, so measure both with
+            <em>Also IPv6</em>, which keeps them as two comparable series.</div></div>
         <div class="field"><label>Interval (seconds, 10 to 86400)</label>
           <input id="tiv" type="number" min="10" max="86400" value="60" list="ivs">
           <datalist id="ivs">${[[30,"30 s"],[60,"1 min"],[120,"2 min"],[300,"5 min"],[600,"10 min"],
@@ -515,6 +518,10 @@ async function viewTargets(m){
     $("#tcat").value=EDIT.category_id; $("#ttitle").value=EDIT.title; $("#thost").value=EDIT.host;
     $("#tproto").value=EDIT.proto; $("#tport").value=EDIT.port||""; $("#tfam").value=String(EDIT.family||0);
     $("#tlw").value=EDIT.loss_warn||0; $("#tlc").value=EDIT.loss_crit||0; $("#tlf").value=EDIT.lat_factor||0;
+    // Auto is no longer offered for a new target; a target that already has
+    // it keeps it visible, so editing something else does not silently
+    // change what it measures.
+    if((EDIT.family||0)===0){ $("#tfamauto").hidden=false; $("#tfam").value="0"; }
     $("#tiv").value=String(EDIT.interval_s); $("#tkeep").value=EDIT.keep_days||0; $("#tpk").value=EDIT.packets; $("#tsp").value=EDIT.spacing_ms;
     $("#tto").value=EDIT.timeout_ms; $("#tpub").checked=!!EDIT.public;
     $("#canceledit").onclick=()=>{EDIT=null;render();};
@@ -601,6 +608,16 @@ async function viewTargets(m){
               The graph mixes several machines, and a server that does not answer ICMP shows up as loss.
               <button class="btn s" data-pin="${t.id}" data-ip="${esc(t.addresses[0])}">Pin ${esc(t.addresses[0])}</button>
               </div>`:"")}
+          ${(t.family||0)===0?`<div class="${t.mixed_family?"twarn":"tpin"}">
+            ${t.mixed_family
+              ? `This target states no address family and its measurements <strong>mixed IPv4 and
+                 IPv6</strong> in the last 24 h. The two cross different networks, so its history
+                 holds two paths with no way to tell them apart. Pick one:`
+              : `This target states no address family. It measured over
+                 <strong>IPv${t.measured_family||4}</strong>, but that can change on its own if the
+                 name gains or loses a record. State it:`}
+            <button class="btn s" data-fam4="${t.id}">Set IPv4</button>
+            <button class="btn s" data-fam6="${t.id}">Set IPv6</button></div>`:""}
           ${t.last_error?`<div class="terr" title="Last failure: ${esc(new Date(t.last_error_ts*1000).toLocaleString())}">
             ⚠ ${esc(t.last_error)}</div>`:""}</td>
         <td data-l="Family">${FAMILY[t.family||0]}</td><td data-l="Check">${esc(t.proto)}</td>
@@ -621,6 +638,13 @@ async function viewTargets(m){
             ${t.family===4?"Also IPv6":t.family===6?"Also IPv4":"Split v4 / v6"}</button>
           <button class="btn d s" data-del="${t.id}">Delete</button></td>
         </tr>`).join("")+`</tbody></table>`:`<div class="empty">No target yet.</div>`;
+    const setFamily=async(id,fam)=>{
+      try{await api("PATCH","/api/v1/admin/targets/"+id,{family:fam});
+        toast("Target set to IPv"+fam);render();}
+      catch(e){toast(e.message,true);}
+    };
+    document.querySelectorAll("[data-fam4]").forEach(b=>b.onclick=()=>setFamily(b.dataset.fam4,4));
+    document.querySelectorAll("[data-fam6]").forEach(b=>b.onclick=()=>setFamily(b.dataset.fam6,6));
     document.querySelectorAll("[data-twin]").forEach(b=>b.onclick=async()=>{
       const fam=parseInt(b.dataset.fam,10)||0, want=fam===4?6:fam===6?4:4;
       if(fam===0&&!confirm("This target never stated an address family. Building the pair gives "+

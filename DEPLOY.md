@@ -781,6 +781,14 @@ The token is stored **hashed**: a copy of the database hands over no working
 link, and the link is shown once, when created. Creations and revocations are
 in the audit log.
 
+### A target states which family it measures
+
+The address family is a choice made at creation: **IPv4** or **IPv6**. Older versions also offered **Auto**, which resolved a name to IPv4 when there was one and fell back to IPv6 otherwise — without saying which it had done.
+
+Auto is no longer offered for a new target, because it is ambiguous by construction. The resolution happens per pass, so a name that gains or loses a record changes the family, and therefore the destination and the transit, inside a single series. The result is a graph holding two different paths with no way to tell them apart a month later. It is the same defect as a rotating pool name measured as one target, and it is fixed the same way: by refusing to mix.
+
+Targets already on Auto keep working and keep the option in their form, since removing it silently would change what they measure. The back-office names the situation on each of them: which family the last 24 hours actually used, or a warning when they used **both**, with a button to state it. Stating it changes nothing about the measurements, only about what the next one is guaranteed to do.
+
 ### IPv4 and IPv6: a pair of targets
 
 A name that has both an A and an AAAA record is two destinations, not one. The two families cross different transit, arrive with different latency, and fail independently — an operator can lose IPv6 entirely for a day without a single IPv4 packet going missing. Measuring them as one series would average that away, which is precisely what you want to see.

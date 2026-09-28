@@ -483,6 +483,32 @@ func hasAAAA(host string) (bool, error) {
 	return len(ips) > 0, nil
 }
 
+// familyOfAddresses says which address family the measurements of a target
+// actually used, from the addresses that answered, and whether they mixed
+// the two. Mixing is the defect worth naming: a target that does not state
+// a family can change family under its own history, so its graph holds two
+// different paths with no way to tell them apart afterwards.
+func familyOfAddresses(addrs []string) (family int, mixed bool) {
+	for _, a := range addrs {
+		ip := net.ParseIP(a)
+		if ip == nil {
+			continue
+		}
+		f := 6
+		if ip.To4() != nil {
+			f = 4
+		}
+		if family == 0 {
+			family = f
+			continue
+		}
+		if family != f {
+			return 0, true
+		}
+	}
+	return family, false
+}
+
 // otherFamily is the address family a twin measures: 4 becomes 6 and 6
 // becomes 4. A target left on automatic has no twin, since it does not
 // state which family it measures.

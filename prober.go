@@ -344,7 +344,7 @@ func (r *resolver) Resolve(host string, family int) (net.IP, error) {
 		ips, err := net.DefaultResolver.LookupIP(ctx, fmt.Sprintf("ip%d", family), host)
 		if err != nil || len(ips) == 0 {
 			return nil, fmt.Errorf("cannot resolve %s in IPv%d: check the name, "+
-				"or set the address family to auto", host, family)
+				"or set this target to the other family", host, family)
 		}
 		ip = ips[0]
 	default:
