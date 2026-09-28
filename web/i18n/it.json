@@ -102,6 +102,8 @@
     "as_gap_hint": "Il traceroute non ha rivelato questa parte del percorso: quei router non hanno risposto, o la destinazione non è stata raggiunta.",
     "as_map_note": "{n} traceroute · continuo: percorso attuale, tratteggiato: visti prima",
     "as_one_addr": "solo questo indirizzo · {n} traceroute verso altri indirizzi di questo nome esclusi",
+    "as_no_trace": "nessun traceroute ancora registrato per questo obiettivo",
+    "as_no_as": "il traceroute non ha rivelato alcun sistema autonomo intermedio: router silenziosi, o risoluzioni non ancora completate",
     "ris": "Nel routing globale (RIPE RIS)",
     "ris_line": "{prefix} è annunciato da {origin} e visto da {peers} peer dei collector.",
     "ris_up": "Reti viste davanti",

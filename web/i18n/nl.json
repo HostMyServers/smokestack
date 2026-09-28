@@ -102,6 +102,8 @@
     "as_gap_hint": "De traceroute toonde dit deel van het pad niet: die routers antwoordden niets, of het doel werd niet bereikt.",
     "as_map_note": "{n} traceroutes · doorlopend: huidig pad, streepjes: eerder gezien",
     "as_one_addr": "alleen dit adres · {n} traceroutes naar andere adressen van deze naam weggelaten",
+    "as_no_trace": "nog geen traceroute vastgelegd voor dit doel",
+    "as_no_as": "de traceroute toonde geen tussenliggend autonoom systeem: stille routers, of opzoekingen nog zonder antwoord",
     "ris": "In globale routering (RIPE RIS)",
     "ris_line": "{prefix} wordt aangekondigd door {origin} en gezien door {peers} collector-peers.",
     "ris_up": "Netwerken die ervoor gezien worden",
