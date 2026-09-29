@@ -440,7 +440,15 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 	destASN := ""
 	if destIP != "" {
 		if !hideAddr {
-			out.DestIP = destIP
+			// The address actually probed. For a target given by name this
+			// is the one thing on the page the operator never typed, and it
+			// went out in full: masking it is the same rule as everywhere
+			// else, and an authenticated operator still sees it whole.
+			if authed || !site.MaskAddresses {
+				out.DestIP = destIP
+			} else {
+				out.DestIP = maskIP(destIP)
+			}
 		}
 		if as, known := a.asn.ASNOfIP(destIP); known {
 			destASN = as
