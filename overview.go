@@ -105,6 +105,16 @@ func maskIP(addr string) string {
 		int(ip[0])<<8|int(ip[1]), int(ip[2])<<8|int(ip[3]))
 }
 
+// maskHost masks a host that is a literal address, and leaves a name alone.
+// A name is not an address: it is what says which service the page is about,
+// and hiding it would only make the page useless.
+func maskHost(h string) string {
+	if net.ParseIP(h) == nil {
+		return h
+	}
+	return maskIP(h)
+}
+
 // familyOf says whether an address is IPv4 or IPv6, for a notice that names
 // the family. Read from the address rather than from the target's setting,
 // because a target on automatic has no setting and the address does.
@@ -260,7 +270,9 @@ func rowMed(r ovRow) float64 {
 // debut du defaut.
 func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, error) {
 	addrs := s.TargetAddresses(now - 24*3600)
-	siteTh := s.Site().Thresholds.orDefaults()
+	site := s.Site()
+	siteTh := site.Thresholds.orDefaults()
+	mask := site.MaskAddresses
 	cats, err := s.Tree(publicOnly)
 	if err != nil {
 		return nil, err
@@ -408,6 +420,9 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 				// A visitor is told that the address is fixed, and which
 				// family it belongs to, without being handed the address.
 				ot.PinIP = maskIP(ot.PinIP)
+				if mask {
+					ot.Host = maskHost(ot.Host)
+				}
 				if t.HideHost {
 					// A public target whose address stays private: the graph
 					// is shown, the host is not, and neither is anything that
@@ -515,6 +530,9 @@ func (a *API) overview(w http.ResponseWriter, r *http.Request) {
 				// Whoever holds a share link is a third party: the same
 				// masking applies as on a public page.
 				t.PinIP = maskIP(t.PinIP)
+				if a.store.Site().MaskAddresses {
+					t.Host = maskHost(t.Host)
+				}
 				if tg, err := a.store.TargetByID(id); err == nil && tg.HideHost {
 					t.Host, t.AddrCount, t.Addresses = "", 0, nil
 					t.PinIP, t.PinFamily = "", 0

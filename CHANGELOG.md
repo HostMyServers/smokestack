@@ -3,6 +3,10 @@
 Versions are published as signed releases; servers with automatic updates
 install the newest one directly, whatever versions came in between.
 
+## Unreleased
+
+- **A public page shows the network of an address, not the address.** The previous version masked a pinned address; it left two other paths open. A target given as a literal address published it as its host, and a target given by name published the address actually probed under its route — the one value on the page the operator never typed. Both are now masked for anybody who is not logged in, in the ten languages, in share links and in the description indexed by search engines. Host names are untouched: a name is not an address, and it is what says which service a page is about. *Settings → Addresses on public pages* turns the whole thing off for an operator who publishes addresses deliberately, and the per-target *hide the address* setting still removes it from the page altogether rather than masking it. On by default, including for instances upgrading, because the change shows less rather than more.
+
 ## 0.5.0
 
 One thing a target measured no longer leaks, one piece of work that no longer has to be done twenty times, and a default set that asked nobody's permission.
