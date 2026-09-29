@@ -3,6 +3,11 @@
 Versions are published as signed releases; servers with automatic updates
 install the newest one directly, whatever versions came in between.
 
+## Unreleased
+
+- **The about page says where the packets leave from.** A measurement with no stated origin is of little use to whoever reads it, so the page now carries the probe's network — reverse name, network, address family, AS number with the operator's name, and links to PeeringDB and RIPEstat so a reader can check the claim rather than take it — and the machine doing the measuring: processor, memory, version, uptime and platform, because a burst is not the same work on two cores and on thirty-two. **The address itself is not published**: the reverse name and the network situate the probe, which is the rule the targets already follow. Behind NAT the page says so instead of showing a local address that would mean nothing. Nothing is fetched while a visitor waits.
+- **The link to the other address family is an action rather than a label.** It carries a pair of turning arrows, bold text and a distinct background, because it was a grey chip among grey chips and it is the one thing on that line you are meant to click.
+
 ## 0.5.0
 
 One thing a target measured no longer leaks, one piece of work that no longer has to be done twenty times, and a default set that asked nobody's permission.

@@ -1100,3 +1100,43 @@ func TestMaskIP(t *testing.T) {
 		}
 	}
 }
+
+// The about page states where the packets leave from. The address itself is
+// never part of it: the reverse name and the network situate the probe, the
+// same rule the targets follow.
+func TestInstanceInfoPublishesNoAddress(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := &API{store: store, asn: NewASNService(store, nil, "")}
+	api.refreshInstanceNetwork()
+	v := api.instanceInfo()
+
+	if v.Network != "" && !strings.Contains(v.Network, "XXX") {
+		t.Errorf("the network must be masked, got %q", v.Network)
+	}
+	if v.Network != "" && net.ParseIP(v.Network) != nil {
+		t.Errorf("a whole address reached the public payload: %q", v.Network)
+	}
+	// The machine it runs on is described, which is what makes the figures
+	// readable: a burst is not the same work on two cores and on thirty-two.
+	if v.CPUCores < 1 {
+		t.Error("the processor count should be reported")
+	}
+	if v.Platform == "" || v.Go == "" {
+		t.Errorf("platform and runtime should be reported: %+v", v)
+	}
+	// The two places a reader checks an AS number for himself.
+	l := asnLinks("AS2484")
+	if l["peeringdb"] != "https://www.peeringdb.com/asn/2484" {
+		t.Errorf("PeeringDB link: %q", l["peeringdb"])
+	}
+	if l["ripe"] != "https://stat.ripe.net/app/launchpad/AS2484" {
+		t.Errorf("RIPE link: %q", l["ripe"])
+	}
+	if asnLinks("not an AS") != nil || asnLinks("") != nil {
+		t.Error("a link is only built for a real AS number")
+	}
+}
