@@ -1073,3 +1073,30 @@ func mustActive(t *testing.T, s *Store) []*Target {
 	}
 	return ts
 }
+
+// A pinned address is shown to visitors as the network it belongs to, not as
+// the machine. The notice exists to say the figures describe one machine,
+// which does not require naming it to everyone who opens the page.
+func TestMaskIP(t *testing.T) {
+	cases := map[string]string{
+		"142.251.153.4":            "142.251.XXX.XXX",
+		"9.9.9.9":                  "9.9.XXX.XXX",
+		"::ffff:192.0.2.1":         "192.0.XXX.XXX",
+		"2a00:1450:4007:80f::200e": "2a00:1450:XXXX:XXXX::",
+		"2001:db8::1":              "2001:db8:XXXX:XXXX::",
+		"not-an-address":           "",
+		"":                         "",
+	}
+	for in, want := range cases {
+		if got := maskIP(in); got != want {
+			t.Errorf("maskIP(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]int{
+		"142.251.153.4": 4, "2001:db8::1": 6, "::ffff:192.0.2.1": 4, "bogus": 0,
+	} {
+		if got := familyOf(in); got != want {
+			t.Errorf("familyOf(%q) = %d, want %d", in, got, want)
+		}
+	}
+}

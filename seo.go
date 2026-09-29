@@ -226,8 +226,13 @@ func (a *API) targetMeta(r *http.Request, slug string) (pageMeta, bool) {
 			// Say it here too: a page indexed without this reads as if the
 			// figures described one machine.
 			switch {
-			case t.PinIP != "":
-				desc += fmt.Sprintf(" Measured at the fixed address %s.", t.PinIP)
+			case t.PinIP != "" && t.PinFamily != 0:
+				// The overview masked the address before it got here: a page
+				// indexed by a search engine must not carry the machine.
+				desc += fmt.Sprintf(" Measured at a fixed IPv%d address (%s).",
+					t.PinFamily, t.PinIP)
+			case t.PinFamily != 0:
+				desc += " Measured at a fixed address."
 			case len(t.Addresses) > 1:
 				desc += fmt.Sprintf(" This name answers from %d different addresses, so the "+
 					"figures mix load-balanced servers that may sit in different places.",

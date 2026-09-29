@@ -515,6 +515,19 @@ function writeHash(push) {
   if (push && location.pathname + location.hash !== path + h) history.pushState(null, "", url);
   else history.replaceState(null, "", url);
 }
+// The pinned notice. A visitor is given the family and the network, never
+// the address: the point is that the figures describe one machine, which does
+// not require naming it to everyone who opens the page. When even the network
+// is withheld — a target whose address is private — the sentence drops the
+// parenthesis rather than showing an empty one.
+function pinNote(tg) {
+  if (!tg.pin_ip && !tg.pin_family) return "";
+  const txt = tg.pin_ip && tg.pin_family
+    ? t("detail.pinned", { fam: "IPv" + tg.pin_family, ip: tg.pin_ip })
+    : t("detail.pinned_plain");
+  return `<div class="note-pin">${esc(txt)}</div>`;
+}
+
 function renderDetail() {
   const tg = S.target, acc = color(tg._ci), k = tg.status;
   $("#view").innerHTML = `<div class="wrap"><div class="shell">${railBox()}<div style="min-width:0;padding-top:4px">
@@ -530,7 +543,7 @@ function renderDetail() {
       org: (App.site.org || App.site.title || ""), loc: (App.site.location || App.site.asn || "—") }))}</div>` : ""}
     ${(!tg.pin_ip && (tg.addr_count || 0) > 1 && t("detail.rotating")) ? `<div class="note-rot">
       ${esc(t("detail.rotating", { n: tg.addr_count }))}</div>` : ""}
-    ${tg.pin_ip ? `<div class="note-pin">${esc(t("detail.pinned", { ip: tg.pin_ip }))}</div>` : ""}
+    ${pinNote(tg)}
     <div class="presets" id="pr">${PRESETS.map(([key], i) => `<button class="preset" data-p="${i}" aria-pressed="${S.preset === i}">${esc(t(key))}</button>`).join("")}
       <button class="preset" id="cp" style="margin-left:auto">🔗 ${esc(t("common.copy_link"))}</button></div>
     <div class="card" style="margin-top:12px"><div class="card-b"><div id="cw"><canvas id="ch" height="330"></canvas><div class="tip" id="tip"></div></div>

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -40,6 +42,9 @@ type OverviewTarget struct {
 	AddrCount int      `json:"addr_count,omitempty"`
 	Addresses []string `json:"addresses,omitempty"`
 	PinIP     string   `json:"pin_ip,omitempty"`
+	// PinFamily : 4 ou 6, pour que la mention publique nomme la famille
+	// alors que l'adresse elle-meme y est masquee.
+	PinFamily int      `json:"pin_family,omitempty"`
 	Title     string   `json:"title"`
 	Host      string   `json:"host"`
 	Proto     string   `json:"proto"`
@@ -80,6 +85,40 @@ type Overview struct {
 // come from the target, which falls back to the instance defaults: a link
 // known to be poor should not shout every day, and a link that matters can
 // be watched more closely than the rest.
+// maskIP keeps enough of an address to say which network it is in, and no
+// more. It is what a visitor sees of a pinned address: the notice exists to
+// explain that the figures describe one machine, which does not require
+// naming that machine to everyone who opens the page.
+//
+// An IPv4 keeps its first two octets, an IPv6 its first two groups — the
+// same order of magnitude of disclosure in each family, roughly the
+// operator's network rather than the host.
+func maskIP(addr string) string {
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return ""
+	}
+	if v4 := ip.To4(); v4 != nil {
+		return fmt.Sprintf("%d.%d.XXX.XXX", v4[0], v4[1])
+	}
+	return fmt.Sprintf("%x:%x:XXXX:XXXX::",
+		int(ip[0])<<8|int(ip[1]), int(ip[2])<<8|int(ip[3]))
+}
+
+// familyOf says whether an address is IPv4 or IPv6, for a notice that names
+// the family. Read from the address rather than from the target's setting,
+// because a target on automatic has no setting and the address does.
+func familyOf(addr string) int {
+	ip := net.ParseIP(addr)
+	switch {
+	case ip == nil:
+		return 0
+	case ip.To4() != nil:
+		return 4
+	}
+	return 6
+}
+
 func classify(sent, lost int64, med, base float64, th Thresholds) string {
 	if sent == 0 {
 		return "nodata"
@@ -256,7 +295,8 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 			ot := &OverviewTarget{ID: t.ID, Slug: t.Slug, Title: t.Title, Host: t.Host, Proto: t.Proto,
 				Interval: t.IntervalS, Featured: feat[t.ID], Public: t.Public,
 				AddrCount: len(addrs[t.ID]), PinIP: t.PinIP, Family: t.Family,
-				Hours: make([]string, 48)}
+				PinFamily: familyOf(t.PinIP),
+				Hours:     make([]string, 48)}
 			// The target measuring the same service in the other family, so
 			// each page can offer the comparison the pair exists for. Only
 			// when that one is visible to this caller.
@@ -364,12 +404,19 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 			out.Counts[ot.Status]++
 			if !publicOnly {
 				ot.Addresses = addrs[t.ID]
-			} else if t.HideHost {
-				// A public target whose address stays private: the graph is
-				// shown, the host is not, and neither is anything that would
-				// give it away.
-				ot.Host = ""
-				ot.AddrCount = 0
+			} else {
+				// A visitor is told that the address is fixed, and which
+				// family it belongs to, without being handed the address.
+				ot.PinIP = maskIP(ot.PinIP)
+				if t.HideHost {
+					// A public target whose address stays private: the graph
+					// is shown, the host is not, and neither is anything that
+					// would give it away — the pinned address included, which
+					// used to go out in full.
+					ot.Host = ""
+					ot.AddrCount = 0
+					ot.PinIP, ot.PinFamily = "", 0
+				}
 			}
 			oc.Targets = append(oc.Targets, ot)
 		}
@@ -465,8 +512,12 @@ func (a *API) overview(w http.ResponseWriter, r *http.Request) {
 				if t.ID != id {
 					continue
 				}
+				// Whoever holds a share link is a third party: the same
+				// masking applies as on a public page.
+				t.PinIP = maskIP(t.PinIP)
 				if tg, err := a.store.TargetByID(id); err == nil && tg.HideHost {
 					t.Host, t.AddrCount, t.Addresses = "", 0, nil
+					t.PinIP, t.PinFamily = "", 0
 				} else {
 					t.Addresses = nil
 				}

@@ -310,3 +310,69 @@ func TestCategoryOrder(t *testing.T) {
 		t.Errorf("the first one moved: %v", got)
 	}
 }
+
+// A pinned address is a machine somebody chose to measure. The public API,
+// a share link and the indexed description say which network it is in and
+// which family, never the address — and a target whose address is private
+// says nothing at all.
+func TestPinnedAddressIsMaskedInPublic(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	mk := func(slug string, hide bool) int64 {
+		id, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+			Host: "youtube.example.net", Proto: "icmp", Family: 4, IntervalS: 60,
+			Packets: 10, SpacingMs: 100, TimeoutMs: 1000, Public: true, Enabled: true,
+			PinIP: "142.251.153.4", HideHost: hide})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	mk("shown", false)
+	mk("private", true)
+
+	pub, err := store.Overview(1, time.Now().Unix(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seen int
+	for _, c := range pub.Categories {
+		for _, tg := range c.Targets {
+			seen++
+			if strings.Contains(tg.PinIP, "153.4") {
+				t.Errorf("%s leaks the pinned address publicly: %q", tg.Slug, tg.PinIP)
+			}
+			switch tg.Slug {
+			case "shown":
+				if tg.PinIP != "142.251.XXX.XXX" || tg.PinFamily != 4 {
+					t.Errorf("expected a masked IPv4, got %q family %d",
+						tg.PinIP, tg.PinFamily)
+				}
+			case "private":
+				if tg.PinIP != "" || tg.PinFamily != 0 {
+					t.Errorf("a target whose address is private must say nothing: "+
+						"%q family %d", tg.PinIP, tg.PinFamily)
+				}
+			}
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("2 targets expected in the public overview, got %d", seen)
+	}
+	// The operator still sees the address he pinned.
+	priv, err := store.Overview(1, time.Now().Unix(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range priv.Categories {
+		for _, tg := range c.Targets {
+			if tg.PinIP != "142.251.153.4" || tg.PinFamily != 4 {
+				t.Errorf("an authenticated view keeps the address: %q", tg.PinIP)
+			}
+		}
+	}
+}
