@@ -33,6 +33,20 @@
       <p style="margin-bottom:0" data-i18n="about.method_p3"></p>
     </div></div>
   </section>
+  <section class="section">
+    <div class="section-h"><h2 data-i18n="about.instance"></h2></div>
+    <p class="muted" style="font-size:13px;margin-top:0" data-i18n="about.instance_lead"></p>
+    <div class="grid g2">
+      <div class="card"><div class="card-b">
+        <div class="section-h"><h3 style="font-size:15px;margin:0" data-i18n="about.probe_net"></h3></div>
+        <div id="probenet"></div>
+      </div></div>
+      <div class="card"><div class="card-b">
+        <div class="section-h"><h3 style="font-size:15px;margin:0" data-i18n="about.platform"></h3></div>
+        <div id="platform"></div>
+      </div></div>
+    </div>
+  </section>
   <section class="section" id="legalSec">
     <div class="section-h"><h2 data-i18n="about.legal"></h2></div>
     <p class="muted" style="font-size:13px" id="legal"></p>
@@ -64,6 +78,48 @@ function render(s) {
   ]);
   document.getElementById("legal").textContent = s.legal || "";
   document.getElementById("legalSec").hidden = !s.legal;
+  renderInstance(kv);
+}
+
+// What this instance is, and which network its packets leave from. A
+// measurement with no stated origin is of no use to whoever reads it.
+// The address itself is not published: the reverse name and the network
+// situate the probe, which is the same rule applied to the targets.
+async function renderInstance(kv) {
+  const t = I18N.t, esc = App.esc;
+  let v = null;
+  try { v = await fetch("/api/v1/instance").then(r => r.ok ? r.json() : null); }
+  catch (e) { /* the page is worth showing without it */ }
+  if (!v) return;
+  const n = String(v.asn || "").replace(/\D/g, "");
+  const links = n
+    ? `<a href="https://www.peeringdb.com/asn/${n}" rel="noopener" target="_blank">PeeringDB ↗</a>
+       · <a href="https://stat.ripe.net/app/launchpad/AS${n}" rel="noopener" target="_blank">RIPEstat ↗</a>`
+    : "";
+  const dur = s => {
+    if (!s) return "";
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
+  };
+  const size = b => b >= (1 << 30) ? Math.round(b / (1 << 30)) + " GB"
+    : b ? Math.round(b / (1 << 20)) + " MB" : "";
+  document.getElementById("probenet").innerHTML = kv([
+    ["about.reverse", esc(v.reverse)],
+    ["about.network", v.behind_nat ? esc(t("about.behind_nat"))
+      : (v.network ? `<span class="mono">${esc(v.network)}</span>` : "")],
+    ["about.family", v.family ? "IPv" + v.family : ""],
+    ["about.asn", v.asn ? `<span class="mono">${esc(v.asn)}</span>` : ""],
+    ["about.as_name", esc(v.as_name || v.net_name)],
+    ["about.check", links]
+  ]);
+  document.getElementById("platform").innerHTML = kv([
+    ["about.version", esc(v.version)],
+    ["about.cpu", v.cpu_cores ? esc((v.cpu_model ? v.cpu_model + " · " : "") +
+      v.cpu_cores + " " + t("about.cores")) : ""],
+    ["about.ram", esc(size(v.ram_bytes))],
+    ["about.uptime", esc(dur(v.uptime_s))],
+    ["about.platform_k", esc(v.platform)]
+  ]);
 }
 App.boot("about", render);
 

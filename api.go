@@ -43,6 +43,7 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/series", a.series)
 	mux.HandleFunc("GET /api/v1/charts", a.charts)
 	mux.HandleFunc("GET /api/v1/events", a.events)
+	mux.HandleFunc("GET /api/v1/instance", a.instanceGet)
 	mux.HandleFunc("GET /api/v1/live", a.live)
 	mux.HandleFunc("GET /api/v1/site", a.siteGet)
 	mux.HandleFunc("POST /api/v1/ingest", a.ingest)
