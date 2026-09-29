@@ -945,6 +945,16 @@ Under the graph, two strips:
   graph above on a period; a double-click comes back. Both carry that
   explanation on the page, so a visitor does not have to guess.
 
+### What the about page says about your instance
+
+*About* carries two blocks describing the instance itself, filled automatically.
+
+**Probe network**: the reverse name of the address your packets leave with, the network that address belongs to, the address family, the AS number and the name of the operator announcing it, with links to PeeringDB and RIPEstat. A measurement with no stated origin is of little use to whoever reads it, and those two links let a reader check the claim instead of taking it.
+
+**Platform**: processor, memory, version, uptime, system. A burst of twenty packets is not the same work on two cores as on thirty-two, and somebody comparing your figures with his own deserves to know.
+
+**The address is not published.** The reverse name and the network situate the probe; the address itself is masked exactly as a target's is. Behind NAT the page says so rather than showing a local address that would mean nothing to anybody. Nothing is fetched while a visitor waits: the source address comes from a route lookup that sends no packet, and the reverse lookup and the AS attribution are refreshed in the background.
+
 ### What the public pages show
 
 The public navigation adapts on its own: **Federation** and **Pairing**
