@@ -376,3 +376,70 @@ func TestPinnedAddressIsMaskedInPublic(t *testing.T) {
 		}
 	}
 }
+
+// An address is shown publicly by its network only, wherever it appears: the
+// host of a target given as a literal address, and the address actually
+// probed for a target given by name. A name is not an address and is left
+// alone — it is what says which service the page is about.
+func TestPublicAddressesAreMasked(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	mk := func(slug, host string, fam int) {
+		if _, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+			Host: host, Proto: "icmp", Family: fam, IntervalS: 60, Packets: 10,
+			SpacingMs: 100, TimeoutMs: 1000, Public: true, Enabled: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("literal-v4", "208.67.222.222", 4)
+	mk("literal-v6", "2001:4860:4860::8888", 6)
+	mk("by-name", "www.example.net", 4)
+
+	want := map[string]string{
+		"literal-v4": "208.67.XXX.XXX",
+		"literal-v6": "2001:4860:XXXX:XXXX::",
+		"by-name":    "www.example.net",
+	}
+	pub, err := store.Overview(1, time.Now().Unix(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, c := range pub.Categories {
+		for _, tg := range c.Targets {
+			seen++
+			if got := tg.Host; got != want[tg.Slug] {
+				t.Errorf("%s: public host %q, want %q", tg.Slug, got, want[tg.Slug])
+			}
+		}
+	}
+	if seen != 3 {
+		t.Fatalf("3 targets expected, got %d", seen)
+	}
+	// The operator keeps the addresses he typed.
+	priv, _ := store.Overview(1, time.Now().Unix(), false)
+	for _, c := range priv.Categories {
+		for _, tg := range c.Targets {
+			if strings.Contains(tg.Host, "XXX") {
+				t.Errorf("%s is masked for an authenticated caller: %q", tg.Slug, tg.Host)
+			}
+		}
+	}
+	// Turning the setting off restores the previous behaviour for operators
+	// who publish addresses deliberately.
+	site := store.Site()
+	site.MaskAddresses = false
+	store.SetSite(site)
+	off, _ := store.Overview(1, time.Now().Unix(), true)
+	for _, c := range off.Categories {
+		for _, tg := range c.Targets {
+			if tg.Slug == "literal-v4" && tg.Host != "208.67.222.222" {
+				t.Errorf("with masking off the address should be whole: %q", tg.Host)
+			}
+		}
+	}
+}

@@ -790,6 +790,21 @@ The token is stored **hashed**: a copy of the database hands over no working
 link, and the link is shown once, when created. Creations and revocations are
 in the audit log.
 
+### Addresses on public pages
+
+By default a visitor sees the **network** of an address, never the address: `142.251.XXX.XXX` for IPv4, `2a00:1450:XXXX:XXXX::` for IPv6 — two octets or two groups, the same order of disclosure in each family. It applies everywhere an address would otherwise appear to somebody who is not logged in:
+
+- the **host** of a target given as a literal address;
+- the **address actually probed**, shown under the route of a target given by name — the one value on the page the operator never typed;
+- a **pinned** address;
+- the **description indexed by search engines**, which is the most durable place an address can end up.
+
+**Host names are untouched.** A name is not an address, and it is what says which service the page is about: masking `www.example.net` would only make the page useless. For the same reason a target whose host is a well-known address stays readable, because its title carries the identity — *Google Public DNS (IPv6)* says what `2001:4860:XXXX:XXXX::` no longer does.
+
+Logged in, you see every address whole. The masking is about what a passer-by, a search engine or the holder of a share link gets.
+
+*Settings → Addresses on public pages* turns it off, for an operator who publishes addresses deliberately — a public looking glass, a set of reference targets whose addresses are the point. The switch is instance-wide; for a single target whose address must stay private altogether, *hide the address on the public page* in the target's own settings removes it from the page entirely rather than masking it.
+
 ### Anycast destinations
 
 An anycast address is one address served from many places. Which instance answers you is a routing decision, remade continuously by networks you do not control, and it can change without anything being wrong. The measurements then step: a median that moves from 8 ms to 34 ms because the nearest instance withdrew, not because a link degraded.

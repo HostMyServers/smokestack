@@ -839,6 +839,80 @@ func (s *Store) CreateTwin(id int64) (*Target, error) {
 	return s.TargetByID(newID)
 }
 
+// slugify turns a title into the address its public page will have. Accents
+// are folded rather than dropped, so "Réseau Café" gives "reseau-cafe" and
+// not "rseau-caf"; anything else becomes a separator, and runs of separators
+// collapse.
+func slugify(title string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(title)) {
+		if f, ok := foldAccent[r]; ok {
+			r = f
+		}
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			dash = false
+		default:
+			if !dash && b.Len() > 0 {
+				b.WriteByte('-')
+				dash = true
+			}
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if len(out) > 80 {
+		out = strings.Trim(out[:80], "-")
+	}
+	return out
+}
+
+var foldAccent = map[rune]rune{
+	'à': 'a', 'á': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a', 'å': 'a',
+	'ç': 'c', 'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+	'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ñ': 'n',
+	'ò': 'o', 'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o', 'ø': 'o',
+	'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u', 'ý': 'y', 'ÿ': 'y',
+}
+
+// freeSlug returns a slug not already taken in that category, adding -2, -3
+// and so on. Creating a target must not fail on a name collision: the
+// operator asked for a target, not for a lesson in identifiers.
+func (s *Store) freeSlug(categoryID int64, want string, exceptID int64) string {
+	if want == "" {
+		want = "target"
+	}
+	for i := 1; i < 500; i++ {
+		try := want
+		if i > 1 {
+			try = fmt.Sprintf("%s-%d", want, i)
+		}
+		var id int64
+		err := s.cfg.QueryRow(
+			`SELECT id FROM targets WHERE category_id=? AND slug=?`,
+			categoryID, try).Scan(&id)
+		if err != nil || id == exceptID {
+			return try
+		}
+	}
+	return fmt.Sprintf("%s-%d", want, time.Now().Unix())
+}
+
+// SlugTaken says which target already answers at that address, if any, so a
+// refusal can name it instead of quoting a database constraint.
+func (s *Store) SlugTaken(categoryID int64, slug string, exceptID int64) (string, bool) {
+	var id int64
+	var title string
+	err := s.cfg.QueryRow(
+		`SELECT id,title FROM targets WHERE category_id=? AND slug=?`,
+		categoryID, slug).Scan(&id, &title)
+	if err != nil || id == exceptID {
+		return "", false
+	}
+	return title, true
+}
+
 // TargetBySlug finds a target by the slug its public page uses.
 func (s *Store) TargetBySlug(slug string) (*Target, error) {
 	var id int64
@@ -1246,13 +1320,27 @@ func (s *Store) UpdateTarget(t *Target) error {
 		return err
 	}
 	_, err := s.cfg.Exec(
-		`UPDATE targets SET category_id=?,title=?,host=?,proto=?,family=?,interval_s=?,packets=?,
+		`UPDATE targets SET category_id=?,slug=?,title=?,host=?,proto=?,family=?,interval_s=?,packets=?,
 		        spacing_ms=?,timeout_ms=?,public=?,enabled=?,port=?,pin_ip=?,alerts_off=?,trace_hours=?,hide_host=?,keep_days=?,
 		        loss_warn=?,loss_crit=?,lat_factor=? WHERE id=?`,
-		t.CategoryID, t.Title, t.Host, t.Proto, t.Family, t.IntervalS, t.Packets,
+		t.CategoryID, t.Slug, t.Title, t.Host, t.Proto, t.Family, t.IntervalS, t.Packets,
 		t.SpacingMs, t.TimeoutMs, b2i(t.Public), b2i(t.Enabled), t.Port, t.PinIP, b2i(t.AlertsOff), t.TraceHours, b2i(t.HideHost), t.KeepDays,
 		t.LossWarn, t.LossCrit, t.LatFactor, t.ID)
+	if err != nil {
+		return slugError(err, t.Slug)
+	}
 	s.notifyTargets()
+	return nil
+}
+
+// slugError turns the database's constraint message into one an operator can
+// act on. "UNIQUE constraint failed: targets.category_id, targets.slug" says
+// nothing about what to do; naming the address does.
+func slugError(err error, slug string) error {
+	if err != nil && strings.Contains(err.Error(), "targets.slug") {
+		return fmt.Errorf("/t/%s is already the address of another target in this "+
+			"category: give this one another address", slug)
+	}
 	return err
 }
 
@@ -1273,7 +1361,7 @@ func (s *Store) CreateTarget(t *Target) (int64, error) {
 		t.PinIP, b2i(t.AlertsOff), t.TraceHours, b2i(t.HideHost), t.KeepDays,
 		t.LossWarn, t.LossCrit, t.LatFactor)
 	if err != nil {
-		return 0, err
+		return 0, slugError(err, t.Slug)
 	}
 	s.notifyTargets()
 	return res.LastInsertId()

@@ -49,21 +49,26 @@ type Site struct {
 	PublicTraceroutes bool `json:"public_traceroutes"`
 	// Thresholds applied to every target that does not set its own.
 	Thresholds Thresholds `json:"thresholds,omitempty"`
+	// MaskAddresses : sur les pages publiques, une adresse IP n'est montree
+	// que par son reseau. Les noms ne sont pas touches : un nom n'est pas
+	// une adresse, et c'est lui qui dit de quel service on parle.
+	MaskAddresses bool `json:"mask_addresses"`
 }
 
 func defaultSite() Site {
 	return Site{
-		Title:       "Latency monitoring",
-		Org:         "",
-		Owner:       "",
-		Email:       "",
-		ContactForm: true,
-		ContactMode: "form",
-		SearchIndex: true,
-		Timezone:    "Europe/Paris",
-		DefaultLang: "en",
-		Description: "Latency and packet loss measured from our network to public destinations.",
-		Thresholds:  DefaultThresholds(),
+		Title:         "Latency monitoring",
+		Org:           "",
+		Owner:         "",
+		Email:         "",
+		ContactForm:   true,
+		ContactMode:   "form",
+		SearchIndex:   true,
+		Timezone:      "Europe/Paris",
+		DefaultLang:   "en",
+		Description:   "Latency and packet loss measured from our network to public destinations.",
+		Thresholds:    DefaultThresholds(),
+		MaskAddresses: true,
 	}
 }
 
@@ -94,6 +99,12 @@ func (s *Store) Site() Site {
 			}
 			if !strings.Contains(raw, `"contact_form"`) {
 				site.ContactForm = true
+			}
+			// Added after instances were already running. The default is on,
+			// and an upgrade adopts it: the change is in the direction of
+			// showing less, which is never the surprising direction.
+			if !strings.Contains(raw, `"mask_addresses"`) {
+				site.MaskAddresses = true
 			}
 		}
 	}
