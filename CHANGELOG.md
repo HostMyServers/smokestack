@@ -3,11 +3,18 @@
 Versions are published as signed releases; servers with automatic updates
 install the newest one directly, whatever versions came in between.
 
-## Unreleased
+## 0.5.1
+
+Addresses, and who gets to see them. 0.5.0 masked a pinned address and left two other paths open; this closes them and says, on the about page, where the measurements come from — without publishing that address either.
+
+Nothing breaks on upgrade. The masking is on by default, including for instances upgrading, because it shows less rather than more; *Settings → Addresses on public pages* turns it off for an operator who publishes addresses deliberately.
+
+### Fixed
 
 - **A public page shows the network of an address, not the address.** The previous version masked a pinned address; it left two other paths open. A target given as a literal address published it as its host, and a target given by name published the address actually probed under its route — the one value on the page the operator never typed. Both are now masked for anybody who is not logged in, in the ten languages, in share links and in the description indexed by search engines. Host names are untouched: a name is not an address, and it is what says which service a page is about. *Settings → Addresses on public pages* turns the whole thing off for an operator who publishes addresses deliberately, and the per-target *hide the address* setting still removes it from the page altogether rather than masking it. On by default, including for instances upgrading, because the change shows less rather than more.
-
 - **Fixed: a name freed by renaming a target could not be reused** (#46). Renaming changed the title but not the address of the public page, so the old name stayed taken, and creating a target with it failed on a database constraint quoted verbatim at the operator. A rename still leaves the public address alone — a link already in somebody's ticket does not change behind his back — but the address is now a field of its own in the target's form, so freeing the old name is one deliberate edit. Two targets may also legitimately carry the same name: the second now takes `name-2` instead of being refused, accents fold rather than vanish (`Réseau Café` gives `reseau-cafe`), and a genuine collision is reported by naming the target that holds the address.
+
+### New
 
 - **The about page says where the packets leave from.** A measurement with no stated origin is of little use to whoever reads it, so the page now carries the probe's network — reverse name, network, address family, AS number with the operator's name, and links to PeeringDB and RIPEstat so a reader can check the claim rather than take it — and the machine doing the measuring: processor, memory, version, uptime and platform, because a burst is not the same work on two cores and on thirty-two. **The address itself is not published**: the reverse name and the network situate the probe, which is the rule the targets already follow. Behind NAT the page says so instead of showing a local address that would mean nothing. Nothing is fetched while a visitor waits.
 - **The link to the other address family is an action rather than a label.** It carries a pair of turning arrows, bold text and a distinct background, because it was a grey chip among grey chips and it is the one thing on that line you are meant to click.
