@@ -414,6 +414,12 @@ async function viewTargets(m){
         <div class="field" id="portfield" hidden><label>TCP port</label>
           <input id="tport" list="ports" placeholder="443">
           <datalist id="ports">${COMMON_PORTS.map(([p,l])=>`<option value="${p}">${p} — ${l}</option>`).join("")}</datalist></div>
+        <div class="note" style="grid-column:1/-1">Prefer a name over a public IP address.
+          Publishing the address of a machine you do not own exposes it, and that stays the
+          responsibility of whoever runs this instance — not of the tool. Public pages show only
+          the network of an address, but the safest address is the one that never leaves the
+          back-office: use <em>hide the address on the public page</em> when it must not appear
+          at all.</div>
         <div class="field"><label>Address family</label><select id="tfam">
           <option value="4">IPv4</option><option value="6">IPv6</option>
           <option value="0" id="tfamauto" hidden>Auto (legacy: IPv4 if there is one, else IPv6)</option></select>
@@ -1386,7 +1392,9 @@ Mastodon | https://mastodon.example/@noc">${esc((s.contact_links||[]).map(l=>`${
     </div></div>
     <div class="card"><h3>Addresses on public pages</h3><div class="body">
       <label class="chk"><input type="checkbox" id="mask_addresses" ${s.mask_addresses?"checked":""}>
-        <span>Show only the network of an IP address<small>On by default. A visitor sees
+        <span>Show only the network of an IP address<small>On by default. Masking reduces the
+          exposure, it does not remove it: what a target is, and whether it should be published at
+          all, stays the responsibility of whoever runs this instance. A visitor sees
           <span class="mono">142.251.XXX.XXX</span> instead of the address: the target's host when it
           is a literal address, the address actually probed under the route, and a pinned address.
           Host <em>names</em> are untouched — a name is not an address, and it is what says which
