@@ -1100,3 +1100,101 @@ func TestMaskIP(t *testing.T) {
 		}
 	}
 }
+
+// Renaming a target changed its title but not the address of its public
+// page, so the old name stayed taken and creating a target with it failed on
+// a database constraint quoted verbatim at the operator.
+func TestRenameFreesTheName(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	api := &API{store: store}
+	create := func(title string) *httptest.ResponseRecorder {
+		body := fmt.Sprintf(`{"title":%q,"host":"192.0.2.9","category_id":%d,
+		  "proto":"icmp","family":4,"interval_s":60,"packets":10,"spacing_ms":100,
+		  "timeout_ms":1000,"enabled":true}`, title, cat)
+		w := httptest.NewRecorder()
+		api.targetsPost(w, httptest.NewRequest("POST", "/api/v1/admin/targets",
+			strings.NewReader(body)))
+		return w
+	}
+	if w := create("Réseau Café"); w.Code != 200 {
+		t.Fatalf("creating: HTTP %d %s", w.Code, w.Body)
+	}
+	first, err := store.TargetBySlug("reseau-cafe")
+	if err != nil {
+		t.Fatalf("accents should fold rather than vanish: %v", err)
+	}
+
+	// Two targets may legitimately carry the same name: the second gets its
+	// own address instead of a refusal.
+	if w := create("Réseau Café"); w.Code != 200 {
+		t.Fatalf("a second target with the same name: HTTP %d %s", w.Code, w.Body)
+	}
+	if _, err := store.TargetBySlug("reseau-cafe-2"); err != nil {
+		t.Errorf("the second should have taken a free address: %v", err)
+	}
+
+	// Renaming leaves the public address alone — a URL in somebody's ticket
+	// does not change behind his back — but the address can be changed
+	// deliberately, and then the old one is free.
+	patch := func(id int64, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("PATCH", "/api/v1/admin/targets/"+fmt.Sprint(id),
+			strings.NewReader(body))
+		r.SetPathValue("id", fmt.Sprint(id))
+		api.targetsPatch(w, r)
+		return w
+	}
+	if w := patch(first.ID, `{"title":"Autre chose"}`); w.Code != 200 {
+		t.Fatalf("renaming: HTTP %d %s", w.Code, w.Body)
+	}
+	if got, _ := store.TargetByID(first.ID); got.Slug != "reseau-cafe" {
+		t.Errorf("a rename must not move the public page: %q", got.Slug)
+	}
+	if w := patch(first.ID, `{"slug":"autre-chose"}`); w.Code != 200 {
+		t.Fatalf("changing the address: HTTP %d %s", w.Code, w.Body)
+	}
+	if got, _ := store.TargetByID(first.ID); got.Slug != "autre-chose" {
+		t.Errorf("the address should have changed: %q", got.Slug)
+	}
+	// And now the old address is free for a new target.
+	if w := create("Réseau Café"); w.Code != 200 {
+		t.Fatalf("the freed name should be usable: HTTP %d %s", w.Code, w.Body)
+	}
+
+	// Taking an address that another target holds is refused by naming it,
+	// not by quoting a database constraint.
+	w := patch(first.ID, `{"slug":"reseau-cafe"}`)
+	if w.Code == 200 {
+		t.Fatal("taking another target's address must be refused")
+	}
+	if strings.Contains(w.Body.String(), "UNIQUE constraint") {
+		t.Errorf("the message must be actionable, not a constraint: %s", w.Body)
+	}
+	if !strings.Contains(w.Body.String(), "reseau-cafe") {
+		t.Errorf("the message should name the address: %s", w.Body)
+	}
+}
+
+func TestSlugify(t *testing.T) {
+	for in, want := range map[string]string{
+		"Réseau Café":     "reseau-cafe",
+		"  Espaces   ":    "espaces",
+		"A/B — C":         "a-b-c",
+		"Transit (Paris)": "transit-paris",
+		"ntp1.jussieu.fr": "ntp1-jussieu-fr",
+		"---":             "",
+		"Ærø ØST":         "ro-ost",
+	} {
+		if got := slugify(in); got != want {
+			t.Errorf("slugify(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if n := len(slugify(strings.Repeat("long ", 40))); n > 80 {
+		t.Errorf("a slug must stay bounded, got %d", n)
+	}
+}
