@@ -581,9 +581,16 @@ func (a *API) targetsPost(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "title, host and category_id are required")
 		return
 	}
+	// The slug is the address of the public page. Derived from the title
+	// when the caller does not give one, and made free rather than refused:
+	// two targets may legitimately be called the same thing, and a database
+	// constraint is not an answer an operator can act on.
 	if t.Slug == "" {
-		t.Slug = strings.ToLower(strings.ReplaceAll(t.Title, " ", "-"))
+		t.Slug = slugify(t.Title)
+	} else {
+		t.Slug = slugify(t.Slug)
 	}
+	t.Slug = a.store.freeSlug(t.CategoryID, t.Slug, 0)
 	id, err := a.store.CreateTarget(t)
 	if err != nil {
 		writeErr(w, 400, err.Error())
@@ -707,6 +714,10 @@ func (a *API) targetsPatch(w http.ResponseWriter, r *http.Request) {
 		KeepDays   *int    `json:"keep_days"`
 		Public     *bool   `json:"public"`
 		Enabled    *bool   `json:"enabled"`
+		// Slug : l'adresse de la page publique. Modifiable, mais jamais
+		// deduite d'un renommage : une URL publiee ne change pas dans le dos
+		// de ceux qui l'ont mise dans un ticket.
+		Slug *string `json:"slug"`
 		// Seuils propres a la cible. 0 remet la valeur de l'instance.
 		LossWarn  *float64 `json:"loss_warn"`
 		LossCrit  *float64 `json:"loss_crit"`
@@ -724,6 +735,20 @@ func (a *API) targetsPatch(w http.ResponseWriter, r *http.Request) {
 	set(&t.Title, in.Title)
 	set(&t.Host, in.Host)
 	set(&t.Proto, in.Proto)
+	if in.Slug != nil {
+		want := slugify(*in.Slug)
+		if want == "" {
+			writeErr(w, 400, "the public address cannot be empty")
+			return
+		}
+		if other, taken := a.store.SlugTaken(t.CategoryID, want, t.ID); taken {
+			writeErr(w, 400, fmt.Sprintf(
+				"/t/%s is already the address of %q: give this one another address",
+				want, other))
+			return
+		}
+		t.Slug = want
+	}
 	// The category and the TCP port are editable too: a target often moves
 	// from one category to another, and a TCP target changes port.
 	if in.CategoryID != nil {

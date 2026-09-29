@@ -408,6 +408,12 @@ async function viewTargets(m){
       <div class="row2">
         <div class="field"><label>Category</label><select id="tcat"></select></div>
         <div class="field"><label>Title</label><input id="ttitle" placeholder="Cogent Paris"></div>
+        <div class="field" id="tslugfield" hidden><label>Public address</label>
+          <input id="tslug" class="mono" placeholder="cogent-paris">
+          <div style="font-size:11px;color:var(--ink3);margin-top:3px">The page is served at
+            <span class="mono">/t/…</span> under this. Renaming a target leaves it alone, so a link
+            already in somebody's ticket keeps working; change it here when you want the old name
+            free for another target. Existing share links follow the target, not the address.</div></div>
         <div class="field"><label>Host or IP address</label><input id="thost" placeholder="192.0.2.1 or 2001:db8::1"></div>
         <div class="field"><label>Protocol</label><select id="tproto">
           <option value="icmp">ICMP</option><option value="tcp">TCP connect</option></select></div>
@@ -610,6 +616,9 @@ async function viewTargets(m){
     // it keeps it visible, so editing something else does not silently
     // change what it measures.
     if((EDIT.family||0)===0){ $("#tfamauto").hidden=false; $("#tfam").value="0"; }
+    // The public address is only worth showing for a target that has one:
+    // at creation it is derived from the title, and made free if taken.
+    $("#tslugfield").hidden=false; $("#tslug").value=EDIT.slug||"";
     // Zero is stored for a field that inherits, and the form shows it empty:
     // the difference between "inherits 60 s" and "states 60 s" is the whole
     // point, and prefilling would quietly turn the first into the second.
@@ -621,6 +630,7 @@ async function viewTargets(m){
   }
   // A new target inherits by default, which is what makes a category
   // parameter worth setting.
+  if(!EDIT){ $("#tslugfield").hidden=true; $("#tslug").value=""; }
   showInherited($("#tcat").value);
   $("#tcat").onchange=()=>showInherited($("#tcat").value);
   syncProto();
@@ -636,7 +646,10 @@ async function viewTargets(m){
       lat_factor:parseFloat($("#tlf").value||"0"),
       public:$("#tpub").checked};
     try{
-      if(EDIT){ await api("PATCH","/api/v1/admin/targets/"+EDIT.id,body); EDIT=null; toast("Target saved"); }
+      if(EDIT){
+        const sl=($("#tslug").value||"").trim();
+        if(sl && sl!==EDIT.slug) body.slug=sl;
+        await api("PATCH","/api/v1/admin/targets/"+EDIT.id,body); EDIT=null; toast("Target saved"); }
       else { await api("POST","/api/v1/admin/targets",Object.assign(body,{enabled:true})); toast("Target created, first measurement under way"); }
       render();
     }catch(e){toast(e.message,true);}
