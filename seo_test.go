@@ -66,8 +66,16 @@ func TestSEOHeadAndSitemap(t *testing.T) {
 		t.Error("a private target must not get an indexable page")
 	}
 	m, ok := api.targetMeta(r, "example-transit")
-	if !ok || !strings.Contains(m.Description, "192.0.2.1") || m.Path != "/t/example-transit" {
+	if !ok || m.Path != "/t/example-transit" {
 		t.Errorf("target page: %+v", m)
+	}
+	// The description is indexed by search engines, which is the most durable
+	// place an address can end up. It names the network, never the host.
+	if strings.Contains(m.Description, "192.0.2.1") {
+		t.Errorf("the indexed description carries the full address: %q", m.Description)
+	}
+	if !strings.Contains(m.Description, "192.0.XXX.XXX") {
+		t.Errorf("the indexed description should name the network: %q", m.Description)
 	}
 	// Sitemap: public pages and public targets, never the private one.
 	rec := httptest.NewRecorder()

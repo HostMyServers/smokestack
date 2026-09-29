@@ -5,6 +5,8 @@ install the newest one directly, whatever versions came in between.
 
 ## Unreleased
 
+- **A public page shows the network of an address, not the address.** The previous version masked a pinned address; it left two other paths open. A target given as a literal address published it as its host, and a target given by name published the address actually probed under its route — the one value on the page the operator never typed. Both are now masked for anybody who is not logged in, in the ten languages, in share links and in the description indexed by search engines. Host names are untouched: a name is not an address, and it is what says which service a page is about. *Settings → Addresses on public pages* turns the whole thing off for an operator who publishes addresses deliberately, and the per-target *hide the address* setting still removes it from the page altogether rather than masking it. On by default, including for instances upgrading, because the change shows less rather than more.
+
 - **Fixed: a name freed by renaming a target could not be reused** (#46). Renaming changed the title but not the address of the public page, so the old name stayed taken, and creating a target with it failed on a database constraint quoted verbatim at the operator. A rename still leaves the public address alone — a link already in somebody's ticket does not change behind his back — but the address is now a field of its own in the target's form, so freeing the old name is one deliberate edit. Two targets may also legitimately carry the same name: the second now takes `name-2` instead of being refused, accents fold rather than vanish (`Réseau Café` gives `reseau-cafe`), and a genuine collision is reported by naming the target that holds the address.
 
 ## 0.5.0
