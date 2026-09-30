@@ -112,6 +112,18 @@
     "ris_up": "Netwerken die ervoor gezien worden",
     "ris_hint": "Zo bereiken de RIS-collectors het doel, niet deze sonde: een pad gezien vanuit Amsterdam is niet het jouwe. Nuttig om te weten of het doel meerdere transits heeft, en welke."
   },
+  "avail": {
+    "title": "Beschikbaarheid",
+    "definition": "Het aandeel meetrondes waarin het doel op minstens één pakket antwoordde. Dit is geen pakketverliescijfer: een ronde die vier van de vijf pakketten verliest bewijst nog altijd dat het doel antwoordt, en telt als beschikbaar.",
+    "not_sla": "Geen SLA. Gemeten vanaf dit enige observatiepunt, met ICMP- of TCP-sondes en zonder contractuele uitsluitingen: het cijfer zegt wat deze sonde zag, niet wat het doel iemand verschuldigd is.",
+    "window_24h": "24 uur",
+    "window_7d": "7 dagen",
+    "window_30d": "30 dagen",
+    "window_1y": "1 jaar",
+    "passes": "{n} rondes, {down} zonder antwoord",
+    "unknown": "niets gemeten in deze periode",
+    "partial": "periode slechts deels gedekt"
+  },
   "fed": {
     "title": "Federatie",
     "lead": "Operators die dit hulpmiddel gebruiken, meten elkaars ankers en delen de resultaten. Elke koppeling hieronder is aan beide kanten door een mens goedgekeurd en wordt alleen getoond omdat beide partijen ermee instemden.",

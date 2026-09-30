@@ -119,6 +119,14 @@ canvas{display:block;width:100%}
 .st .k{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
 .st .v{font-size:21px;font-weight:700;letter-spacing:-.02em}
 .st .u{font-size:11.5px;color:var(--ink-3);font-weight:500;margin-left:3px}
+.avrow{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
+.av{border:1px solid var(--line-2);border-left-width:3px;border-radius:9px;padding:9px 12px;background:var(--bg-soft)}
+.av-w{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
+.av-v{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+.av-v .u{font-size:12px;color:var(--ink-3);font-weight:500;margin-left:2px}
+.av-m{font-size:11px;color:var(--ink-3);line-height:1.5}
+.av-ok{border-left-color:var(--ok)} .av-warn{border-left-color:var(--warn)}
+.av-crit{border-left-color:var(--crit)} .av-n{border-left-color:var(--line)}
 .trl{width:100%;border-collapse:collapse;font-size:13px}
 .trl td,.trl th{padding:8px 10px;border-top:1px solid var(--line-2);text-align:left}
 .trl th{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:550;border-top:none}
@@ -588,6 +596,11 @@ function renderDetail() {
       <ol class="evlist" id="evlist"></ol>
       <p class="strip-hint">${esc(t("detail.ev_hint"))}</p></div></div>
     <div class="stats" id="stats"></div>
+    <div class="card" id="avbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
+      <div class="lbl" style="margin-bottom:7px">${esc(t("avail.title"))}</div>
+      <div class="avrow" id="avrow"></div>
+      <p class="strip-hint">${esc(t("avail.definition"))}</p>
+      <p class="strip-hint" style="color:var(--warn)">${esc(t("avail.not_sla"))}</p></div></div>
     <section class="section" id="trsec" hidden style="margin-top:22px"><div class="section-h"><h2>${esc(t("trace.title"))}</h2>
       <span class="sub">${esc(t("trace.sub"))}</span></div><div class="card"><div class="card-b scroll-x" id="trbox"></div></div></section>
   </div></div></div>`;
@@ -619,9 +632,44 @@ async function paint() {
   const jit = cur.p75.map((v, i) => v != null && cur.p25[i] != null ? v - cur.p25[i] : null);
   const st = (key, v, u) => `<div class="st"><div class="k">${esc(t(key))}</div><div class="v">${v}<span class="u">${u}</span></div></div>`;
   const loss = avg(cur.loss);
+  // The fourth tile is the packet loss over the displayed window, named as
+  // such. It used to read "uptime", which invited the reading that the
+  // availability card below now answers properly: losing one packet in
+  // five is not being unavailable one fifth of the time.
   $("#stats").innerHTML = st("metric.median", n2(avg(cur.med)), "ms") + st("metric.p95", n2(avg(cur.p95)), "ms") +
-    st("metric.jitter", n2(avg(jit)), "ms") + st("metric.uptime", loss == null ? "—" : n1(100 - loss), "%");
+    st("metric.jitter", n2(avg(jit)), "ms") + st("metric.loss", loss == null ? "—" : n1(loss), "%");
   document.querySelectorAll("[data-p]").forEach(b => b.setAttribute("aria-pressed", String(S.preset === +b.dataset.p)));
+  renderAvailability(tg);
+}
+
+/* ---------------------------------------------------------- availability */
+// Availability counts measurement passes, not packets: the proportion of
+// passes where the target answered at least once. A window with no
+// measurement shows a dash, because unknown and zero are not the same
+// thing, and a window that is not fully covered says so rather than
+// letting a target created last week advertise a yearly figure.
+async function renderAvailability(tg) {
+  const box = $("#avbox"), row = $("#avrow");
+  if (!box || !row) return;
+  let d = null;
+  try {
+    const r = await fetch(`/api/v1/availability?target=${tg.id}` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : ""));
+    if (r.ok) d = await r.json();
+  } catch (e) { d = null; }
+  if (S.view !== "detail" || S.target !== tg) return;
+  const ws = (d && d.windows) || [];
+  if (!ws.some(w => w.pct != null)) { box.hidden = true; return; }
+  box.hidden = false;
+  row.innerHTML = ws.map(w => {
+    const known = w.pct != null;
+    const cls = !known ? "n" : w.pct >= 99.9 ? "ok" : w.pct >= 99 ? "warn" : "crit";
+    return `<div class="av av-${cls}">
+      <div class="av-w">${esc(t("avail.window_" + w.label) || w.label)}</div>
+      <div class="av-v">${known ? n2(w.pct) : "—"}<span class="u">${known ? "%" : ""}</span></div>
+      <div class="av-m">${known
+        ? esc(t("avail.passes", { n: I18N.num(w.passes), down: I18N.num(w.down) }))
+        : esc(t("avail.unknown"))}${w.partial ? ` · ${esc(t("avail.partial"))}` : ""}</div></div>`;
+  }).join("");
 }
 
 /* ------------------------------------------------------------ traceroutes */

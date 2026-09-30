@@ -112,6 +112,18 @@
     "ris_up": "Réseaux vus devant lui",
     "ris_hint": "Il s'agit de la façon dont les collecteurs RIS joignent la cible, pas de celle de cette sonde : un chemin vu depuis Amsterdam n'est pas le tien. Utile pour savoir si la cible est multi-hébergée, et par qui."
   },
+  "avail": {
+    "title": "Disponibilité",
+    "definition": "La proportion des passes de mesure où la cible a répondu à au moins un paquet. Ce n'est pas un taux de perte : une passe qui perd quatre paquets sur cinq prouve quand même que la cible répond, et compte comme disponible.",
+    "not_sla": "Ce n'est pas un SLA. Mesuré depuis ce seul point d'observation, en ICMP ou TCP, sans aucune exclusion contractuelle : ce chiffre dit ce que cette sonde a vu, pas ce que la cible doit à qui que ce soit.",
+    "window_24h": "24 heures",
+    "window_7d": "7 jours",
+    "window_30d": "30 jours",
+    "window_1y": "1 an",
+    "passes": "{n} passes, {down} muettes",
+    "unknown": "rien mesuré sur cette période",
+    "partial": "période couverte en partie seulement"
+  },
   "fed": {
     "title": "Fédération",
     "lead": "Les opérateurs qui exploitent cet outil mesurent mutuellement leurs ancres et partagent les résultats. Chaque appairage ci-dessous a été approuvé par un humain des deux côtés, et n'est affiché ici que parce que les deux l'ont accepté.",

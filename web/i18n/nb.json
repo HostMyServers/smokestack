@@ -112,6 +112,18 @@
     "ris_up": "Nett som ses foran",
     "ris_hint": "Slik når RIS-collectorene målet, ikke denne sonden: en vei sett fra Amsterdam er ikke din. Nyttig for å vite om målet har flere transitt, og hvilke."
   },
+  "avail": {
+    "title": "Tilgjengelighet",
+    "definition": "Andelen måleomganger der målet svarte på minst én pakke. Det er ikke et pakketapstall: en omgang som mister fire av fem pakker viser likevel at målet svarer, og teller som tilgjengelig.",
+    "not_sla": "Ikke en SLA. Målt fra dette ene observasjonspunktet, med ICMP- eller TCP-sonder og uten kontraktsmessige unntak: tallet sier hva denne sonden så, ikke hva målet skylder noen.",
+    "window_24h": "24 timer",
+    "window_7d": "7 dager",
+    "window_30d": "30 dager",
+    "window_1y": "1 år",
+    "passes": "{n} omganger, {down} uten svar",
+    "unknown": "ingenting målt i denne perioden",
+    "partial": "perioden bare delvis dekket"
+  },
   "fed": {
     "title": "Føderasjon",
     "lead": "Operatører som bruker dette verktøyet, måler hverandres ankere og deler resultatene. Hver sammenkobling nedenfor er godkjent av et menneske på begge sider, og vises her bare fordi begge samtykket.",

@@ -112,6 +112,18 @@
     "ris_up": "Reti viste davanti",
     "ris_hint": "È il modo in cui i collector RIS raggiungono la destinazione, non questa sonda: un percorso visto da Amsterdam non è il tuo. Utile per sapere se la destinazione ha più transiti, e quali."
   },
+  "avail": {
+    "title": "Disponibilità",
+    "definition": "La proporzione dei passaggi di misura in cui il bersaglio ha risposto ad almeno un pacchetto. Non è un tasso di perdita: un passaggio che perde quattro pacchetti su cinque dimostra comunque che il bersaglio risponde, e conta come disponibile.",
+    "not_sla": "Non è uno SLA. Misurato da questo unico punto di osservazione, con sonde ICMP o TCP e senza alcuna esclusione contrattuale: la cifra dice ciò che questa sonda ha visto, non ciò che il bersaglio deve a qualcuno.",
+    "window_24h": "24 ore",
+    "window_7d": "7 giorni",
+    "window_30d": "30 giorni",
+    "window_1y": "1 anno",
+    "passes": "{n} passaggi, {down} muti",
+    "unknown": "nulla misurato in questo periodo",
+    "partial": "periodo coperto solo in parte"
+  },
   "fed": {
     "title": "Federazione",
     "lead": "Gli operatori che usano questo strumento misurano reciprocamente le proprie ancore e ne condividono i risultati. Ogni abbinamento qui sotto è stato approvato da una persona da entrambe le parti ed è mostrato solo perché entrambe hanno acconsentito.",

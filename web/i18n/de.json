@@ -112,6 +112,18 @@
     "ris_up": "Davor gesehene Netze",
     "ris_hint": "So erreichen die RIS-Collectors das Ziel, nicht diese Sonde: ein aus Amsterdam gesehener Pfad ist nicht Ihrer. Nützlich, um zu wissen, ob das Ziel mehrfach angebunden ist, und über wen."
   },
+  "avail": {
+    "title": "Verfügbarkeit",
+    "definition": "Der Anteil der Messdurchläufe, in denen das Ziel mindestens ein Paket beantwortet hat. Das ist keine Paketverlustrate: ein Durchlauf, der vier von fünf Paketen verliert, beweist dennoch, dass das Ziel antwortet, und gilt als verfügbar.",
+    "not_sla": "Kein SLA. Gemessen von diesem einzigen Beobachtungspunkt aus, per ICMP oder TCP, ohne vertragliche Ausnahmen: die Zahl sagt, was diese Sonde gesehen hat, nicht was das Ziel jemandem schuldet.",
+    "window_24h": "24 Stunden",
+    "window_7d": "7 Tage",
+    "window_30d": "30 Tage",
+    "window_1y": "1 Jahr",
+    "passes": "{n} Durchläufe, {down} ohne Antwort",
+    "unknown": "in diesem Zeitraum nichts gemessen",
+    "partial": "Zeitraum nur teilweise abgedeckt"
+  },
   "fed": {
     "title": "Föderation",
     "lead": "Betreiber dieses Werkzeugs messen gegenseitig ihre Anker und teilen die Ergebnisse. Jede Kopplung unten wurde auf beiden Seiten von einem Menschen genehmigt und wird nur angezeigt, weil beide zugestimmt haben.",

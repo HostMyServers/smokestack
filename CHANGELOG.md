@@ -3,6 +3,16 @@
 Versions are published as signed releases; servers with automatic updates
 install the newest one directly, whatever versions came in between.
 
+## Unreleased
+
+### New
+
+- **Availability, counted in measurement passes rather than packets.** The detail page now carries the availability over 24 hours, 7 days, 30 days and one year, defined as the proportion of measurement passes where the target answered at least one packet. That definition is deliberate and is printed next to the figure: a target that loses one packet in five permanently is available, not unavailable a fifth of the time, and a loss rate answers a different question. The caveat sits next to the number as well rather than in a footnote — this is not an SLA, it is what one probe saw from one point of the Internet, on ICMP or TCP, with no contractual exclusion — because the misreading worth preventing is exactly that one. A window with no measurement shows a dash instead of zero, since unknown and nought are not the same thing, and a window whose measurements start well after its beginning says so, so a target created last week does not advertise a yearly figure. Two counters are added to each measurement table and carried through the aggregation cascade, which is what makes a one-year figure a handful of rows to read rather than a scan of the whole history; the rows written before this version stay at zero, because a silent pass cannot be deduced from a packet total, so the figure covers the period since the upgrade and the interface states it rather than guessing.
+
+### Changed
+
+- **The fourth tile of the detail page reads *Loss* instead of *Uptime*.** It always showed the packet loss over the displayed window, subtracted from a hundred; the name invited precisely the reading the availability card now answers properly.
+
 ## 0.5.1
 
 Addresses, and who gets to see them. 0.5.0 masked a pinned address and left two other paths open; this closes them and says, on the about page, where the measurements come from — without publishing that address either.

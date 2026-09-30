@@ -112,6 +112,18 @@
     "ris_up": "Net set foran",
     "ris_hint": "Sådan når RIS-collectorerne målet, ikke denne sonde: en vej set fra Amsterdam er ikke din. Nyttigt for at vide, om målet har flere transitter, og hvilke."
   },
+  "avail": {
+    "title": "Tilgængelighed",
+    "definition": "Andelen af målerunder hvor målet svarede på mindst én pakke. Det er ikke et pakketabstal: en runde der mister fire af fem pakker viser alligevel at målet svarer, og tæller som tilgængelig.",
+    "not_sla": "Ikke en SLA. Målt fra dette ene observationspunkt, med ICMP- eller TCP-sonder og uden kontraktlige undtagelser: tallet siger hvad denne sonde så, ikke hvad målet skylder nogen.",
+    "window_24h": "24 timer",
+    "window_7d": "7 dage",
+    "window_30d": "30 dage",
+    "window_1y": "1 år",
+    "passes": "{n} runder, {down} uden svar",
+    "unknown": "intet målt i denne periode",
+    "partial": "perioden kun delvist dækket"
+  },
   "fed": {
     "title": "Føderation",
     "lead": "Operatører, der bruger dette værktøj, måler hinandens ankre og deler resultaterne. Hver parring herunder er godkendt af et menneske på begge sider og vises kun her, fordi begge har givet samtykke.",
