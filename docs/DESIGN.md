@@ -23,6 +23,8 @@ To install and run it, see [DEPLOY.md](../DEPLOY.md). For an overview, see the
 14. [Updates and releases](#14-updates-and-releases)
 15. [Known limits](#15-known-limits)
 
+Proposals under discussion, not implemented, live in [design/](design/): currently [federated double-check](design/federated-double-check.md).
+
 ---
 
 ## 1. Principles
