@@ -39,7 +39,9 @@
     "warn_long": "Latentie of jitter buiten de referentie",
     "crit_long": "Pakketverlies vastgesteld",
     "nodata": "geen gegevens",
-    "private": "privé"
+    "private": "privé",
+    "maint": "onderhoud",
+    "maint_long": "Gepland onderhoud bezig"
   },
   "metric": {
     "median": "Mediaan",
@@ -123,6 +125,16 @@
     "passes": "{n} rondes, {down} zonder antwoord",
     "unknown": "niets gemeten in deze periode",
     "partial": "periode slechts deels gedekt"
+  },
+  "maint": {
+    "title": "Gepland onderhoud",
+    "banner_probe": "De meting is opgeschort tot {until}, op verzoek van de beheerder van deze instantie: het gat in de grafiek is opzettelijk en geen storing.",
+    "banner_alerts": "De meting loopt door tot {until}, maar de waarschuwingen staan uit: wat u ziet kan het onderhoud zelf zijn en geen storing.",
+    "live_title": "Onderhoud bezig op {n} doel(en)",
+    "soon_title": "Onderhoud aangekondigd op {n} doel(en)",
+    "from": "van {from} tot {until}",
+    "until": "tot {until}",
+    "measure_paused": "meting opgeschort"
   },
   "fed": {
     "title": "Federatie",

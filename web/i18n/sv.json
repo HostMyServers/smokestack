@@ -39,7 +39,9 @@
     "warn_long": "Latens eller jitter utanför referensen",
     "crit_long": "Paketförlust observerad",
     "nodata": "inga data",
-    "private": "privat"
+    "private": "privat",
+    "maint": "underhåll",
+    "maint_long": "Planerat underhåll pågår"
   },
   "metric": {
     "median": "Median",
@@ -123,6 +125,16 @@
     "passes": "{n} omgångar, {down} utan svar",
     "unknown": "inget mätt under denna period",
     "partial": "perioden bara delvis täckt"
+  },
+  "maint": {
+    "title": "Planerat underhåll",
+    "banner_probe": "Mätningen är pausad till {until}, på begäran av den som driver denna instans: hålet i diagrammet är avsiktligt och inte ett avbrott.",
+    "banner_alerts": "Mätningen fortsätter till {until}, men larmen är tystade: vad du ser kan vara underhållet självt och inte ett fel.",
+    "live_title": "Underhåll pågår på {n} mål",
+    "soon_title": "Underhåll aviserat på {n} mål",
+    "from": "från {from} till {until}",
+    "until": "till {until}",
+    "measure_paused": "mätning pausad"
   },
   "fed": {
     "title": "Federation",

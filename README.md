@@ -167,6 +167,9 @@ Details in [DEPLOY.md § 10](DEPLOY.md#10-probe-isolation-and-performance).
   suggestions in the [wiki](https://github.com/nkglfr/smokestack/wiki)
 - A contact form on the public pages, so your address stays off spam lists
 - Alerts on your own targets after a sustained incident, traceroute included
+- Maintenance calendar: declare a window and choose whether it silences alerting, stops the
+  measurement, or both — the public page carries a banner, and a stopped window is excluded from
+  the availability figure instead of counting as an outage
 - Indexable public pages: titles, descriptions, readable addresses per target,
   sitemap and a summary that works without JavaScript
 - Public or **private** targets: private ones are measured and visible in the back-office only

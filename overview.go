@@ -65,6 +65,21 @@ type OverviewTarget struct {
 	Family    int    `json:"family,omitempty"`
 	TwinSlug  string `json:"twin_slug,omitempty"`
 	TwinTitle string `json:"twin_title,omitempty"`
+	// Maint : maintenance programmee en cours sur cette cible. Presente,
+	// elle explique un trou ou une degradation voulue, et le statut passe
+	// a "maint" quand la mesure elle-meme est arretee, pour que la cible
+	// ne soit pas comptee parmi les defauts.
+	Maint *MaintNote `json:"maint,omitempty"`
+}
+
+// MaintNote est ce qu'une page publique dit d'une maintenance : de quoi
+// comprendre l'arret, sans le detail interne.
+type MaintNote struct {
+	Title     string `json:"title"`
+	Note      string `json:"note,omitempty"`
+	StartsAt  int64  `json:"starts_at"`
+	EndsAt    int64  `json:"ends_at"`
+	StopProbe bool   `json:"stop_probe"`
 }
 
 type OverviewCategory struct {
@@ -292,7 +307,8 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 	}
 
 	out := &Overview{GeneratedAt: now, Categories: []*OverviewCategory{},
-		Counts: map[string]int{"targets": 0, "ok": 0, "warn": 0, "crit": 0, "nodata": 0}}
+		Counts: map[string]int{"targets": 0, "ok": 0, "warn": 0, "crit": 0, "nodata": 0, "maint": 0}}
+	maint := s.ActiveMaintenances(now)
 	dayStart := now - 86400
 	slot0 := dayStart - dayStart%1800 + 1800
 	sparkStart := now - 3*3600
@@ -411,6 +427,17 @@ func (s *Store) Overview(probeID int64, now int64, publicOnly bool) (*Overview, 
 					}
 				}
 				ot.Since = &since
+			}
+			// Une maintenance annoncee explique ce que le graphe montre.
+			// Quand elle arrete la mesure, le statut le dit plutot que
+			// d'afficher un defaut ou un trou inexplique.
+			if m, ok := maint[t.ID]; ok {
+				ot.Maint = &MaintNote{Title: m.Title, Note: m.Note,
+					StartsAt: m.StartsAt, EndsAt: m.EndsAt, StopProbe: m.StopProbe}
+				if m.StopProbe {
+					ot.Status = "maint"
+					ot.Since = nil
+				}
 			}
 			out.Counts["targets"]++
 			out.Counts[ot.Status]++

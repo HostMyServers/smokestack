@@ -39,7 +39,9 @@
     "warn_long": "Latenz oder Jitter abweichend",
     "crit_long": "Paketverlust festgestellt",
     "nodata": "keine Daten",
-    "private": "privat"
+    "private": "privat",
+    "maint": "Wartung",
+    "maint_long": "Geplante Wartung läuft"
   },
   "metric": {
     "median": "Median",
@@ -123,6 +125,16 @@
     "passes": "{n} Durchläufe, {down} ohne Antwort",
     "unknown": "in diesem Zeitraum nichts gemessen",
     "partial": "Zeitraum nur teilweise abgedeckt"
+  },
+  "maint": {
+    "title": "Geplante Wartung",
+    "banner_probe": "Die Messung ist bis {until} ausgesetzt, auf Wunsch des Betreibers dieser Instanz: die Lücke im Diagramm ist gewollt und keine Störung.",
+    "banner_alerts": "Die Messung läuft bis {until} weiter, die Alarmierung ist jedoch stumm: was Sie sehen, kann die Wartung selbst sein und keine Störung.",
+    "live_title": "Wartung läuft an {n} Ziel(en)",
+    "soon_title": "Wartung angekündigt an {n} Ziel(en)",
+    "from": "von {from} bis {until}",
+    "until": "bis {until}",
+    "measure_paused": "Messung ausgesetzt"
   },
   "fed": {
     "title": "Föderation",

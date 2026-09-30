@@ -39,7 +39,9 @@
     "warn_long": "Latenza o jitter fuori norma",
     "crit_long": "Perdita di pacchetti rilevata",
     "nodata": "nessun dato",
-    "private": "privata"
+    "private": "privata",
+    "maint": "manutenzione",
+    "maint_long": "Manutenzione programmata in corso"
   },
   "metric": {
     "median": "Mediana",
@@ -123,6 +125,16 @@
     "passes": "{n} passaggi, {down} muti",
     "unknown": "nulla misurato in questo periodo",
     "partial": "periodo coperto solo in parte"
+  },
+  "maint": {
+    "title": "Manutenzione programmata",
+    "banner_probe": "La misura è sospesa fino al {until}, su richiesta di chi gestisce questa istanza: il vuoto nel grafico è voluto e non è un guasto.",
+    "banner_alerts": "La misura continua fino al {until}, ma gli avvisi sono silenziati: ciò che vedete può essere la manutenzione stessa e non un guasto.",
+    "live_title": "Manutenzione in corso su {n} bersaglio/i",
+    "soon_title": "Manutenzione annunciata su {n} bersaglio/i",
+    "from": "dal {from} al {until}",
+    "until": "fino al {until}",
+    "measure_paused": "misura sospesa"
   },
   "fed": {
     "title": "Federazione",
