@@ -29,6 +29,7 @@ type API struct {
 	upd            *Updater
 	writer         *Writer
 	probeMode      string
+	certs          *CertWatcher
 
 	setupMu   sync.Mutex
 	setupCode string
@@ -723,6 +724,7 @@ func (a *API) targetsPatch(w http.ResponseWriter, r *http.Request) {
 		LossWarn  *float64 `json:"loss_warn"`
 		LossCrit  *float64 `json:"loss_crit"`
 		LatFactor *float64 `json:"lat_factor"`
+		CertOff   *bool    `json:"cert_off"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeErr(w, 400, err.Error())
@@ -793,6 +795,9 @@ func (a *API) targetsPatch(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.LatFactor != nil {
 		t.LatFactor = *in.LatFactor
+	}
+	if in.CertOff != nil {
+		t.CertOff = *in.CertOff
 	}
 	if in.KeepDays != nil {
 		if *in.KeepDays < 0 || *in.KeepDays > 3650 {

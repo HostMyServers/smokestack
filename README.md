@@ -165,6 +165,8 @@ Details in [DEPLOY.md § 10](DEPLOY.md#10-probe-isolation-and-performance).
   suggestions in the [wiki](https://github.com/nkglfr/smokestack/wiki)
 - A contact form on the public pages, so your address stays off spam lists
 - Alerts on your own targets after a sustained incident, traceroute included
+- TLS certificate watch on every TCP target: expiry warned 30, 14, 7 and 1 day ahead, and a refused
+  certificate — wrong name, unverifiable chain, broken handshake — reported as soon as it is seen
 - Indexable public pages: titles, descriptions, readable addresses per target,
   sitemap and a summary that works without JavaScript
 - Public or **private** targets: private ones are measured and visible in the back-office only

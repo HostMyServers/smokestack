@@ -227,6 +227,7 @@ func OpenStore(dir string) (*Store, error) {
 	addColumn(cfg, "targets", "loss_warn REAL NOT NULL DEFAULT 0")
 	addColumn(cfg, "targets", "loss_crit REAL NOT NULL DEFAULT 0")
 	addColumn(cfg, "targets", "lat_factor REAL NOT NULL DEFAULT 0")
+	addColumn(cfg, "targets", "cert_off INTEGER NOT NULL DEFAULT 0")
 	// Parametres de categorie : liaison dynamique. Une valeur non nulle ici
 	// s'applique a toutes les cibles de la categorie qui n'en declarent pas
 	// une elle-meme, et un changement les suit toutes immediatement.
@@ -335,6 +336,10 @@ type Target struct {
 	LossWarn  float64 `json:"loss_warn,omitempty"`
 	LossCrit  float64 `json:"loss_crit,omitempty"`
 	LatFactor float64 `json:"lat_factor,omitempty"`
+	// CertOff : ne pas surveiller le certificat de cette cible TCP. Utile
+	// pour un port qui ne parle pas TLS, ou dont le certificat appartient
+	// a quelqu'un d'autre.
+	CertOff bool `json:"cert_off,omitempty"`
 }
 
 type Category struct {
@@ -421,7 +426,7 @@ func (s *Store) SetCategoryParams(id int64, p TargetParams) error {
 // targetCols is the column list every target query shares, so adding a
 // column is one edit rather than five.
 const targetCols = `id,category_id,slug,title,host,proto,interval_s,packets,
-	        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor`
+	        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off`
 
 // inheritableFields maps the name the interface uses to the column it
 // clears. Only these can be inherited; the host, the protocol, the port and
@@ -582,7 +587,7 @@ func (s *Store) TouchProbe(id int64) {
 func (s *Store) ActiveTargets() ([]*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off
 		   FROM targets WHERE enabled=1 AND archived_at=0 ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -601,15 +606,15 @@ func scanTargets(rows *sql.Rows) ([]*Target, error) {
 	var out []*Target
 	for rows.Next() {
 		t := &Target{}
-		var pub, en, off, hide int
+		var pub, en, off, hide, certOff int
 		if err := rows.Scan(&t.ID, &t.CategoryID, &t.Slug, &t.Title, &t.Host,
 			&t.Proto, &t.IntervalS, &t.Packets, &t.SpacingMs, &t.TimeoutMs,
 			&pub, &en, &t.Family, &t.Port, &t.PinIP, &off, &t.ArchivedAt, &t.TraceHours, &hide, &t.KeepDays,
-			&t.LossWarn, &t.LossCrit, &t.LatFactor); err != nil {
+			&t.LossWarn, &t.LossCrit, &t.LatFactor, &certOff); err != nil {
 			return nil, err
 		}
 		t.Public, t.Enabled, t.AlertsOff = pub == 1, en == 1, off == 1
-		t.HideHost = hide == 1
+		t.HideHost, t.CertOff = hide == 1, certOff == 1
 		out = append(out, t)
 	}
 	return out, rows.Err()
@@ -653,7 +658,7 @@ func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 
 	trows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off
 		   FROM targets WHERE archived_at=0 ORDER BY title`)
 	if err != nil {
 		return nil, err
@@ -685,7 +690,7 @@ func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 func (s *Store) TargetByID(id int64) (*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off
 		   FROM targets WHERE id=?`, id)
 	if err != nil {
 		return nil, err
@@ -1322,10 +1327,10 @@ func (s *Store) UpdateTarget(t *Target) error {
 	_, err := s.cfg.Exec(
 		`UPDATE targets SET category_id=?,slug=?,title=?,host=?,proto=?,family=?,interval_s=?,packets=?,
 		        spacing_ms=?,timeout_ms=?,public=?,enabled=?,port=?,pin_ip=?,alerts_off=?,trace_hours=?,hide_host=?,keep_days=?,
-		        loss_warn=?,loss_crit=?,lat_factor=? WHERE id=?`,
+		        loss_warn=?,loss_crit=?,lat_factor=?,cert_off=? WHERE id=?`,
 		t.CategoryID, t.Slug, t.Title, t.Host, t.Proto, t.Family, t.IntervalS, t.Packets,
 		t.SpacingMs, t.TimeoutMs, b2i(t.Public), b2i(t.Enabled), t.Port, t.PinIP, b2i(t.AlertsOff), t.TraceHours, b2i(t.HideHost), t.KeepDays,
-		t.LossWarn, t.LossCrit, t.LatFactor, t.ID)
+		t.LossWarn, t.LossCrit, t.LatFactor, b2i(t.CertOff), t.ID)
 	if err != nil {
 		return slugError(err, t.Slug)
 	}
@@ -1354,12 +1359,12 @@ func (s *Store) CreateTarget(t *Target) (int64, error) {
 	res, err := s.cfg.Exec(
 		`INSERT INTO targets(category_id,slug,title,host,proto,interval_s,packets,
 		                     spacing_ms,timeout_ms,public,enabled,created_at,family,port,pin_ip,alerts_off,trace_hours,hide_host,keep_days,
-		                     loss_warn,loss_crit,lat_factor)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		                     loss_warn,loss_crit,lat_factor,cert_off)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		t.CategoryID, t.Slug, t.Title, t.Host, t.Proto, t.IntervalS, t.Packets,
 		t.SpacingMs, t.TimeoutMs, b2i(t.Public), b2i(t.Enabled), time.Now().Unix(), t.Family, t.Port,
 		t.PinIP, b2i(t.AlertsOff), t.TraceHours, b2i(t.HideHost), t.KeepDays,
-		t.LossWarn, t.LossCrit, t.LatFactor)
+		t.LossWarn, t.LossCrit, t.LatFactor, b2i(t.CertOff))
 	if err != nil {
 		return 0, slugError(err, t.Slug)
 	}
@@ -1396,7 +1401,7 @@ func (s *Store) ArchiveTarget(id int64) error {
 func (s *Store) ArchivedTargets() ([]*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off
 		   FROM targets WHERE archived_at>0 ORDER BY archived_at DESC`)
 	if err != nil {
 		return nil, err

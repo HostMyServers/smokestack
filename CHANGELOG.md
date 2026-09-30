@@ -5,6 +5,12 @@ install the newest one directly, whatever versions came in between.
 
 ## Unreleased
 
+### New
+
+- **TLS certificates are watched, and their expiry announced in advance.** A certificate that expires without anyone noticing is one of the few outages that is entirely predictable, so every TCP target with a port is now inspected twice a day: one full TLS handshake, the certificate read, and nothing written to the latency series — a handshake is far slower than a bare connection and would distort the measurement it sits next to. A message goes out once per threshold crossed, at 30, 14, 7 and 1 day before expiry and on the day itself, rather than once per check, so a certificate left alone for a month produces a handful of messages instead of sixty; a renewal rearms the whole sequence. Verification is the one a browser does, chain and name included, because a monitoring tool that accepts a certificate a client would refuse warns about nothing: a wrong name, an unverifiable chain, a certificate already expired and a handshake that never completes are each reported in a sentence that names the cause instead of quoting `x509: certificate signed by unknown authority` at an operator. The first threshold, the extra recipients and the global switch live on the back-office *TLS certificates* page, alerts leave through the notification channels already configured, and the same page carries a per-target switch and an *Inspect now* button for an operator who has just fixed something and does not want to wait twelve hours to see it.
+
+### Changed
+
 - **SQLite and the Go toolchain are brought up to date.** `modernc.org/sqlite` goes from 1.34.5 to 1.59.0 — twenty-five minor versions of the engine that writes every measurement — along with its own dependencies and `golang.org/x/sys`. The update requires Go 1.25, so the build, the release workflow and the container image move from 1.22 and 1.23 to 1.25: a version from early 2024 no longer receives the runtime and standard-library fixes that a network-facing service should have. The binary stays static and `CGO_ENABLED=0`, so nothing about how it is deployed changes.
 
 ## 0.5.1
