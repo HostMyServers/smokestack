@@ -112,6 +112,18 @@
     "ris_up": "Networks seen in front of it",
     "ris_hint": "This is how the RIS collectors reach the target, not how this probe does: a path seen from Amsterdam is not yours. Useful to know whether the target is multi-homed, and through whom."
   },
+  "avail": {
+    "title": "Availability",
+    "definition": "The proportion of measurement passes where the target answered at least one packet. It is not a packet loss figure: a pass that loses four packets out of five still proves the target answers, and counts as available.",
+    "not_sla": "Not an SLA. Measured from this single vantage point, on ICMP or TCP probes, with no contractual exclusion: it says what this probe saw, not what the target owes anybody.",
+    "window_24h": "24 hours",
+    "window_7d": "7 days",
+    "window_30d": "30 days",
+    "window_1y": "1 year",
+    "passes": "{n} passes, {down} silent",
+    "unknown": "nothing measured over this period",
+    "partial": "period only partly covered"
+  },
   "fed": {
     "title": "Federation",
     "lead": "Operators running this tool measure each other's anchors and share the results. Each pairing below was approved by a human on both sides, and is shown here only because both agreed to it.",

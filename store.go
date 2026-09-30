@@ -137,6 +137,8 @@ CREATE TABLE IF NOT EXISTS %s (
   sum_us    REAL NOT NULL,
   sumsq_us  REAL NOT NULL,
   sketch    BLOB NOT NULL,
+  passes    INTEGER NOT NULL DEFAULT 0,
+  down      INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (target_id, probe_id, bucket)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_%s_bucket ON %s(bucket);
@@ -260,6 +262,13 @@ func OpenStore(dir string) (*Store, error) {
 		if _, err := mxw.Exec(q); err != nil {
 			return nil, fmt.Errorf("schema %s: %w", g.table, err)
 		}
+		// Comptage des passes, pour la disponibilite. Les lignes ecrites
+		// avant cette version restent a zero : une passe muette ne peut
+		// pas etre deduite d'un total de paquets perdus, donc la
+		// disponibilite ne couvre que la periode depuis la mise a jour,
+		// ce que l'interface annonce plutot que de deviner.
+		addColumn(mxw, g.table, "passes INTEGER NOT NULL DEFAULT 0")
+		addColumn(mxw, g.table, "down INTEGER NOT NULL DEFAULT 0")
 	}
 	if _, err := mxw.Exec(metricsExtraSchema); err != nil {
 		return nil, fmt.Errorf("schema metrics: %w", err)
@@ -1543,13 +1552,21 @@ func (s *Store) Record(m Measurement) error {
 		sum += v
 		sumsq += v * v
 	}
+	// Une passe est muette quand aucun des paquets envoyes n'est revenu.
+	// C'est cet evenement-la qui compte pour la disponibilite, pas le
+	// nombre de paquets perdus : une passe qui perd quatre paquets sur
+	// cinq prouve que la cible repond.
+	down := 0
+	if m.Sent > 0 && m.Lost >= m.Sent {
+		down = 1
+	}
 	_, err := s.mxw.Exec(
 		`INSERT INTO samples(target_id,probe_id,bucket,sent,lost,cnt,
-		                     min_us,max_us,sum_us,sumsq_us,sketch)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?)
+		                     min_us,max_us,sum_us,sumsq_us,sketch,passes,down)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
 		 ON CONFLICT(target_id,probe_id,bucket) DO NOTHING`,
 		m.TargetID, m.ProbeID, m.TS, m.Sent, m.Lost, len(m.RTTus),
-		sk.Min(), sk.Max(), sum, sumsq, sk.MarshalBinary())
+		sk.Min(), sk.Max(), sum, sumsq, sk.MarshalBinary(), 1, down)
 	if err != nil {
 		return err
 	}
@@ -1576,6 +1593,7 @@ type aggKey struct {
 
 type agg struct {
 	sent, lost, cnt      int64
+	passes, down         int64
 	min, max, sum, sumsq float64
 	sk                   *Sketch
 }
@@ -1587,7 +1605,7 @@ type agg struct {
 func (s *Store) RollupRange(src, dst string, secs, from, to int64) error {
 	rows, err := s.mx.Query(fmt.Sprintf(
 		`SELECT target_id,probe_id,bucket,sent,lost,cnt,min_us,max_us,
-		        sum_us,sumsq_us,sketch
+		        sum_us,sumsq_us,sketch,passes,down
 		   FROM %s WHERE bucket>=? AND bucket<?`, src), from, to)
 	if err != nil {
 		return err
@@ -1596,11 +1614,11 @@ func (s *Store) RollupRange(src, dst string, secs, from, to int64) error {
 	acc := map[aggKey]*agg{}
 	for rows.Next() {
 		var k aggKey
-		var sent, lost, cnt int64
+		var sent, lost, cnt, passes, down int64
 		var mn, mx, sum, sumsq float64
 		var blob []byte
 		if err := rows.Scan(&k.target, &k.probe, &k.bucket, &sent, &lost, &cnt,
-			&mn, &mx, &sum, &sumsq, &blob); err != nil {
+			&mn, &mx, &sum, &sumsq, &blob, &passes, &down); err != nil {
 			rows.Close()
 			return err
 		}
@@ -1613,6 +1631,8 @@ func (s *Store) RollupRange(src, dst string, secs, from, to int64) error {
 		a.sent += sent
 		a.lost += lost
 		a.cnt += cnt
+		a.passes += passes
+		a.down += down
 		a.sum += sum
 		a.sumsq += sumsq
 		if cnt > 0 {
@@ -1643,8 +1663,8 @@ func (s *Store) RollupRange(src, dst string, secs, from, to int64) error {
 	}
 	stmt, err := tx.Prepare(fmt.Sprintf(
 		`INSERT INTO %s(target_id,probe_id,bucket,sent,lost,cnt,
-		                min_us,max_us,sum_us,sumsq_us,sketch)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?)`, dst))
+		                min_us,max_us,sum_us,sumsq_us,sketch,passes,down)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, dst))
 	if err != nil {
 		return err
 	}
@@ -1655,7 +1675,8 @@ func (s *Store) RollupRange(src, dst string, secs, from, to int64) error {
 			mn = 0
 		}
 		if _, err := stmt.Exec(k.target, k.probe, k.bucket, a.sent, a.lost,
-			a.cnt, mn, a.max, a.sum, a.sumsq, a.sk.MarshalBinary()); err != nil {
+			a.cnt, mn, a.max, a.sum, a.sumsq, a.sk.MarshalBinary(),
+			a.passes, a.down); err != nil {
 			return err
 		}
 	}

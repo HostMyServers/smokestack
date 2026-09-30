@@ -86,6 +86,17 @@ func TestPrivateTargetsHidden(t *testing.T) {
 	if code, _ := call(api.series, "/api/v1/series?target="+strconv.FormatInt(pub, 10)+"&from=-3h", false); code != 200 {
 		t.Errorf("series of a public target: HTTP %d for a visitor, expected 200", code)
 	}
+	// Availability answers on the same terms: a private target tells a
+	// visitor nothing, including how often it is up.
+	if code, _ := call(api.availability, "/api/v1/availability?target="+strconv.FormatInt(priv, 10), false); code != 404 {
+		t.Errorf("availability of a private target: HTTP %d for a visitor, expected 404", code)
+	}
+	if code, _ := call(api.availability, "/api/v1/availability?target="+strconv.FormatInt(priv, 10), true); code != 200 {
+		t.Errorf("availability of a private target: HTTP %d for an authenticated caller, expected 200", code)
+	}
+	if code, _ := call(api.availability, "/api/v1/availability?target="+strconv.FormatInt(pub, 10), false); code != 200 {
+		t.Errorf("availability of a public target: HTTP %d for a visitor, expected 200", code)
+	}
 	// Overview: the public build must leave it out, the full one keep it.
 	for _, publicOnly := range []bool{true, false} {
 		ov, err := store.Overview(1, time.Now().Unix(), publicOnly)

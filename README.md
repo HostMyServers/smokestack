@@ -154,6 +154,8 @@ Details in [DEPLOY.md § 10](DEPLOY.md#10-probe-isolation-and-performance).
 - 24-hour status bar and sparkline per target
 - Detail view with drag-to-zoom, 1-year navigator, event annotations, permalinks
 - Anomaly traceroutes marked on the graph (optional, off by default)
+- Availability over 24 h, 7 d, 30 d and 1 y, counted in measurement passes rather than packets, with
+  the definition and the "this is not an SLA" caveat next to the figure rather than in a footnote
 - Host network page: your AS from RIPEstat and PeeringDB
 - Federation page: paired networks and inter-AS latency matrix
 - Light and dark themes, responsive, in 10 languages (the visitor's browser language is picked automatically)
