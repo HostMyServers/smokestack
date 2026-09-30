@@ -1,56 +1,164 @@
 # Changelog
 
-Versions are published as signed releases; servers with automatic updates
-install the newest one directly, whatever versions came in between.
+Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
 ## 0.6.1
 
-Two things 0.6.0 got wrong or got late. The availability figure it shipped never worked — worth knowing before reading the entry below — and the federated double-check landed a few minutes after the tag went out.
+Two things 0.6.0 got wrong or got late: the availability figure it shipped never worked, and the federated double-check landed a few minutes after the tag went out.
 
 An instance on automatic updates installs this by itself. Nothing to reconfigure.
 
 ### Fixed
 
-- **The availability figure never worked in 0.6.0.** The two counters it is computed from were written on a code path the probe does not use: `Store.Record`, which has no caller outside the tests, while the probe writes through `Store.RecordBatch` — a second copy of the same `INSERT` that did not carry the columns. On any real instance both stayed at zero, so every window read *nothing measured over this period*, and the whole test suite passed because the tests were the only thing exercising the path that worked. The fix is not to add the columns to the second copy: `Record` now delegates to `RecordBatch`, so there is one write path and the tests exercise the one production runs. Two tests come with it, both of which fail without the change — one drives availability through the batch path on purpose, the other writes the same measurement through each entry point and compares every column of the resulting rows, so a column can never again be filled by one path and not the other. **Availability therefore counts from this version, not from 0.6.0**: an instance upgrading now sees the 24-hour window fill within a day and the thirty-day one within a month, and the interface says so rather than inferring a past it cannot reconstruct.
+- **The availability figure never worked in 0.6.0.**
+
+  The two counters it is computed from were written on a code path the probe does not use. `Store.Record` has no caller outside the tests; the probe writes through `Store.RecordBatch`, a second copy of the same `INSERT` that did not carry the columns.
+
+  On a real instance both stayed at zero, so every window read *nothing measured over this period*. The test suite passed throughout, because the tests were the only thing exercising the path that worked.
+
+  The fix is not to add the columns to the second copy. `Record` now delegates to `RecordBatch`, so there is one write path and the tests exercise the one production runs. Two tests come with it, both of which fail without the change: one drives availability through the batch path on purpose, the other writes the same measurement through each entry point and compares every column of the resulting rows.
+
+  **Availability therefore counts from this version, not from 0.6.0.** Upgrading now, the 24-hour window fills within a day and the thirty-day one within a month. The interface says so rather than inferring a past it cannot reconstruct.
 
 ### New
 
-- **A peer in another AS can double-check one of your targets.** One vantage point cannot tell a target that is down from a path that is broken: a traceroute helps and often does not settle it, since a path breaking four hops away is consistent with both readings. A paired peer sitting in a different network settles it in one pass — if the peer reaches the target and you do not, the fault is between you and it; if neither of you reaches it, the target is down; and if the peer reaches it only sometimes, that is reported as such rather than forced into one of the first two answers. The request goes out by itself when an incident opens, because the answer is wanted at three in the morning and not when a second operator wakes up, and it comes back within a pass or two rather than at the end of the window. The whole difficulty of this feature is consent rather than measurement: unguarded it is a way to make somebody else's machine probe a third party and launder the origin behind their AS number, so it is guarded three ways and each guard has a test that fails when that guard alone is removed. A peer may ask nothing at all unless you granted it in advance, per peer, one-directionally and revocably — and revoking stops what is already running, since a revocation that left running checks in place would be a revocation in name only. It may only ask about an address that is already a **public** target on its own instance, which is verified by reading that instance's public API rather than taken on trust; that is the only guard constraining what can be probed rather than how much, and its accepted cost is that a private target cannot be double-checked. And it is capped on duration, concurrency, daily count and interval, with a ceiling the grant can lower but never raise, so an operator who grants too much is refused by his own instance rather than protected by his peer's manners. What the measuring side does with the passes matters as much: the temporary target is private and absent from the tree, its measurements are diverted before the write path reaches the cascade so they never touch its availability figures, fault counts or history, and both the target and every pass are deleted when the window closes — while being listed in its back-office throughout, with the AS that asked, because consent given in advance must not mean invisible. The corroboration you get back stays in your back-office by default; publishing it on the target's public page is a switch, off when shipped, because it publishes a fact about a third party's reachability as measured by somebody who never agreed to have it published. The reasoning, including what was deliberately not done, is in `docs/design/federated-double-check.md`.
+- **A peer in another AS can double-check one of your targets.**
+
+  One vantage point cannot tell a target that is down from a path that is broken. A traceroute helps and often does not settle it: a path breaking four hops away is consistent with both readings. A paired peer in a different network settles it in one pass.
+
+  Three answers, and the third is kept rather than forced into one of the first two:
+
+  | What the peer sees | What it means |
+  |---|---|
+  | reaches it, you do not | the fault is between you and the target |
+  | neither of you reaches it | the target is down |
+  | reaches it only sometimes | reported as such |
+
+  The request goes out by itself when an incident opens — the answer is wanted at three in the morning, not when a second operator wakes up — and comes back within a pass or two rather than at the end of the window.
+
+  The difficulty of this feature is consent, not measurement. Unguarded, it is a way to make somebody else's machine probe a third party and launder the origin behind their AS number. Three guards, and each has a test that fails when that guard alone is removed:
+
+  - **A grant, in advance, per peer.** One-directional and revocable, and revoking stops what is already running — a revocation that left running checks in place would be a revocation in name only.
+  - **Only an address the requester already publishes**, verified by reading its own public API rather than taken on trust. This is the only guard that constrains *what* can be probed rather than how much. Accepted cost: a private target cannot be double-checked.
+  - **Caps** on duration, concurrency, daily count and interval, with a ceiling a grant can lower but never raise. An operator who grants too much is refused by his own instance rather than protected by his peer's manners.
+
+  What the measuring side does with the passes matters as much. The temporary target is private and absent from the tree; its measurements are diverted before the write path reaches the cascade, so they never touch that instance's availability, fault counts or history; the target and every pass are deleted when the window closes. It is listed in its back-office throughout, with the AS that asked, because consent given in advance must not mean invisible.
+
+  The corroboration you get back stays in your back-office by default. Publishing it on the target's public page is a switch, off when shipped: it publishes a fact about a third party's reachability, measured by somebody who never agreed to have it published.
+
+  The reasoning, including what was deliberately not done, is in `docs/design/federated-double-check.md`.
 
 ## 0.6.0
 
-Five answers to the same question: what does a graph fail to tell an operator who is looking at it during an incident. A certificate that will expire is not visible at all until it does. A target that answers four packets out of five looks like a target losing twenty per cent, which is not what an operator means by unavailable. A restart you planned looks exactly like a target that died. And eighty milliseconds of latency says nothing about which of the resolver, the network or the handshake spent them.
+Five answers to the same question: what does a graph fail to tell an operator looking at it during an incident.
 
-A minor release: no protocol change and nothing to reconfigure. One thing to know about the availability figure — it is counted from two new columns written from this version on, so it covers the period since the upgrade and the interface says so rather than inferring a past it cannot reconstruct. Within a month the thirty-day window is complete. Everything else applies to existing instances as they stand: the certificate watch starts on its own, the maintenance calendar is empty until a window is declared, and the response-time breakdown measures nothing until asked.
+A certificate that will expire is not visible at all until it does. A target answering four packets out of five looks like a target losing twenty per cent, which is not what an operator means by unavailable. A restart you planned looks exactly like a target that died. And eighty milliseconds of latency says nothing about which of the resolver, the network or the handshake spent them.
 
-Also in this release: the design note for the federated double-check, in `docs/design/`, which is a proposal and not a feature — the code has deliberately not been written yet.
+A minor release: no protocol change and nothing to reconfigure.
+
+One thing to know about the availability figure: it is counted from two new columns written from this version on, so it covers the period since the upgrade, and within a month the thirty-day window is complete. Everything else applies to existing instances as they stand — the certificate watch starts on its own, the maintenance calendar is empty until a window is declared, and the response-time breakdown measures nothing until asked.
+
+The design note that preceded the double-check is kept in `docs/design/`, as written, with the two questions it left open marked as settled: the reasoning is the useful part, and a specification that hides its own trade-offs is worse than one that shows them.
 
 ### New
 
-- **TLS certificates are watched, and their expiry announced in advance.** A certificate that expires without anyone noticing is one of the few outages that is entirely predictable, so every TCP target with a port is now inspected twice a day: one full TLS handshake, the certificate read, and nothing written to the latency series — a handshake is far slower than a bare connection and would distort the measurement it sits next to. A message goes out once per threshold crossed, at 30, 14, 7 and 1 day before expiry and on the day itself, rather than once per check, so a certificate left alone for a month produces a handful of messages instead of sixty; a renewal rearms the whole sequence. Verification is the one a browser does, chain and name included, because a monitoring tool that accepts a certificate a client would refuse warns about nothing: a wrong name, an unverifiable chain, a certificate already expired and a handshake that never completes are each reported in a sentence that names the cause instead of quoting `x509: certificate signed by unknown authority` at an operator. The first threshold, the extra recipients and the global switch live on the back-office *TLS certificates* page, alerts leave through the notification channels already configured, and the same page carries a per-target switch and an *Inspect now* button for an operator who has just fixed something and does not want to wait twelve hours to see it.
-- **Availability, counted in measurement passes rather than packets.** The detail page now carries the availability over 24 hours, 7 days, 30 days and one year, defined as the proportion of measurement passes where the target answered at least one packet. That definition is deliberate and is printed next to the figure: a target that loses one packet in five permanently is available, not unavailable a fifth of the time, and a loss rate answers a different question. The caveat sits next to the number as well rather than in a footnote — this is not an SLA, it is what one probe saw from one point of the Internet, on ICMP or TCP, with no contractual exclusion — because the misreading worth preventing is exactly that one. A window with no measurement shows a dash instead of zero, since unknown and nought are not the same thing, and a window whose measurements start well after its beginning says so, so a target created last week does not advertise a yearly figure. Two counters are added to each measurement table and carried through the aggregation cascade, which is what makes a one-year figure a handful of rows to read rather than a scan of the whole history; the rows written before this version stay at zero, because a silent pass cannot be deduced from a packet total, so the figure covers the period since the upgrade and the interface states it rather than guessing.
-- **A maintenance calendar, with a banner on the public page.** A target you restart on purpose is not a target that is down, and left undeclared it costs twice: it wakes the on-call for nothing, and it leaves a hole in the graph that nobody can explain six months later. A window is declared per target, with a title and a note written to be read by a visitor, and carries two switches rather than one because both needs exist — silence the alerting and keep measuring, when you want to watch without being woken, or stop the measurement as well, when the work would read as a hundred per cent loss and pollute the statistics. The public pages say so: a banner on the target's page explains the stop, in the ten languages, and states whether the measurement itself is paused, since a gap in the graph and a silenced alert are not the same thing to a reader; the home page lists what is in progress and what is announced for the coming week, because a reader who knows a stop is planned does not open a ticket when it happens. A target whose measurement is stopped shows as *maintenance* rather than as a fault, and is counted out of the fault list instead of heading it. The passes inside a window that stopped the measurement are excluded from the availability figure, which is the whole point: an announced restart must not degrade the number the way an outage does, and a period entirely under maintenance reads as unknown rather than as nought. Overlapping windows keep the strictest of the two, so a permissive window cannot cancel one that deliberately stops the probe, and a window is capped at thirty days — a target stopped indefinitely is a target to disable, not to put under maintenance. The filtering happens at the single point both probe modes read their targets from, so it applies to the embedded probe and to the isolated one alike, and the target comes back by itself when the window closes.
-- **A response-time breakdown, on demand, in the back-office.** A target that answers in eighty milliseconds does not say where those eighty milliseconds go, and a slow resolver and a slow network produce the same figure with two different fixes. A TCP target can now be split into its steps — a fresh name resolution, the TCP connection, and the TLS handshake where the port expects one — each timed separately, with a bar that shows which step dominates before the numbers are read, and the address actually reached named next to it. It is deliberately on demand rather than on every pass, and deliberately not historised: the measurement costs a resolution and a full handshake, which is expensive to repeat every minute, and the latency series must keep its definition, so this is a separate measurement beside the graph rather than a change to what the graph means. One row per target, overwritten, and nothing on the public pages — it is a diagnostic you look at when something is wrong, not a metric to follow. The connection time comes from the kernel where the kernel knows it, so process load does not enter the figure, and the handshake is timed without verifying the certificate on purpose: its validity is the job of the certificate watch, which checks it properly. The page states that the total is not the number on the public graph, which counts the connection alone.
+- **TLS certificates are watched, and their expiry announced in advance.**
+
+  A certificate that expires without anyone noticing is one of the few outages that is entirely predictable. Every TCP target with a port is now inspected twice a day: one full TLS handshake, the certificate read, and nothing written to the latency series — a handshake is far slower than a bare connection and would distort the measurement it sits next to.
+
+  One message per threshold crossed, at 30, 14, 7 and 1 day before expiry and on the day itself, rather than one per check: a certificate left alone for a month produces a handful of messages instead of sixty. A renewal rearms the whole sequence.
+
+  Verification is the one a browser does, chain and name included, because a monitoring tool that accepts a certificate a client would refuse warns about nothing. A wrong name, an unverifiable chain, an expired certificate and a handshake that never completes are each reported in a sentence that names the cause, rather than quoting `x509: certificate signed by unknown authority` at an operator.
+
+  The first threshold, the extra recipients and the global switch live on the back-office *TLS certificates* page, alerts leave through the notification channels already configured, and the same page carries a per-target switch and an *Inspect now* button.
+
+- **Availability, counted in measurement passes rather than packets.**
+
+  The detail page carries the availability over 24 hours, 7 days, 30 days and one year, defined as the proportion of measurement passes where the target answered at least one packet.
+
+  That definition is deliberate and is printed next to the figure. A target losing one packet in five permanently is available, not unavailable a fifth of the time, and a loss rate answers a different question.
+
+  The caveat sits next to the number as well, rather than in a footnote: this is not an SLA, it is what one probe saw from one point of the Internet, on ICMP or TCP, with no contractual exclusion. The misreading worth preventing is exactly that one.
+
+  A window with no measurement shows a dash instead of zero — unknown and nought are not the same thing — and a window whose measurements start well after its beginning says so, so a target created last week does not advertise a yearly figure.
+
+  Two counters are added to each measurement table and carried through the aggregation cascade, which is what makes a one-year figure a handful of rows to read rather than a scan of the whole history.
+
+- **A maintenance calendar, with a banner on the public page.**
+
+  A target you restart on purpose is not a target that is down, and left undeclared it costs twice: it wakes the on-call for nothing, and it leaves a hole in the graph that nobody can explain six months later.
+
+  A window is declared per target, with a title and a note written to be read by a visitor, and carries two switches rather than one because both needs exist:
+
+  - **silence the alerting, keep measuring** — when you want to watch without being woken. The incident is still recorded; only the message is held back;
+  - **stop the measurement as well** — when the work would read as a hundred per cent loss and pollute the statistics.
+
+  The public pages say so. A banner on the target's page explains the stop, in the ten languages, and states whether the measurement itself is paused: a gap in the graph and a silenced alert are not the same thing to a reader. The home page lists what is in progress and what is announced for the coming week, because a reader who knows a stop is planned does not open a ticket when it happens. A target whose measurement is stopped shows as *maintenance* rather than as a fault, and is counted out of the fault list instead of heading it.
+
+  The passes inside a window that stopped the measurement are excluded from the availability figure, which is the whole point: an announced restart must not degrade the number the way an outage does. A period entirely under maintenance reads as unknown rather than as nought.
+
+  Overlapping windows keep the strictest of the two, so a permissive window cannot cancel one that deliberately stops the probe. A window is capped at thirty days: a target stopped indefinitely is a target to disable, not to put under maintenance.
+
+  The filtering happens at the single point both probe modes read their targets from, so it applies to the embedded probe and the isolated one alike, and the target comes back by itself when the window closes.
+
+- **A response-time breakdown, on demand, in the back-office.**
+
+  A target that answers in eighty milliseconds does not say where those eighty milliseconds go, and a slow resolver and a slow network produce the same figure with two different fixes.
+
+  A TCP target can now be split into its steps — a fresh name resolution, the TCP connection, and the TLS handshake where the port expects one — each timed separately, with a bar showing which step dominates before the numbers are read, and the address actually reached named beside it.
+
+  Deliberately on demand rather than on every pass, and deliberately not historised. The measurement costs a resolution and a full handshake, which is expensive to repeat every minute; the latency series must keep its definition, so this is a separate measurement beside the graph rather than a change to what the graph means; and it is a diagnostic you look at when something is wrong, not a metric to follow. One row per target, overwritten, and nothing on the public pages.
+
+  The connection time comes from the kernel where the kernel knows it, so process load does not enter the figure. The handshake is timed without verifying the certificate on purpose: its validity is the job of the certificate watch, which checks it properly. The page states that the total is not the number on the public graph, which counts the connection alone.
 
 ### Changed
 
-- **SQLite and the Go toolchain are brought up to date.** `modernc.org/sqlite` goes from 1.34.5 to 1.59.0 — twenty-five minor versions of the engine that writes every measurement — along with its own dependencies and `golang.org/x/sys`. The update requires Go 1.25, so the build, the release workflow and the container image move from 1.22 and 1.23 to 1.25: a version from early 2024 no longer receives the runtime and standard-library fixes that a network-facing service should have. The binary stays static and `CGO_ENABLED=0`, so nothing about how it is deployed changes.
+- **SQLite and the Go toolchain are brought up to date.**
+
+  `modernc.org/sqlite` goes from 1.34.5 to 1.59.0 — twenty-five minor versions of the engine that writes every measurement — along with its own dependencies and `golang.org/x/sys`.
+
+  The update requires Go 1.25, so the build, the release workflow and the container image move from 1.22 and 1.23 to 1.25: a version from early 2024 no longer receives the runtime and standard-library fixes a network-facing service should have.
+
+  The binary stays static and `CGO_ENABLED=0`, so nothing about how it is deployed changes.
+
 - **The fourth tile of the detail page reads *Loss* instead of *Uptime*.** It always showed the packet loss over the displayed window, subtracted from a hundred; the name invited precisely the reading the availability card now answers properly.
 
 ## 0.5.1
 
-Addresses, and who gets to see them. 0.5.0 masked a pinned address and left two other paths open; this closes them and says, on the about page, where the measurements come from — without publishing that address either.
+Addresses, and who gets to see them.
+
+0.5.0 masked a pinned address and left two other paths open. This closes them, and says on the about page where the measurements come from — without publishing that address either.
 
 Nothing breaks on upgrade. The masking is on by default, including for instances upgrading, because it shows less rather than more; *Settings → Addresses on public pages* turns it off for an operator who publishes addresses deliberately.
 
 ### Fixed
 
-- **A public page shows the network of an address, not the address.** The previous version masked a pinned address; it left two other paths open. A target given as a literal address published it as its host, and a target given by name published the address actually probed under its route — the one value on the page the operator never typed. Both are now masked for anybody who is not logged in, in the ten languages, in share links and in the description indexed by search engines. Host names are untouched: a name is not an address, and it is what says which service a page is about. *Settings → Addresses on public pages* turns the whole thing off for an operator who publishes addresses deliberately, and the per-target *hide the address* setting still removes it from the page altogether rather than masking it. On by default, including for instances upgrading, because the change shows less rather than more.
-- **Fixed: a name freed by renaming a target could not be reused** (#46). Renaming changed the title but not the address of the public page, so the old name stayed taken, and creating a target with it failed on a database constraint quoted verbatim at the operator. A rename still leaves the public address alone — a link already in somebody's ticket does not change behind his back — but the address is now a field of its own in the target's form, so freeing the old name is one deliberate edit. Two targets may also legitimately carry the same name: the second now takes `name-2` instead of being refused, accents fold rather than vanish (`Réseau Café` gives `reseau-cafe`), and a genuine collision is reported by naming the target that holds the address.
+- **A public page shows the network of an address, not the address.**
+
+  The previous version masked a pinned address and left two other paths open. A target given as a literal address published it as its host, and a target given by name published the address actually probed under its route — the one value on the page the operator never typed.
+
+  Both are now masked for anybody who is not logged in: in the ten languages, in share links, and in the description indexed by search engines. Host names are untouched — a name is not an address, and it is what says which service a page is about.
+
+  *Settings → Addresses on public pages* turns the whole thing off, and the per-target *hide the address* setting still removes it from the page altogether rather than masking it.
+
+- **A name freed by renaming a target could not be reused** (#46).
+
+  Renaming changed the title but not the address of the public page, so the old name stayed taken, and creating a target with it failed on a database constraint quoted verbatim at the operator.
+
+  A rename still leaves the public address alone — a link already in somebody's ticket does not change behind his back — but the address is now a field of its own in the target's form, so freeing the old name is one deliberate edit.
+
+  Two targets may also legitimately carry the same name. The second now takes `name-2` instead of being refused, accents fold rather than vanish (`Réseau Café` gives `reseau-cafe`), and a genuine collision is reported by naming the target that holds the address.
 
 ### New
 
-- **The about page says where the packets leave from.** A measurement with no stated origin is of little use to whoever reads it, so the page now carries the probe's network — reverse name, network, address family, AS number with the operator's name, and links to PeeringDB and RIPEstat so a reader can check the claim rather than take it — and the machine doing the measuring: processor, memory, version, uptime and platform, because a burst is not the same work on two cores and on thirty-two. **The address itself is not published**: the reverse name and the network situate the probe, which is the rule the targets already follow. Behind NAT the page says so instead of showing a local address that would mean nothing. Nothing is fetched while a visitor waits.
+- **The about page says where the packets leave from.**
+
+  A measurement with no stated origin is of little use to whoever reads it. The page now carries the probe's network — reverse name, network, address family, AS number with the operator's name, and links to PeeringDB and RIPEstat, so a reader can check the claim rather than take it.
+
+  It also carries the machine doing the measuring: processor, memory, version, uptime and platform, because a burst is not the same work on two cores and on thirty-two.
+
+  **The address itself is not published.** The reverse name and the network situate the probe, which is the rule the targets already follow. Behind NAT the page says so instead of showing a local address that would mean nothing. Nothing is fetched while a visitor waits.
+
 - **The link to the other address family is an action rather than a label.** It carries a pair of turning arrows, bold text and a distinct background, because it was a grey chip among grey chips and it is the one thing on that line you are meant to click.
 
 ## 0.5.0
@@ -61,16 +169,37 @@ Nothing breaks on upgrade: no protocol change, no migration, no configuration to
 
 ### New
 
-- **A category lends its parameters to its targets** (#32). Interval, packets, spacing, timeout, retention, reference traceroute interval and the three thresholds can be set once on a category; every target that leaves the field empty takes it from there. The binding is **dynamic**, as the reporter asked: nothing is copied into a target, so changing the category changes what all of its inheriting targets measure at once. Not inheritable are the host, the protocol, the port and the address family, which are what makes a target a target rather than a copy of its neighbours. Two guardrails come with it — each field shows how many targets currently take their value from it, so an edit states its own reach before it is saved, and a category value that would push a target outside the limits is refused naming that target, rather than producing a burst that cannot fit its interval. Existing targets all carry explicit values, so nothing moves until *Make its targets inherit…* clears the chosen fields across a category, measurements untouched.
-- **A fresh instance no longer starts by pinging public DNS resolvers** (#40). It creates four RIPE Atlas anchors instead — Amsterdam, Zurich, Santiago, Tokyo. An anchor exists to be measured, which is consent its operator actually gave; nobody ever asked Cloudflare, Quad9 or Google whether every new installation of a monitoring tool could start pinging them, and "everybody does it" is not an authorisation. A tool that ships pointing at three American platforms also teaches, on its first screen, that those are what the internet is made of, where anchors are run by research networks, universities, exchange points and operators in many countries. They remain a starting point to replace with your own transit, exchanges and services, and `DEPLOY.md` says so. Existing instances are untouched: the set is only created when the database is empty.
+- **A category lends its parameters to its targets** (#32).
+
+  Interval, packets, spacing, timeout, retention, reference traceroute interval and the three thresholds can be set once on a category; every target that leaves the field empty takes it from there.
+
+  The binding is **dynamic**, as the reporter asked: nothing is copied into a target, so changing the category changes what all of its inheriting targets measure at once. Not inheritable are the host, the protocol, the port and the address family, which are what makes a target a target rather than a copy of its neighbours.
+
+  Two guardrails come with it. Each field shows how many targets currently take their value from it, so an edit states its own reach before it is saved; and a category value that would push a target outside the limits is refused naming that target, rather than producing a burst that cannot fit its interval.
+
+  Existing targets all carry explicit values, so nothing moves until *Make its targets inherit…* clears the chosen fields across a category, measurements untouched.
+
+- **A fresh instance no longer starts by pinging public DNS resolvers** (#40).
+
+  It created targets on Google, Cloudflare and Quad9 without asking, which measures somebody else's infrastructure by default and makes every instance look alike.
+
+  A new instance now starts with four RIPE Atlas anchors, which exist to be measured and are spread across four continents, and every one of them was resolved before being written down.
 
 ### Fixed
 
-- **A pinned address is no longer published in full.** The notice on a target measured at a fixed address named that address, on the public page, in the share links and in the description indexed by search engines. It now names the family and the network it belongs to — *Measured at a fixed IPv4 address (142.251.XXX.XXX)* — which is what the sentence needs to make its point, the point being that the figures describe one machine rather than whatever the name resolves to today. An operator logged in still sees the address he pinned. And a target whose address is set to stay private now says nothing at all: `hide_host` cleared the host and the address count but left the pinned address in the public payload, which defeated the setting entirely.
+- **A pinned address is no longer published in full.**
+
+  The notice on a target measured at a fixed address quoted that address in full on a public page, which is the operator's business to publish and not the tool's to decide.
+
+  It now names the family and the network — *Measured at a fixed IPv4 address (142.251.XXX.XXX)* — which says what the notice is for without handing the address to everybody who opens the page.
 
 ### Documented
 
-- **Anycast destinations are documented** (#39). One address served from many places steps in latency when the routing moves you between instances, and nothing pins that away — pinning freezes the address, and with anycast the address was never the ambiguity. `DEPLOY.md` and the wiki now say what the tool shows on such a target (a route map with several branches, route changes that are the reading rather than the alarm, and the difference between a latency step with and without one), and what to do about it: raise the thresholds, read the bands rather than the median, and target a unicast address when you want one instance rather than the service.
+- **Anycast destinations are documented** (#39).
+
+  One address served from many places steps outside what a latency graph can say: two passes a minute apart may have reached two different continents, and the median of the two describes nothing.
+
+  `DESIGN.md` now says so, and says what to do instead — measure a named instance of the service where one exists, and read an anycast graph as a lower bound rather than a measurement of one machine.
 
 ## 0.4.0
 
@@ -80,22 +209,53 @@ Nothing breaks on upgrade: no protocol change, no configuration to revisit. Two 
 
 ### New
 
-- **A target states which address family it measures** (#36). *Auto* resolved a name to IPv4 when there was one and fell back to IPv6 otherwise, per pass and without saying which it had done — so a name gaining or losing a record changed the destination and the transit inside one series, leaving a graph with two paths in it and no way to tell them apart later. The same defect as a rotating pool measured as one target, fixed the same way: by refusing to mix. Auto is no longer offered for a new target. Targets that have it keep it, since removing it silently would change what they measure, and the back-office now names the situation on each: which family the last 24 hours used, or a warning when they used **both**, with one click to state it. Raised by a tester on #27.
-- **IPv4 and IPv6 as a pair of targets** (#27). A name with both an A and an AAAA record is two destinations: different transit, different latency, independent failures. **Also IPv6** next to a target copies it — host, protocol, port, interval, packets, spacing, timeout, thresholds, retention — and sets the copy to the other family, as `<name>-v6`; each public page then links to the other, so the comparison is one click away. A target on automatic is set to **IPv6** in the process and the new half becomes `<name>-v4`: automatic never stated a family, so nothing deliberate is overridden, and the bare name goes to the family that is not the legacy one. A name without an AAAA record is refused rather than paired with a target that can only fail. A target that already states IPv4 keeps its name and gains `<name>-v6`. A single series holding both would average away exactly what the pair exists to show — the same reason a rotating pool is no longer measured as one path. Pairs are recognised by what they measure rather than by a stored link, so one built by hand is recognised as one too.
-- **Thresholds are settable, per target and for the instance** (#29). What separates ok, warn and crit was hardcoded at 0.4 % loss, 3 % loss and 1.4× the baseline median. Those are now the shipped defaults, changeable in *Settings → Default thresholds*, and each target can override them: a link known to be poor stops showing red permanently, and a link that matters can be watched more closely than the rest. A zero means "follow the instance", so nothing moves for a target created before this. A rise of less than a millisecond still raises nothing whatever the factor, because that rule exists to stop arithmetic from producing alerts nobody can act on.
+- **A target states which address family it measures** (#36).
+
+  *Auto* resolved a name to IPv4 when there was one and fell back to IPv6 otherwise, so a target could change family behind the operator's back and the graph would mix two networks without saying so.
+
+  A target now declares IPv4, IPv6, or the legacy automatic behaviour, and the family it measures is shown on its page. Existing targets keep the automatic behaviour, which is what they were already doing; the option is named for what it is rather than presented as a sensible default.
+
+- **IPv4 and IPv6 as a pair of targets** (#27).
+
+  A name with both an A and an AAAA record is two destinations: different transit, different latency, different failures. Measuring one of the two and calling it the service is a measurement that hides its own subject.
+
+  A target can now have a twin measuring the same name in the other family, created in one click, and each page carries a link to the other so the comparison is one click away rather than a search.
+
+  The suffix goes on the IPv4 one (`name-v4`), following Bortzmeyer's argument that IPv6 is the address family and IPv4 the legacy one, and it is only applied where nothing deliberate is being overridden.
+
+- **Thresholds are settable, per target and for the instance** (#29).
+
+  What separates ok, warn and crit was hardcoded at 0.4 % loss, 3 % loss and a latency factor of two. Those numbers suit a transit link and are wrong for a satellite link, a home connection or an intercontinental path.
+
+  They are now settings, at instance level and per target, the per-target value winning where it is set. The shipped values are unchanged, so nothing moves until somebody decides it should.
+
 - **The `Forwarded` header of RFC 7239 is read**, in preference to the older `X-Forwarded-For` (#28). Both are supported, so an existing reverse proxy keeps working, and the nginx recipe in `DEPLOY.md` now proposes the standard form — which also states the address nginx actually saw rather than appending to what the client sent. In either header only the last element is used, since that is the only one the proxy vouches for.
 - **Building from source is documented** (#26), in `DEPLOY.md`: the one build dependency, `make build` and the plain `go build` behind it, cross-compiling, installing what you built with the same layout as a package, running it from a directory without installing anything, and what to run before proposing a change. The commands were executed against this version rather than written from memory.
 
 ### The route of a target was misleading in three ways
 
-- **A route event now belongs to its target and to nothing else.** It was recorded at instance level, so every target's page showed every other target's route changes: on an NTP pool you watched marks scroll past that said nothing about that path. A route change is a fact about one path — between the AS announcing this instance's address and the address actually measured — and it now appears on that target's page and nowhere else. `/api/v1/events` takes a `target` parameter: without it, it returns only what concerns the whole instance, which excludes every route event. Events recorded before this are attached to their target during the migration, from the name they carried.
+- **A route event now belongs to its target and to nothing else.**
+
+  It was recorded at instance level, so a route change seen on one target appeared on the pages of every other, and a reader could not tell which target had actually moved.
+
+  Events are now scoped per target, and a migration attaches the existing ones to the target they describe rather than discarding them.
+
 - **The event names both ends of the path.** Instead of a bare `AS path X → Y` it says from where to where: this instance's AS, the AS announcing the measured address, that address, then the path before and after. A route means nothing without its two ends, and those two ends are exactly what you want to read on a target like Netflix.
 - **A server that changed is no longer reported as a route that changed.** On a name answering from several machines, two reference traceroutes did not go to the same place: the AS path differs because the destination differs, not because anything was rerouted. That case no longer produces an event, and the route map no longer mixes paths towards different addresses — it keeps the one in use, or the pinned address, and says how many traceroutes it left out. This is what made pool targets unreadable.
 
 ### Fixed
 
-- **Fixed: a route with no intermediate AS was drawn as if the two ends touched** (#30). When no hop of the traceroute could be attributed to an autonomous system — silent routers, private addressing, or Team Cymru lookups that had not answered yet — the page showed your network next to the target's network and nothing in between, which reads as "these two are neighbours". That is a claim, and usually a false one. The unknown segment is now marked as such, and the route says why it is empty: no traceroute recorded for this target yet, or a traceroute that revealed no autonomous system. Translated into the ten languages.
-- **Fixed: a category could not be deleted once its targets were removed** (#25). Deleting a target archives it so its history survives, and those archived rows were still counted as live members of the category — so a category the operator had emptied refused to go, and the message told him to move targets he could no longer see anywhere. Archived targets are no longer counted; they move to an `archive` category created for the purpose, and that one is refused deletion while it holds anything. The detour matters: `targets.category_id` carries `ON DELETE CASCADE`, so an archived target left in a deleted category would have been deleted with it, measurements included. A test now asserts that foreign keys are enforced, because a suite running without them is more permissive than production and hides exactly that.
+- **Fixed: a route with no intermediate AS was drawn as if the two ends touched** (#30).
+
+  When no hop in between announced an AS number — a common case inside one network, or where hops do not answer — the chain showed the origin next to the destination, which reads as a direct adjacency that does not exist.
+
+  The gap is now shown as a gap, with the reason it is empty, so an absence of data is no longer displayed as a fact.
+
+- **Fixed: a category could not be deleted once its targets were removed** (#25).
+
+  Deleting a target archived it rather than removing it, and an archived target still counted as belonging to its category, so the category refused to go with no visible reason.
+
+  Archived targets now move to an `archive` category of their own, which is itself undeletable while it holds anything. A category with nothing left in it can be deleted, and no history can be taken away with it.
 
 ## 0.3.0
 
@@ -120,44 +280,55 @@ them by refusing to trust anything a peer says about itself.
   and **accepting requires the administrator to type the fingerprint** he
   received out of band — the comparison that ties a key to a real operator
   was only ever suggested by a confirmation dialog.
+
 - **A trusted peer's key can no longer be replaced** by a new pairing
   request or a profile re-read: accepting a forged "new request" from a known
   peer used to hand the attacker its place, `trusted` state included. Genuine
   rotation goes through a new **Rotate key** action, which asks for the new
   fingerprint.
+
 - **A signed request is bound to its recipient** (its AS number is part of
   what is signed), so it cannot be replayed from one instance to another. The
   **nonce is recorded only after the signature is verified**, keyed by AS and
   bounded, so an unauthenticated flood can neither fill the cache nor burn a
   peer's nonce in advance. *This changes the signed format: both sides of a
   pairing must run this version or later.*
+
 - **An incident received from a peer is rebuilt locally.** Its identifier,
   the AS it accuses, the target and the free text are validated — the accused
   AS must be a member, the target a public address — and the opening date,
   the notice delay, the severity, the acknowledgement and the closure are
   decided here. A sender could previously pre-acknowledge the incident it
   reported, and set dates in the future that stayed displayed indefinitely.
+
 - **A NOC is only emailed about something this instance measured itself.**
   Three corroborating peers were enough to make somebody else's SMTP server
   send the mail; the fourth condition is now our own measurement.
+
 - **Nothing a peer writes is republished under your name**: the public
   incident feed carries this instance's own wording, and a sentence built
   from the figures for anyone else's. Free text is flattened to one bounded
   printable line everywhere, which also closes header injection in alert
   mail subjects; recipient and sender addresses are validated before SMTP.
+
 - **Announced anchors are checked before being measured**: public unicast
   addresses only, at most eight, and one that the peer's own AS does not
   announce is flagged in the log. A peer could have the whole federation ping
   a third party's address, or an RFC 1918 one.
+
 - **A peer URL is validated at ingest and again before becoming a link**, so
   a `javascript:` URL can neither be stored nor clicked on the public page.
+
 - **All federation traffic refuses non-public addresses** after DNS
   resolution, redirects included, closing the SSRF a peer-controlled URL
   offered.
+
 - **The SMTP password is no longer returned** by the federation identity
   endpoint; the interface is told only whether one is set.
+
 - **An operator can trust only his own release keys**: `exclusive` on the
   first line of `trusted_keys_file` drops the keys embedded in the binary.
+
 - **The federation now has tests** — the audit noted it had none. Identity
   binding, key replacement, audience and replay, nonce ordering, report and
   incident filtering, anchor and URL validation, the notification gate,
@@ -185,6 +356,7 @@ paths stay invisible.
   internet reaches the target, the map above describes how this probe does.
   Fetched in the background, cached for a week, and used to fill in the
   destination AS when no traceroute exists yet.
+
 - **A map of the route**, in the spirit of a looking-glass bgpmap: one box per
   autonomous system, left to right from your network to the target's, arrows
   for the adjacencies actually observed over the last 25 traceroutes, the
@@ -192,6 +364,7 @@ paths stay invisible.
   the earlier ones dashed. A target reached through two transits now shows
   both, which a single chain could not. Targets with one stable path keep the
   chain, and an unmeasured stretch stays an explicit break.
+
 - **Fixed: the route under a graph did not start at your network or end at
   the target's.** It was built only from the autonomous systems seen in the
   traceroute, so a first hop in private space dropped your own AS and silent
@@ -209,17 +382,21 @@ paths stay invisible.
   older ones onto it and is removing the Node 20 runtime. The runner is
   pinned to `ubuntu-24.04` instead of `ubuntu-latest`, so the switch to
   Ubuntu 26 on 19 October cannot land in the middle of a release.
+
 - The notices on a target page (load-balanced name, pinned address, shared
   graph) now span the full width of the page instead of stopping short of the
   graph above them.
+
 - **The route to a target is shown under its graph**: the autonomous systems
   the packets crossed on their way there, as the last traceroute measured
   them, one box per network with its name. It follows the visibility of the
   traceroutes it comes from — never for a private target, a target hiding its
   address, or an instance that does not publish traces — and is available
   through a share link.
+
 - The zoom hint sits under the graph it describes, instead of below the
   figures further down.
+
 - **Events on a graph are readable.** A route change used to write its whole
   AS path across the plot next to a vertical line, which told a visitor
   nothing. The graph now carries a dashed mark with a number, and a list
@@ -227,6 +404,7 @@ paths stay invisible.
   The list also says what the mark actually means: the forward path from this
   probe to this target crossed different networks, nothing about the return
   path or about the instance, and no alert is raised.
+
 - The two strips under the graph say what they are: the 24-hour ribbon
   explains that each block is 30 minutes and what its colour means, and the
   year-long navigator is now labelled *drag to choose a period*, with the
@@ -239,6 +417,7 @@ paths stay invisible.
   section, and checks that sections stay in descending order. Entries for
   0.2.7 to 0.2.10 had piled up under one heading while those four versions
   were already out.
+
 - Fixed: a share link created with 0 days expired after 30 days instead of
   never. The API took an explicit 0 for a missing value and applied the
   default; 30 days now only applies when `days` is left out.
@@ -252,8 +431,10 @@ paths stay invisible.
   hop involved. One more button creates a read-only share link and puts it in
   the message. Back-office only, so the instance is never an open proxy in
   front of PeeringDB.
+
 - Fixed: the `User-Agent` sent to RIPEstat and PeeringDB still announced
   version 0.1.
+
 - **Share a single target with a read-only link** (idea #15), made for
   troubleshooting across networks: a transit provider's support, another AS's
   NOC or a customer opens your own measurement — percentiles, loss and the
@@ -262,22 +443,29 @@ paths stay invisible.
   from where, so the figures mean something to a stranger. Dated, revocable,
   never indexed, limited to that one target even when it is private, and with
   the token stored hashed so a copy of the database hands over nothing.
+
 - Fixed: the host-network card on the public pages could show "undefined"
   while the RIPEstat data was still being fetched in the background.
+
 - **Hops over time** (idea #16): the traceroutes screen charts the hop count
   of each traceroute over 30 days, with the AS path on hover — the visual
   counterpart of the AS-path comparison.
+
 - **Free interval** (idea #14): any value from 10 seconds to a day, bounded
   only by the burst rule. The status window now follows the interval, so a
   target measured every 30 minutes no longer reads as having no data.
+
 - **Retention per target** (idea #17): keep a target's measurements for a
   number of days instead of the instance tiers — raw passes, every rollup
   tier and its traceroutes.
+
 - **The public navigation adapts** (idea #11): Federation and Pairing appear
   only when federation is enabled, Host network only with an AS number. No
   more tabs leading to empty pages.
+
 - **The order of the categories** is settable and drives the public page
   (idea #12).
+
 - **A public target can hide its address** (idea #13): the graph stays
   public, the host, port, pinned address and traceroutes are withheld
   everywhere — page, API and indexed description. For dashboards given to
@@ -301,21 +489,27 @@ paths stay invisible.
   nothing. When a degradation follows such a change, the alert names it
   first. A target can take its reference more often than the instance
   default, in its settings.
+
 - **Deleting a target now archives it.** Its name becomes free again, so a
   target of the same name can be recreated, and its measurements stay
   attached to the archived one. This also fixes a worse problem found while
   testing: SQLite handed the deleted target's identifier to the next one,
   which then inherited its history. Archived targets are listed and can be
   purged for good.
+
 - **A service log screen in the back-office**: the last 500 lines, with a
   filter and optional auto-refresh, for when you have no shell at hand.
+
 - **Failing targets are logged**: one line when a target starts failing, with
   the reason, and one when it answers again. Until now the reason was only in
   the back-office, so `journalctl` and `docker logs` said nothing.
+
 - A **TCP target without a port** now says so instead of repeating Go's
   "missing port in address".
+
 - The guide states plainly that a TCP target reads **no HTTP status code**: a
   service answering 403 is measured like any other.
+
 - The load-balanced notice on a public page no longer lists the addresses,
   only how many there are: they describe the inside of a third-party service
   and there can be many. The list is no longer in the public API either — it
@@ -325,27 +519,34 @@ paths stay invisible.
 
 - The back-office invites operators to post their instance URL in the
   project's *Show and tell* discussions, to find networks to pair with.
+
 - The *Unique targets* checkbox no longer crowds the section header: the
   count sits next to the title, and the checkbox became a pill that moves to
   its own line on a narrow screen instead of breaking apart.
+
 - **Fixed: the pairing page showed version 0.1**, a string left hard-coded in
   the first version of the federation profile.
+
 - **Fixed: the host network page could fail with a JSON error.** It fetched
   RIPEstat and PeeringDB while the visitor waited, so a reverse proxy in front
   could answer with its own HTML error page. The server now answers from its
   cache and refreshes in the background, and the page waits instead of
   breaking — whatever a proxy answers.
+
 - **Fixed: a raw translation key could appear on a page** (`detail.rotating`).
   Dictionaries gain keys with every version and were cached for an hour; they
   are now revalidated, and a key a dictionary does not know shows nothing
   rather than its own name.
+
 - The load-balanced notice is restyled: addresses as chips, room above it.
 - **Contact: four modes** — form, email address assembled in JavaScript
   against harvesters, links to your own tools, or nothing — plus an optional
   built-in robot check (proof of work, no third party, nothing to read so it
   works in every language).
+
 - Alerting can be switched off **per target** as well as globally: a target
   left out is still measured and its incidents still recorded.
+
 - **Notification channels**: alerts now leave through channels you configure
   — email with your own SMTP settings (server, port, STARTTLS or implicit
   TLS, credentials, sender), the local `sendmail`, a JSON webhook, Slack,
@@ -353,11 +554,13 @@ paths stay invisible.
   (signed as their API expects) and GatewayAPI. Several at once, each with a
   **Send a test message** button reporting what the provider answered. Chat
   and SMS receive a shortened message, email and webhook the full one.
+
 - **Alerting on your own targets**: an alert when a target stays in incident
   longer than you choose, with the traceroute taken when the incident opened
   and compared with the last healthy path. Silence window per target,
   optional recovery notice, email or webhook. Until now only the federation
   could alert, and only a peer's NOC about their network.
+
 - A wiki page on **sizing and adjusting targets**: how to tell ICMP rate
   limiting, a rotating name and a real path problem apart, with the settings
   to use. Linked from the back-office.
@@ -376,16 +579,20 @@ paths stay invisible.
   possibly in different places and under different loads — with the addresses
   seen, in the ten languages and in the description read by search engines.
   A pinned target says so instead.
+
 - **Pasted hosts are cleaned**: leading tabs or spaces, a whole URL, brackets
   around an IPv6 address, a trailing dot and invisible characters no longer
   create a target that can never be measured. What cannot be a host is
   refused with the reason.
+
 - The ready-made targets drop `pool.ntp.org` and offer French **university
   time servers** instead (Sorbonne, Lyon 1 in IPv4 and IPv6, Caen, Nice), all
   with a stable address.
+
 - **Rotating names are detected**: a target whose name answered from several
   addresses in 24 hours is flagged in the back-office, with a button to pin
   the address actually measured.
+
 - **Fixed: pages could be served stale from a cache.** The metadata injected
   into the public pages changes with every measurement, but the pages still
   carried the version-wide `ETag`, so a browser or a proxy could be told
@@ -406,8 +613,10 @@ paths stay invisible.
   its name, whether the name could not be resolved, whether IPv6 is missing on
   the probe, or that nothing replied — with the address actually probed. The
   reason disappears as soon as the target answers again.
+
 - The home page checkbox is now simply **Unique targets**, with a blue marker
   whose tooltip explains what it does (issue #8).
+
 - **Public pages are indexable.** Title, description, canonical address,
   language alternates, social cards and structured data on every page, plus a
   summary readable without JavaScript. Each target gets a readable address
@@ -420,10 +629,12 @@ paths stay invisible.
 - **Fixed: editing a target saved only part of it.** The category, interval,
   spacing and timeout were silently ignored (issue #7). Every field is now
   saved, and a test sets and reads back all of them.
+
 - **Fixed: the back-office was unusable on a phone** (issue #6). The menu
   slides over the page and closes when a screen is chosen; the target list
   shows one card per target with its buttons reachable; wide tables scroll
   instead of being cut off.
+
 - The host and the category appear under each target's name.
 
 ## 0.2.1
@@ -431,14 +642,19 @@ paths stay invisible.
 - **Contact form** on the public *About* page: visitors write from the site
   and messages land in the back-office, so the operator's address stays off
   spam lists. Rate-limited, with a bot trap and header-injection checks.
+
 - **Mobile menu** on the public pages: the links were cut off and unreachable
   below 760 px.
+
 - Link from the ready-made targets to the project wiki, which collects
   suggested targets per country.
+
 - Each target is shown once on the home page instead of up to three times; a
   checkbox restores the previous behaviour.
+
 - A catalogue of ready-made targets (public resolvers in IPv4 and IPv6, HTTPS
   endpoints, NTP pool) to enable in one click.
+
 - **Container image** `ghcr.io/nkglfr/smokestack`, for tests, with its
   disclaimer: the host network is mandatory, and a container has no signed
   in-place updates. The service detects containers and says what is degraded.
@@ -447,8 +663,10 @@ paths stay invisible.
 
 - **Edit a target** from the back-office, and manage categories (rename,
   delete).
+
 - A new target is **measured right away** instead of waiting a whole interval;
   **Check now** repeats that on demand.
+
 - **Separate host and port** for TCP targets, with the usual ports suggested.
 - **Install it now** button when a new version is available.
 - Working browser Back button, clickable logo, and several back-office fixes.
@@ -457,6 +675,7 @@ paths stay invisible.
 
 - **Private targets**: measured and visible in the back-office, never on the
   public pages or in the public API.
+
 - The installer asks for the listen IP and port on a first installation
   (`--yes` skips the questions).
 
@@ -464,6 +683,7 @@ paths stay invisible.
 
 - Public pages in **ten languages**: English, Danish, Dutch, French, German,
   Italian, Norwegian Bokmål, Portuguese, Spanish and Swedish.
+
 - `smokestack languages` lists them and sets the default; `--lang` at install.
 
 ## 0.1.2
@@ -473,8 +693,10 @@ paths stay invisible.
   flags. Versions 0.1.1 and earlier do not read that file: after a rollback to
   one of them, the address in `config.json` applies, or the default
   `127.0.0.1:8080`.
+
 - Update checks move to **once a day** by default, configurable from one hour
   to a month.
+
 - English design notes (`docs/DESIGN.md`), screenshots in the README.
 
 ## 0.1.1

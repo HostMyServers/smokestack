@@ -534,6 +534,16 @@ git tag v0.2.2 && git push origin v0.2.2
 
 or *Actions → release → Run workflow*, with `0.2.2` as the version. The dispatched run refuses a version that is already tagged — overwriting one would change what instances have already installed — creates the tag itself on the current `main`, and then does exactly what a tag push does.
 
+### Writing an entry, and why the shape matters
+
+The release workflow reads a section straight out of `CHANGELOG.md` and publishes it as the release notes, so what is written there is what an operator reads on the release page. That is the reason for the shape below, and the reason it is worth respecting.
+
+An entry leads with **one bold sentence saying what changed**, then breaks the substance into short paragraphs under it — the reasoning, the trade-off, what it costs. Detail is welcome; a wall of it is not. A reader scanning a release page for what concerns him must be able to stop after the first line of each entry, and a reader who wants the reasoning must be able to find it without reading three hundred words as one block.
+
+A useful ceiling, from experience rather than principle: **no paragraph beyond roughly a hundred words.** Entries once reached four hundred and eighty-five in a single unbroken bullet, which nobody reads. Where several points are parallel — the guards on a feature, the switches on a setting — a nested list or a small table says it better than a sentence with three semicolons.
+
+Lines are not wrapped by hand: GitHub decides the width.
+
 ### Rebuilding an image without burning a version
 
 The container image is built by `image.yml`, which the release workflow calls and which also runs on its own from *Actions → image → Run workflow* with a tag. An image build can fail for reasons that have nothing to do with the release it accompanies — a registry outage, a skipped job — and the remedy for that should not be a new version number. Running it by hand rebuilds and pushes the image for an existing tag; it refuses a tag that does not exist, and refuses anything that is not a version tag, so nothing unreleased can be pushed behind a version.
