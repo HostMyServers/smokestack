@@ -40,9 +40,9 @@ What it buys: A cannot use B to probe anything A is not already probing, openly,
 
 What it costs: a private target cannot be double-checked. An operator who keeps his targets private — a legitimate choice the tool supports, and the reason the private flag exists — gets nothing from this feature.
 
-The alternative is to accept private targets and rely on consent plus caps alone. I think that is the wrong trade: the verification above is cheap, mechanical, needs no human judgement, and it is the only one of the three guards that constrains *what* can be probed rather than *how much*. I would rather ship the narrow version and widen it later if operators ask, than ship the wide one and discover why it was a bad idea from somebody else's abuse desk.
+The alternative was to accept private targets and rely on consent plus caps alone. That is the wrong trade: the verification above is cheap, mechanical, needs no human judgement, and it is the only one of the three guards that constrains *what* can be probed rather than *how much*. Better to ship the narrow version and widen it later if operators ask for it, than to ship the wide one and learn why it was a bad idea from somebody else's abuse desk.
 
-**Open question for you:** require the target to be public on the requester's instance — yes, or accept private ones?
+**Decided: the target must be public on the requesting instance.** A private target cannot be double-checked, and the refusal says so plainly rather than failing obscurely. If operators later ask for private targets to be covered, it will need a different mechanism than trust — a pre-registered target list agreed between the two peers, say — and not a relaxation of this rule.
 
 ### 2.3 Caps, because consent is not a blank cheque
 
@@ -106,9 +106,16 @@ A learns nothing about B's network it could not measure itself.
 
 Each step is testable without the next one, and step 1 can be rejected outright without any of the rest having been written.
 
-## 9. Open questions, collected
+## 9. Questions
 
-1. Require the double-checked target to be **public** on the requesting instance? (§2.2 — the one that decides how narrow this feature is.)
-2. Are the proposed caps right? (§2.3)
+**Settled**
+
+1. ~~Require the double-checked target to be **public** on the requesting instance?~~ **Yes** (§2.2). This is what makes the feature narrow enough to build: the requester can only ever ask for a second opinion on something it already publishes under its own name.
+
+**Still open**
+
+2. Are the proposed caps right? (§2.3) They are a starting point, not a measurement — nobody has run this yet.
 3. Corroboration on A's **public** page, or back-office only to start? (§5)
 4. Reciprocity: should the back-office offer "grant in return" as one click when a peer grants us, or keep the two grants entirely separate acts?
+
+Step 1 of the rollout below does not depend on any of the three, so it can be built while they are argued.
