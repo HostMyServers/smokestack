@@ -328,6 +328,7 @@ func main() {
 	api.OverviewRoutes(mux)
 	api.TracerouteRoutes(mux)
 	api.SuggestedRoutes(mux)
+	api.CertRoutes(mux)
 	api.probeInProcess = cfg.Probe.Enabled && cfg.Probe.Mode != "external"
 	api.ContactRoutes(mux)
 	api.LogRoutes(mux)
@@ -414,6 +415,15 @@ func main() {
 	alerter := NewAlerter(store)
 	api.alerter = alerter
 	go alerter.Loop(stop, api.probeID)
+
+	// Les certificats sont surveilles a part de la latence : une poignee
+	// de main TLS toutes les minutes gaspillerait du reseau et polluerait
+	// la serie. Les alertes empruntent les memes canaux que le reste.
+	certs := NewCertWatcher(store, func(subject, body string) error {
+		return SendAll(store.Channels(), subject, body)
+	})
+	api.certs = certs
+	go certs.Loop(stop)
 
 	// Compression et limite de debit devant toutes les routes.
 	handler := withRateLimit(newRateLimiter(20, 80), withGzip(mux))

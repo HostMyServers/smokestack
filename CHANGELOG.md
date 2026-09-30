@@ -3,6 +3,12 @@
 Versions are published as signed releases; servers with automatic updates
 install the newest one directly, whatever versions came in between.
 
+## Unreleased
+
+### New
+
+- **TLS certificates are watched, and their expiry announced in advance.** A certificate that expires without anyone noticing is one of the few outages that is entirely predictable, so every TCP target with a port is now inspected twice a day: one full TLS handshake, the certificate read, and nothing written to the latency series — a handshake is far slower than a bare connection and would distort the measurement it sits next to. A message goes out once per threshold crossed, at 30, 14, 7 and 1 day before expiry and on the day itself, rather than once per check, so a certificate left alone for a month produces a handful of messages instead of sixty; a renewal rearms the whole sequence. Verification is the one a browser does, chain and name included, because a monitoring tool that accepts a certificate a client would refuse warns about nothing: a wrong name, an unverifiable chain, a certificate already expired and a handshake that never completes are each reported in a sentence that names the cause instead of quoting `x509: certificate signed by unknown authority` at an operator. The first threshold, the extra recipients and the global switch live on the back-office *TLS certificates* page, alerts leave through the notification channels already configured, and the same page carries a per-target switch and an *Inspect now* button for an operator who has just fixed something and does not want to wait twelve hours to see it.
+
 ## 0.5.1
 
 Addresses, and who gets to see them. 0.5.0 masked a pinned address and left two other paths open; this closes them and says, on the about page, where the measurements come from — without publishing that address either.
