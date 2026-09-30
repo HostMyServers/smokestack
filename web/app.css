@@ -8,6 +8,7 @@
   --ok: #138a4a; --ok-soft: #e9f8ef;
   --warn: #b86a00; --warn-soft: #fff5e3;
   --crit: #d92d20; --crit-soft: #fdeeec;
+  --info: #4338ca; --info-soft: #eef2ff;
   --c-transit: #2458e6; --c-ix: #0e8fa8; --c-dns: #7a3fe0;
   --c-cloud: #0f917a; --c-fed: #c26a00;
   --radius: 12px; --radius-s: 8px;
@@ -25,6 +26,7 @@
     --ok: #3ccb7f; --ok-soft: #10261b;
     --warn: #f0a93a; --warn-soft: #2a1f0d;
     --crit: #ff6b5e; --crit-soft: #2d1513;
+    --info: #a5b4fc; --info-soft: #1c1f3d;
     --shadow: 0 1px 2px rgba(0,0,0,.3);
   }
 }
@@ -131,8 +133,12 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .b-warn { background: var(--warn-soft); color: var(--warn); }
 .b-crit { background: var(--crit-soft); color: var(--crit); }
 .b-n { background: var(--bg-sunk); color: var(--ink-2); }
+/* Maintenance : ni vert ni rouge. Une cible arretee volontairement n'est
+   pas en panne, et la couleur doit le dire avant que le texte soit lu. */
+.b-maint { background: var(--info-soft); color: var(--info); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
 .d-ok { background: var(--ok); } .d-warn { background: var(--warn); } .d-crit { background: var(--crit); }
+.d-maint { background: var(--info); }
 
 table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.t th { text-align: left; font-weight: 550; color: var(--ink-3); font-size: 11px;
@@ -203,6 +209,17 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 @media (prefers-color-scheme: dark) {
   .note-rot { color: #fcd34d; background: rgba(120, 53, 15, .25); border-color: rgba(252, 211, 77, .35); }
 }
+
+/* --- bandeau de maintenance programmée --- */
+/* Sur la page publique : un lecteur qui voit la mesure s'arrêter doit
+   comprendre pourquoi sans écrire à personne. */
+.note-maint { font-size: 12.5px; line-height: 1.55; border-radius: 10px; padding: 12px 14px;
+  margin: 16px 0 6px; color: var(--info); background: var(--info-soft);
+  border: 1px solid var(--info); border-left-width: 3px; }
+.note-maint strong { font-weight: 600; }
+.note-maint .when { display: block; margin-top: 3px; color: var(--ink-2); }
+.note-maint ul { margin: 6px 0 0; padding-left: 18px; }
+.note-maint li { margin: 2px 0; }
 
 /* --- bandeau d'un graphe partagé --- */
 .note-share { font-size: 12.5px; line-height: 1.5; border-radius: 10px; padding: 12px 14px;

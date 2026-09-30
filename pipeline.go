@@ -246,6 +246,22 @@ func (c *TargetCache) refresh() {
 		log.Printf("target cache: %v", err)
 		return
 	}
+	// Une maintenance qui coupe la mesure retire la cible de ce cache, et
+	// donc de la boucle du planificateur comme de ce que la sonde isolee
+	// vient chercher : un seul point de filtrage pour les deux modes de
+	// sonde. La cible reste partout ailleurs — back-office, pages
+	// publiques, historique — parce qu'elle n'est pas supprimee, elle est
+	// arretee pour un temps annonce.
+	if maint := c.store.ActiveMaintenances(time.Now().Unix()); len(maint) > 0 {
+		kept := make([]*Target, 0, len(list))
+		for _, t := range list {
+			if m, ok := maint[t.ID]; ok && m.StopProbe {
+				continue
+			}
+			kept = append(kept, t)
+		}
+		list = kept
+	}
 	c.mu.Lock()
 	c.list = list
 	c.mu.Unlock()

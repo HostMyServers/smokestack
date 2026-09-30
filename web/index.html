@@ -470,6 +470,7 @@ function renderHome() {
       <div class="kpi"><div class="k">${esc(t("metric.peers"))}</div><div class="v">${S.peers}</div></div>
     </div></div></section>
   <div class="wrap"><div class="shell">${railBox()}<div style="min-width:0">
+    <div id="mbanner" hidden></div>
     <details class="how" ${faults.length ? "" : "open"}><summary>${esc(t("home.ex_measure_t"))} · ${esc(t("home.ex_bands_t"))} · ${esc(t("home.ex_colours_t"))}</summary>
       <div class="how-b"><div><h3>${esc(t("home.ex_measure_t"))}</h3><p>${esc(t("home.ex_measure"))}</p></div>
       <div><h3>${esc(t("home.ex_bands_t"))}</h3><p>${esc(t("home.ex_bands"))}</p></div>
@@ -505,6 +506,7 @@ function renderHome() {
   requestAnimationFrame(() => document.querySelectorAll("[data-spark]").forEach(cv => {
     const tg = byId(+cv.dataset.spark); draw(cv, tg.spark, { height: 30, bare: true, accent: color(tg._ci) });
   }));
+  renderMaintBanner();
 }
 
 /* ---------------------------------------------------------------- détail */
@@ -543,6 +545,46 @@ function pinNote(tg) {
   return `<div class="note-pin">${esc(txt)}</div>`;
 }
 
+// The maintenance banner. A reader who sees the measurement stop has to be
+// able to understand it without writing to anybody, so the window says what
+// it is, until when, and whether the measurement itself is paused — the
+// difference matters: a paused measurement leaves a gap in the graph, a
+// silenced alert does not.
+function maintNote(tg) {
+  const m = tg.maint;
+  if (!m) return "";
+  const key = m.stop_probe ? "maint.banner_probe" : "maint.banner_alerts";
+  return `<div class="note-maint"><strong>${esc(t("maint.title"))} — ${esc(m.title)}</strong>
+    <span class="when">${esc(t(key, { until: I18N.date(m.ends_at) }))}</span>
+    ${m.note ? `<span class="when">${esc(m.note)}</span>` : ""}</div>`;
+}
+
+// On the home page, what is happening now and what is announced for the
+// coming days, in one banner. Upcoming windows are worth showing: a reader
+// who knows a stop is planned does not open a ticket when it happens.
+async function renderMaintBanner() {
+  const box = $("#mbanner");
+  if (!box) return;
+  let d = null;
+  try {
+    const r = await fetch("/api/v1/maintenance");
+    if (r.ok) d = await r.json();
+  } catch (e) { return; }
+  const list = (d && d.maintenances) || [];
+  if (!list.length) { box.hidden = true; return; }
+  const now = d.now || Math.floor(Date.now() / 1000);
+  const live = list.filter(m => m.starts_at <= now && m.ends_at > now);
+  const soon = list.filter(m => m.starts_at > now);
+  const line = m => `<li><strong>${esc(m.target_title || "")}</strong> — ${esc(m.title)}
+    <span class="when">${esc(t(m.starts_at > now ? "maint.from" : "maint.until",
+      { from: I18N.date(m.starts_at), until: I18N.date(m.ends_at) }))}${
+      m.stop_probe ? " · " + esc(t("maint.measure_paused")) : ""}</span></li>`;
+  box.hidden = false;
+  box.innerHTML = `<div class="note-maint">
+    <strong>${esc(live.length ? t("maint.live_title", { n: live.length }) : t("maint.soon_title", { n: soon.length }))}</strong>
+    <ul>${live.concat(soon).slice(0, 6).map(line).join("")}</ul></div>`;
+}
+
 // Two arrows turning: the same service, measured in the other family.
 const SWAP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -565,6 +607,7 @@ function renderDetail() {
       org: (App.site.org || App.site.title || ""), loc: (App.site.location || App.site.asn || "—") }))}</div>` : ""}
     ${(!tg.pin_ip && (tg.addr_count || 0) > 1 && t("detail.rotating")) ? `<div class="note-rot">
       ${esc(t("detail.rotating", { n: tg.addr_count }))}</div>` : ""}
+    ${maintNote(tg)}
     ${pinNote(tg)}
     <div class="presets" id="pr">${PRESETS.map(([key], i) => `<button class="preset" data-p="${i}" aria-pressed="${S.preset === i}">${esc(t(key))}</button>`).join("")}
       <button class="preset" id="cp" style="margin-left:auto">🔗 ${esc(t("common.copy_link"))}</button></div>

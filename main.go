@@ -329,6 +329,7 @@ func main() {
 	api.TracerouteRoutes(mux)
 	api.SuggestedRoutes(mux)
 	api.CertRoutes(mux)
+	api.MaintenanceRoutes(mux)
 	api.probeInProcess = cfg.Probe.Enabled && cfg.Probe.Mode != "external"
 	api.ContactRoutes(mux)
 	api.LogRoutes(mux)

@@ -39,7 +39,9 @@
     "warn_long": "Latency or jitter off baseline",
     "crit_long": "Packet loss observed",
     "nodata": "no data",
-    "private": "private"
+    "private": "private",
+    "maint": "maintenance",
+    "maint_long": "Planned maintenance in progress"
   },
   "metric": {
     "median": "Median",
@@ -123,6 +125,16 @@
     "passes": "{n} passes, {down} silent",
     "unknown": "nothing measured over this period",
     "partial": "period only partly covered"
+  },
+  "maint": {
+    "title": "Planned maintenance",
+    "banner_probe": "Measurement is paused until {until}, at the request of whoever runs this instance: the gap in the graph is deliberate and is not an outage.",
+    "banner_alerts": "Measurement carries on until {until}, but alerting is silenced: what you see may be the maintenance itself rather than a fault.",
+    "live_title": "Maintenance in progress on {n} target(s)",
+    "soon_title": "Maintenance announced on {n} target(s)",
+    "from": "from {from} to {until}",
+    "until": "until {until}",
+    "measure_paused": "measurement paused"
   },
   "fed": {
     "title": "Federation",

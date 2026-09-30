@@ -39,7 +39,9 @@
     "warn_long": "Latence ou gigue en écart",
     "crit_long": "Perte de paquets constatée",
     "nodata": "sans données",
-    "private": "privée"
+    "private": "privée",
+    "maint": "maintenance",
+    "maint_long": "Maintenance programmée en cours"
   },
   "metric": {
     "median": "Médiane",
@@ -123,6 +125,16 @@
     "passes": "{n} passes, {down} muettes",
     "unknown": "rien mesuré sur cette période",
     "partial": "période couverte en partie seulement"
+  },
+  "maint": {
+    "title": "Maintenance programmée",
+    "banner_probe": "La mesure est suspendue jusqu'au {until}, à la demande de l'exploitant de cette instance : le trou dans le graphe est volontaire et n'est pas une panne.",
+    "banner_alerts": "La mesure continue jusqu'au {until}, mais l'alerting est coupé : ce que vous voyez peut être la maintenance elle-même et non un défaut.",
+    "live_title": "Maintenance en cours sur {n} cible(s)",
+    "soon_title": "Maintenance annoncée sur {n} cible(s)",
+    "from": "du {from} au {until}",
+    "until": "jusqu'au {until}",
+    "measure_paused": "mesure suspendue"
   },
   "fed": {
     "title": "Fédération",

@@ -154,6 +154,11 @@ func (a *Alerter) Incidents(limit int) ([]LocalIncident, error) {
 func (a *Alerter) Tick(statuses map[int64]string, details map[int64]string) int {
 	cfg := a.store.AlertConfig()
 	now, sent := a.now(), 0
+	// Fenetres de maintenance en cours : une cible qu'on redemarre
+	// volontairement ne doit pas reveiller l'astreinte. L'incident est
+	// quand meme ouvert et enregistre — il explique le trou dans le
+	// graphe — seule la notification est retenue.
+	maint := a.store.ActiveMaintenances(now)
 	for targetID, status := range statuses {
 		inc, open := a.openFor(targetID)
 		if status != "crit" {
@@ -187,6 +192,9 @@ func (a *Alerter) Tick(statuses map[int64]string, details map[int64]string) int 
 		// A target can be left out of alerting without being left out of
 		// monitoring: the incident is still recorded and still visible.
 		if t, err := a.store.TargetByID(targetID); err == nil && t.AlertsOff {
+			continue
+		}
+		if m, ok := maint[targetID]; ok && (m.StopAlerts || m.StopProbe) {
 			continue
 		}
 		if now-inc.OpenedAt < int64(cfg.AfterMinutes)*60 {

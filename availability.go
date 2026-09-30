@@ -35,6 +35,9 @@ type AvailWindow struct {
 	// periode anterieure a la mise a jour qui a introduit le comptage.
 	Partial bool  `json:"partial"`
 	First   int64 `json:"first,omitempty"`
+	// Excluded compte les passes retirees du calcul parce qu'elles
+	// tombaient dans une maintenance programmee qui coupait la mesure.
+	Excluded int64 `json:"excluded,omitempty"`
 }
 
 var availWindows = []struct {
@@ -70,6 +73,28 @@ func (s *Store) availWindow(targetID, probeID int64, label string, from, to int6
 		   FROM %s WHERE target_id=? AND probe_id=? AND bucket>=? AND bucket<?`, table),
 		targetID, probeID, from, to).Scan(&passes, &down, &first)
 	if err != nil || passes == 0 {
+		return a
+	}
+	// Les fenetres de maintenance qui coupent la mesure sortent du calcul.
+	// Une cible arretee volontairement ne compte ni comme disponible ni
+	// comme indisponible : elle ne compte pas, sinon une maintenance
+	// annoncee degraderait le chiffre exactement comme une panne.
+	for _, w := range s.maintenanceRanges(targetID, from, to) {
+		var mp, md int64
+		if s.mx.QueryRow(fmt.Sprintf(
+			`SELECT COALESCE(SUM(passes),0), COALESCE(SUM(down),0) FROM %s
+			  WHERE target_id=? AND probe_id=? AND bucket>=? AND bucket<?`, table),
+			targetID, probeID, maxInt64(w[0], from), minInt64(w[1], to)).Scan(&mp, &md) != nil {
+			continue
+		}
+		passes -= mp
+		down -= md
+		a.Excluded += mp
+	}
+	if passes <= 0 {
+		// Toute la fenetre etait en maintenance : le chiffre est inconnu,
+		// pas nul, et l'interface le dit.
+		a.Excluded, a.Passes, a.Down = 0, 0, 0
 		return a
 	}
 	a.Passes, a.Down, a.First = passes, down, first
@@ -172,6 +197,20 @@ func (a *API) availability(w http.ResponseWriter, r *http.Request) {
 	}
 	availCache.put(key, out, 60*time.Second)
 	writeJSON(w, out)
+}
+
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func minInt64(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func availSlack(span int64) int64 {

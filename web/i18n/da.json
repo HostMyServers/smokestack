@@ -39,7 +39,9 @@
     "warn_long": "Forsinkelse eller jitter uden for referencen",
     "crit_long": "Pakketab observeret",
     "nodata": "ingen data",
-    "private": "privat"
+    "private": "privat",
+    "maint": "vedligeholdelse",
+    "maint_long": "Planlagt vedligeholdelse i gang"
   },
   "metric": {
     "median": "Median",
@@ -123,6 +125,16 @@
     "passes": "{n} runder, {down} uden svar",
     "unknown": "intet målt i denne periode",
     "partial": "perioden kun delvist dækket"
+  },
+  "maint": {
+    "title": "Planlagt vedligeholdelse",
+    "banner_probe": "Målingen er sat på pause til {until}, efter ønske fra den, der driver denne instans: hullet i grafen er tilsigtet og ikke et udfald.",
+    "banner_alerts": "Målingen fortsætter til {until}, men alarmeringen er slået fra: hvad du ser kan være vedligeholdelsen selv og ikke en fejl.",
+    "live_title": "Vedligeholdelse i gang på {n} mål",
+    "soon_title": "Vedligeholdelse varslet på {n} mål",
+    "from": "fra {from} til {until}",
+    "until": "til {until}",
+    "measure_paused": "måling sat på pause"
   },
   "fed": {
     "title": "Føderation",
