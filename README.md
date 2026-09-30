@@ -169,6 +169,8 @@ Details in [DEPLOY.md § 10](DEPLOY.md#10-probe-isolation-and-performance).
 - Alerts on your own targets after a sustained incident, traceroute included
 - TLS certificate watch on every TCP target: expiry warned 30, 14, 7 and 1 day ahead, and a refused
   certificate — wrong name, unverifiable chain, broken handshake — reported as soon as it is seen
+- Response-time breakdown on demand for a TCP target: name resolution, TCP connection and TLS
+  handshake timed separately, back-office only and never historised
 - Maintenance calendar: declare a window and choose whether it silences alerting, stops the
   measurement, or both — the public page carries a banner, and a stopped window is excluded from
   the availability figure instead of counting as an outage

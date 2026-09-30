@@ -218,6 +218,9 @@ func OpenStore(dir string) (*Store, error) {
 	if _, err := cfg.Exec(configSchema); err != nil {
 		return nil, fmt.Errorf("schema config: %w", err)
 	}
+	if _, err := cfg.Exec(breakdownSchema); err != nil {
+		return nil, fmt.Errorf("schema tcp_breakdown: %w", err)
+	}
 	if _, err := cfg.Exec(maintenanceSchema); err != nil {
 		return nil, fmt.Errorf("schema maintenances: %w", err)
 	}

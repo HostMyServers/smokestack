@@ -17,6 +17,12 @@ install the newest one directly, whatever versions came in between.
 - **SQLite and the Go toolchain are brought up to date.** `modernc.org/sqlite` goes from 1.34.5 to 1.59.0 — twenty-five minor versions of the engine that writes every measurement — along with its own dependencies and `golang.org/x/sys`. The update requires Go 1.25, so the build, the release workflow and the container image move from 1.22 and 1.23 to 1.25: a version from early 2024 no longer receives the runtime and standard-library fixes that a network-facing service should have. The binary stays static and `CGO_ENABLED=0`, so nothing about how it is deployed changes.
 - **The fourth tile of the detail page reads *Loss* instead of *Uptime*.** It always showed the packet loss over the displayed window, subtracted from a hundred; the name invited precisely the reading the availability card now answers properly.
 
+## Unreleased
+
+### New
+
+- **A response-time breakdown, on demand, in the back-office.** A target that answers in eighty milliseconds does not say where those eighty milliseconds go, and a slow resolver and a slow network produce the same figure with two different fixes. A TCP target can now be split into its steps — a fresh name resolution, the TCP connection, and the TLS handshake where the port expects one — each timed separately, with a bar that shows which step dominates before the numbers are read, and the address actually reached named next to it. It is deliberately on demand rather than on every pass, and deliberately not historised: the measurement costs a resolution and a full handshake, which is expensive to repeat every minute, and the latency series must keep its definition, so this is a separate measurement beside the graph rather than a change to what the graph means. One row per target, overwritten, and nothing on the public pages — it is a diagnostic you look at when something is wrong, not a metric to follow. The connection time comes from the kernel where the kernel knows it, so process load does not enter the figure, and the handshake is timed without verifying the certificate on purpose: its validity is the job of the certificate watch, which checks it properly. The page states that the total is not the number on the public graph, which counts the connection alone.
+
 ## 0.5.1
 
 Addresses, and who gets to see them. 0.5.0 masked a pinned address and left two other paths open; this closes them and says, on the about page, where the measurements come from — without publishing that address either.
