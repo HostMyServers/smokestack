@@ -34,12 +34,13 @@ Nothing an operator configures. What changed is what the build is allowed to let
 
 - **The CI audits the code now, and not only on the days somebody pushes.**
 
-  `make test` proves the tree builds and passes its tests. It says nothing about a published CVE in a dependency, and the formatting rule the project documents as mandatory was enforced nowhere. An `audit` workflow covers four surfaces, each as its own job so that a red mark says which:
+  `make test` proves the tree builds and passes its tests. It says nothing about a published CVE in a dependency, and the formatting rule the project documents as mandatory was enforced nowhere. The CI now runs five jobs in parallel, one per surface so that a red mark says which, and a sixth that reports their verdict — one box to tick in branch protection instead of five:
 
   - **Go** — `gofmt`, `go vet`, staticcheck and govulncheck, all through `make audit`, so a contributor can run locally exactly what the CI runs. The two analysers are pinned in the Makefile: a new release of either turns the build red on a branch that changed nothing.
   - **Shell** — ShellCheck on `install.sh` and `scripts/`. Seventeen kilobytes of shell that runs as root on a stranger's machine, previously checked only for whether it parses.
   - **Workflows** — actionlint, and zizmor reading them as an attack surface rather than as YAML. It is what found the release hole above.
-  - **Image** — Trivy on the image the Dockerfile produces, failing both on a fixable HIGH and on a base whose distribution has stopped answering.
+  - **Image** — Trivy on the image the Dockerfile produces, failing both on a fixable HIGH and on a base whose distribution has stopped answering. It scans the image that job has just built and self-tested, rather than a second build of it.
+  - **Tests** — unchanged, and `sh -n install.sh` drops out of it: ShellCheck parses the script too, and then reads it.
 
   **It also runs every Monday**, which is the part that is not decoration: a vulnerability published the day after a merge concerns a version that is already installed on somebody's machine, and nothing triggered by a commit would ever mention it.
 

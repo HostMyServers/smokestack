@@ -1,7 +1,6 @@
 # smokestack
 
 [![CI](https://github.com/nkglfr/smokestack/actions/workflows/ci.yml/badge.svg)](https://github.com/nkglfr/smokestack/actions/workflows/ci.yml)
-[![Audit](https://github.com/nkglfr/smokestack/actions/workflows/audit.yml/badge.svg)](https://github.com/nkglfr/smokestack/actions/workflows/audit.yml)
 [![Release](https://img.shields.io/github/v/release/nkglfr/smokestack)](https://github.com/nkglfr/smokestack/releases/latest)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
@@ -328,11 +327,12 @@ make audit-tools                        # once: the two pinned analysers
 make audit                              # gofmt, vet, staticcheck, govulncheck
 ```
 
-The `audit` workflow runs that, plus ShellCheck on `install.sh`, actionlint
-and zizmor on the workflows, and Trivy on the container image. It also runs
-every Monday rather than only on a push: a vulnerability published the day
-after a merge concerns a version that is already installed somewhere, and
-nothing triggered by a commit would ever mention it.
+The CI runs that as one of five parallel jobs, alongside the tests,
+ShellCheck on `install.sh`, actionlint and zizmor on the workflows, and
+Trivy on the container image. It also runs every Monday rather than only on
+a push: a vulnerability published the day after a merge concerns a version
+that is already installed somewhere, and nothing triggered by a commit would
+ever mention it.
 
 Everything the audit judges is judged for `linux`, which is what ships:
 `ts_other.go` is a stub, so analysing a Mac's own target reports a comparison
