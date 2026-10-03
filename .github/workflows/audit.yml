@@ -54,7 +54,7 @@ jobs:
       # exact one.
       - name: Cache the analysers
         id: tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/go/bin
           key: audit-tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
