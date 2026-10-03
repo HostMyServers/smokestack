@@ -2,6 +2,24 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **A version number could carry a shell command into the release build.**
+
+  The release workflow checked a dispatched version against `[0-9]*.[0-9]*.[0-9]*` before using it. That pattern also accepts `1.2.3; rm -rf /`, because `*` matches any string, and the value went on to be interpolated into the scripts that run `make dist` and `gh release create`. A tag push skipped the check entirely, and a git ref name may contain a semicolon.
+
+  Three changes, each of which alone would have been enough:
+
+  | | |
+  |---|---|
+  | The version is validated against the shell | rejected unless it is digits, dots and the `-rc1` suffix — and on both doors, not just the dispatched one |
+  | Nothing is interpolated into a script | every computed value reaches its `run:` block through the environment |
+  | The workflow no longer grants write | `contents: write` sits on the one job that tags and publishes, instead of on every job in the file |
+
+  Reaching this needed permission to start a workflow, which [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases) already notes is a much lower bar than a shell with push rights. The approval gate stopped a release from being *published*; it did nothing about what the build did on its way there. `inputs.tag` in the image workflow had the same shape and gets the same treatment.
+
 ## 0.6.2
 
 A bug that made the long views lie by omission, and a public interface with less in it.
