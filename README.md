@@ -1,6 +1,7 @@
 # smokestack
 
 [![CI](https://github.com/nkglfr/smokestack/actions/workflows/ci.yml/badge.svg)](https://github.com/nkglfr/smokestack/actions/workflows/ci.yml)
+[![Audit](https://github.com/nkglfr/smokestack/actions/workflows/audit.yml/badge.svg)](https://github.com/nkglfr/smokestack/actions/workflows/audit.yml)
 [![Release](https://img.shields.io/github/v/release/nkglfr/smokestack)](https://github.com/nkglfr/smokestack/releases/latest)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
@@ -320,6 +321,23 @@ make build                              # ./dist/smokestack
 sudo sh install.sh --package dist/smokestack --admin-email noc@example.net
 ```
 
+### Auditing
+
+```sh
+make audit-tools                        # once: the two pinned analysers
+make audit                              # gofmt, vet, staticcheck, govulncheck
+```
+
+The `audit` workflow runs that, plus ShellCheck on `install.sh`, actionlint
+and zizmor on the workflows, and Trivy on the container image. It also runs
+every Monday rather than only on a push: a vulnerability published the day
+after a merge concerns a version that is already installed somewhere, and
+nothing triggered by a commit would ever mention it.
+
+Everything the audit judges is judged for `linux`, which is what ships:
+`ts_other.go` is a stub, so analysing a Mac's own target reports a comparison
+in `tracer.go` that is only ever true there.
+
 ### Releasing
 
 ```sh
@@ -350,6 +368,10 @@ See [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 - The web service has no raw-socket privilege; the probe has nothing else.
 - Hardened systemd units: read-only system, private `/tmp`, no new privileges.
 - Updates must be signed by a trusted Ed25519 key.
+- Dependencies, the standard library and the container base are scanned for
+  published vulnerabilities on every commit and again every week; the scan
+  fails if the base image has stopped receiving security updates, since a
+  clean report from an unmaintained distribution means nothing.
 
 ---
 

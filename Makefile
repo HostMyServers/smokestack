@@ -2,6 +2,8 @@
 #
 #   make                 build ./dist/smokestack for this machine
 #   make test            vet + unit tests
+#   make audit           gofmt, vet, staticcheck, govulncheck (needs audit-tools)
+#   make audit-tools     install the two pinned analysers into $GOPATH/bin
 #   make dist            signed release packages for linux amd64 + arm64
 #   make release-key     create the release signing key pair (once)
 #
@@ -16,11 +18,18 @@ OFFICIAL_URL ?= $(REPO_URL)
 RELEASE_KEY  ?= release.key
 ARCHS        ?= amd64 arm64
 
+# The audit tools, pinned. A new release of either can turn the build red on
+# a branch that changed nothing, and a red build nobody caused is a red build
+# people learn to ignore. Bumped deliberately; the CI keys its tool cache on
+# this file.
+GOVULNCHECK_VERSION ?= v1.8.0
+STATICCHECK_VERSION ?= 2026.2.1
+
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) \
            -X main.OfficialURL=$(OFFICIAL_URL) -X main.RepoURL=$(REPO_URL)
 GOBUILD := CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)"
 
-.PHONY: build test dist release-key check-branding clean install tidy
+.PHONY: build test audit audit-tools dist release-key check-branding clean install tidy
 
 build:
 	@mkdir -p dist
@@ -33,6 +42,24 @@ tidy:
 test:
 	go vet ./...
 	go test ./...
+
+# What ships is the Linux build, so that is what is judged: ts_other.go is a
+# stub, and analysing the host's GOOS on a Mac both skips the code every
+# instance runs and reports a comparison in tracer.go that is only ever true
+# there. Pinning GOOS is what makes a local run agree with the CI.
+#
+# gofmt is checked here rather than in `test` because it is a style gate, not
+# a correctness one — but it is checked, which it never was: it was written
+# down as mandatory and enforced nowhere.
+audit:
+	@test -z "$$(gofmt -l .)" || { echo "not gofmt'd:"; gofmt -l .; exit 1; }
+	GOOS=linux go vet ./...
+	GOOS=linux staticcheck ./...
+	GOOS=linux govulncheck ./...
+
+audit-tools:
+	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
 # Refuses to publish with placeholder URLs: they would end up in the
 # footer of every instance and break automatic updates.
