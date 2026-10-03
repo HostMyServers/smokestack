@@ -338,6 +338,16 @@ Everything the audit judges is judged for `linux`, which is what ships:
 `ts_other.go` is a stub, so analysing a Mac's own target reports a comparison
 in `tracer.go` that is only ever true there.
 
+It is also judged by one named Go toolchain, `AUDIT_TOOLCHAIN` in the
+Makefile, on a developer's machine as well as in the CI. staticcheck carries
+its own copy of `go/types` and cannot read export data from a toolchain newer
+than its own release, and govulncheck reports standard library
+vulnerabilities for the Go it runs under — so an audit that used whatever
+`go` happened to be on the machine would either fail there and pass in the
+CI, or clear a standard library that never ships. Both analysers are pinned
+to their last release that builds with the `go` directive in `go.mod`; moving
+them forward means raising that first.
+
 ### Releasing
 
 ```sh

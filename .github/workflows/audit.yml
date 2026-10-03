@@ -74,12 +74,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      # From apt rather than pinned by hand: the runner label is pinned, so
-      # the version that ships with it is pinned too.
-      - name: Install ShellCheck
-        run: sudo apt-get update -q && sudo apt-get install -yq shellcheck
+      # Pinned, rather than whatever apt carries. The runner's 0.9.0 and the
+      # current 0.11.0 disagree about this very file: the older one raises
+      # SC2015 on two `[ a ] && [ b ] || die` lines, where the idiom does
+      # exactly what it reads as, and upstream has since stopped flagging it.
+      # A check whose findings move with the runner image is a check that goes
+      # red on a branch that changed nothing.
       - name: Audit the shell scripts
-        run: shellcheck -x -P SCRIPTDIR install.sh scripts/*.sh
+        run: |
+          docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:v0.11.0 \
+            -x -P SCRIPTDIR install.sh scripts/*.sh
 
   # The workflows are the most privileged thing in the repository: one of them
   # holds the release signing key and publishes binaries that instances

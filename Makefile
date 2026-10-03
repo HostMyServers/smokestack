@@ -22,8 +22,25 @@ ARCHS        ?= amd64 arm64
 # a branch that changed nothing, and a red build nobody caused is a red build
 # people learn to ignore. Bumped deliberately; the CI keys its tool cache on
 # this file.
-GOVULNCHECK_VERSION ?= v1.8.0
-STATICCHECK_VERSION ?= 2026.2.1
+#
+# Both are also capped by the go directive in go.mod: the next release of
+# each requires Go 1.26. Raising them means raising that first, and the audit
+# cannot simply run a newer toolchain of its own — govulncheck reports
+# standard library vulnerabilities for the Go it runs under, so auditing with
+# a toolchain the release is not built with would clear a standard library
+# that never ships.
+GOVULNCHECK_VERSION ?= v1.7.0
+STATICCHECK_VERSION ?= v0.7.0
+
+# And named, for the same reason the other analysers in the audit workflow are
+# pinned to an image rather than taken from the machine. staticcheck carries
+# its own copy of go/types and cannot read export data from a toolchain newer
+# than the one it was released against, so on a developer's Go 1.27 it fails
+# with "export data version 4 is greater than maximum supported version 2"
+# while the CI is green. Asking for the toolchain by name costs nothing where
+# it is already installed, and is what makes a local run and the CI the same
+# run.
+AUDIT_TOOLCHAIN ?= go1.25.14
 
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) \
            -X main.OfficialURL=$(OFFICIAL_URL) -X main.RepoURL=$(REPO_URL)
@@ -51,15 +68,16 @@ test:
 # gofmt is checked here rather than in `test` because it is a style gate, not
 # a correctness one — but it is checked, which it never was: it was written
 # down as mandatory and enforced nowhere.
+audit: AUDIT = GOTOOLCHAIN=$(AUDIT_TOOLCHAIN) GOOS=linux
 audit:
 	@test -z "$$(gofmt -l .)" || { echo "not gofmt'd:"; gofmt -l .; exit 1; }
-	GOOS=linux go vet ./...
-	GOOS=linux staticcheck ./...
-	GOOS=linux govulncheck ./...
+	$(AUDIT) go vet ./...
+	$(AUDIT) staticcheck ./...
+	$(AUDIT) govulncheck ./...
 
 audit-tools:
-	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
-	go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
+	GOTOOLCHAIN=$(AUDIT_TOOLCHAIN) go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	GOTOOLCHAIN=$(AUDIT_TOOLCHAIN) go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
 # Refuses to publish with placeholder URLs: they would end up in the
 # footer of every instance and break automatic updates.
