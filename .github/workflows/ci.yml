@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: "1.26"
       - name: Resolve dependencies
         run: test -f go.sum || go mod tidy
       - name: Vet and test
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: "1.26"
       - name: Put the Go tool directory on PATH
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       # The two analysers compile from source, which is most of this job's
@@ -145,7 +145,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: "1.26"
       - name: Put the Go tool directory on PATH
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Install actionlint

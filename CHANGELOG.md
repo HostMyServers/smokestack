@@ -4,9 +4,17 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ## Unreleased
 
-Nothing an operator configures. What changed is what the build is allowed to let through: the container image was running on a distribution that had stopped publishing security advisories, and a dispatched release could carry a shell command inside its version number.
+Nothing an operator configures. What changed is what the build is allowed to let through: the binaries were compiled by a Go that no longer receives security fixes, the container image was running on a distribution that had stopped publishing security advisories, and a dispatched release could carry a shell command inside its version number.
 
 ### Fixed
+
+- **The binaries were built with a Go that no longer receives security fixes.**
+
+  Go supports its two most recent releases. `go.mod` declared 1.25, which fell out of that window: a vulnerability found in the standard library since then has no patched 1.25 to upgrade to, and the standard library is linked into the binary rather than loaded from the system.
+
+  The `go` directive, both workflows and the build stage of the image move to 1.26. No dependency changed with it — `go mod tidy` rewrites the directive and nothing else — and the binary is static either way, so an instance notices nothing beyond installing the next release.
+
+  It also unblocks the analysers: govulncheck 1.8 and staticcheck 2026.2 both require 1.26, and were the reason the audit shipped a release behind on each.
 
 - **The container base had stopped receiving security updates, and the scan said it was clean.**
 

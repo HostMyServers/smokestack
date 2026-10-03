@@ -23,24 +23,25 @@ ARCHS        ?= amd64 arm64
 # people learn to ignore. Bumped deliberately; the CI keys its tool cache on
 # this file.
 #
-# Both are also capped by the go directive in go.mod: the next release of
-# each requires Go 1.26. Raising them means raising that first, and the audit
-# cannot simply run a newer toolchain of its own — govulncheck reports
-# standard library vulnerabilities for the Go it runs under, so auditing with
-# a toolchain the release is not built with would clear a standard library
-# that never ships.
-GOVULNCHECK_VERSION ?= v1.7.0
-STATICCHECK_VERSION ?= v0.7.0
+# Both require the go directive in go.mod to be at least 1.26, which is the
+# reason it is: the releases before these two were the last to build against
+# 1.25, and 1.25 itself has stopped receiving security fixes.
+GOVULNCHECK_VERSION ?= v1.8.0
+STATICCHECK_VERSION ?= v0.8.1
 
-# And named, for the same reason the other analysers in the audit workflow are
-# pinned to an image rather than taken from the machine. staticcheck carries
-# its own copy of go/types and cannot read export data from a toolchain newer
-# than the one it was released against, so on a developer's Go 1.27 it fails
-# with "export data version 4 is greater than maximum supported version 2"
-# while the CI is green. Asking for the toolchain by name costs nothing where
-# it is already installed, and is what makes a local run and the CI the same
-# run.
-AUDIT_TOOLCHAIN ?= go1.25.14
+# The toolchain the audit judges, named rather than inherited from the
+# machine. govulncheck reports standard library vulnerabilities for the Go it
+# runs under, so a developer on 1.27 would otherwise be told about the
+# standard library of a toolchain no release is built with — in either
+# direction, and silently. The CI matches go.mod by construction; naming the
+# version here is what makes a local run say the same thing. It costs a
+# toolchain download once on a machine that has a different Go, and nothing
+# where it is already installed.
+#
+# The current patch of the 1.26 line. Behind by a patch it reports a standard
+# library fix as still missing, which is a false alarm rather than a silence,
+# so it is worth bumping but not urgent.
+AUDIT_TOOLCHAIN ?= go1.26.8
 
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) \
            -X main.OfficialURL=$(OFFICIAL_URL) -X main.RepoURL=$(REPO_URL)

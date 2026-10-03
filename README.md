@@ -310,7 +310,7 @@ Rate limit: 20 requests/s per client IP, bursts of 80.
 
 ## Building from source
 
-Requires Go 1.22 or later. On Debian or Ubuntu:
+Requires Go 1.26 or later, which is also the oldest release still receiving security fixes. On Debian or Ubuntu:
 
 ```sh
 apt install -y git make golang-go
@@ -339,14 +339,13 @@ Everything the audit judges is judged for `linux`, which is what ships:
 in `tracer.go` that is only ever true there.
 
 It is also judged by one named Go toolchain, `AUDIT_TOOLCHAIN` in the
-Makefile, on a developer's machine as well as in the CI. staticcheck carries
-its own copy of `go/types` and cannot read export data from a toolchain newer
-than its own release, and govulncheck reports standard library
-vulnerabilities for the Go it runs under — so an audit that used whatever
-`go` happened to be on the machine would either fail there and pass in the
-CI, or clear a standard library that never ships. Both analysers are pinned
-to their last release that builds with the `go` directive in `go.mod`; moving
-them forward means raising that first.
+Makefile, on a developer's machine as well as in the CI. govulncheck reports
+standard library vulnerabilities for the Go it runs under, so an audit that
+used whatever `go` happened to be on the machine would report on a standard
+library no release is built with — in either direction, and without saying
+so. The CI matches `go.mod` by construction; naming the version is what makes
+a local run say the same thing, at the cost of one toolchain download on a
+machine with a different Go.
 
 ### Releasing
 
