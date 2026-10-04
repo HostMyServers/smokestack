@@ -1,7 +1,8 @@
 {
   "_meta": {
     "name": "English",
-    "dir": "ltr"
+    "dir": "ltr",
+    "flag": "GB"
   },
   "nav": {
     "home": "Home",

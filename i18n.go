@@ -27,12 +27,14 @@ import (
 //
 // Les fichiers acceptent des objets imbriques, aplatis en cles pointees :
 //   {"home": {"faults": "Faults"}}  ->  "home.faults"
-// Les metadonnees vivent sous "_meta" : name (nom natif), dir (ltr/rtl).
+// Les metadonnees vivent sous "_meta" : name (nom natif), dir (ltr/rtl),
+// flag (code pays a deux lettres, dont l'interface tire le drapeau).
 
 const baseLang = "en"
 
 var (
 	langCodeRE = regexp.MustCompile(`^[a-z]{2,3}(-[A-Z]{2})?$`)
+	countryRE  = regexp.MustCompile(`^[A-Z]{2}$`)
 	varRE      = regexp.MustCompile(`\{[a-z_]+\}`)
 )
 
@@ -40,6 +42,7 @@ type LangInfo struct {
 	Code     string   `json:"code"`
 	Name     string   `json:"name"`
 	Dir      string   `json:"dir"`
+	Flag     string   `json:"flag"`
 	Coverage float64  `json:"coverage"`
 	Missing  int      `json:"missing"`
 	Source   string   `json:"source"`
@@ -143,12 +146,18 @@ func (i *I18n) Reload() error {
 	}
 	for code, d := range dicts {
 		info := &LangInfo{Code: code, Name: d["_meta.name"], Dir: d["_meta.dir"],
-			Source: sources[code]}
+			Flag: strings.ToUpper(d["_meta.flag"]), Source: sources[code]}
 		if info.Name == "" {
 			info.Name = code
 		}
 		if info.Dir != "rtl" {
 			info.Dir = "ltr"
+		}
+		// The flag is the country the language declares, as a two-letter
+		// code; the interface derives the emoji from it. Anything else is
+		// dropped rather than published as a flag.
+		if !countryRE.MatchString(info.Flag) {
+			info.Flag = ""
 		}
 		have := 0
 		for k, ref := range base {
