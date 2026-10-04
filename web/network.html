@@ -19,100 +19,132 @@
   <div id="body"><p class="muted" data-i18n="common.loading"></p></div>
 </main>
 <footer class="ftr" id="ftr"></footer>
+<script src="/html.js"></script>
 <script src="/i18n.js"></script>
 <script src="/app.js"></script>
 <script>
+const { html, url } = H;
 let INFO = null, ERR = null, PENDING = false;
 
-function kv(rows) {
-  return `<div class="kv">` + rows.filter(r => r[1] !== "" && r[1] != null)
-    .map(r => `<div class="k">${r[0]}</div><div class="v">${r[1]}</div>`).join("") + `</div>`;
+// Tout ce que cette page affiche vient de RIPEstat et de PeeringDB :
+// noms de reseaux, de points d'echange, d'installations, et des adresses
+// que personne ici ne controle. Le gabarit echappe, et url() refuse ce
+// qui n'est pas http(s) avant qu'une adresse atteigne un href.
+const kv = rows => html`<div class="kv">${rows
+  .filter(r => r[1] !== "" && r[1] != null)
+  .map(r => html`<div class="k">${r[0]}</div><div class="v">${r[1]}</div>`)}</div>`;
+
+const stat = (label, value) =>
+  html`<div class="card card-b stat"><div class="k">${label}</div><div class="v">${value}</div></div>`;
+
+const link = (href, label) => {
+  const u = url(href);
+  return u && html`<a href="${u}" rel="noopener">${label}</a>`;
+};
+
+function routingCard(t, i) {
+  return html`<div class="card"><div class="card-b">
+    <div class="section-h"><h2>${t("net.routing")}</h2><span class="sub">RIPEstat</span></div>
+    ${kv([
+      [t("net.holder"), i.holder],
+      [t("net.country"), i.country],
+      [t("net.announced"), i.announced
+        ? html`<span class="badge b-ok">${t("common.yes")}</span>`
+        : html`<span class="badge b-crit">${t("common.no")}</span>`],
+      [t("net.nb_up"), I18N.num(i.nb_upstreams)],
+      [t("net.nb_down"), I18N.num(i.nb_downstreams)],
+      [t("net.nb_all"), I18N.num(i.nb_neighbours)]
+    ])}
+  </div></div>`;
+}
+
+function declaredCard(t, p) {
+  if (!p) return html`<div class="card"><div class="card-b">
+    <div class="section-h"><h2>${t("net.declared")}</h2><span class="sub">PeeringDB</span></div>
+    <p class="muted">${t("net.not_in_pdb")}</p></div></div>`;
+  return html`<div class="card"><div class="card-b">
+    <div class="section-h"><h2>${t("net.declared")}</h2><span class="sub">PeeringDB</span></div>
+    ${kv([
+      [t("net.types"), (p.types || []).join(", ")],
+      [t("net.policy"), html`${p.policy}${p.policy_url && html` \u00b7 ${link(p.policy_url, "\u2197")}`}`],
+      [t("net.traffic"), p.traffic],
+      [t("net.ratio"), p.ratio],
+      [t("net.scope"), p.scope],
+      [t("net.irr"), p.irr_as_set && html`<span class="mono">${p.irr_as_set}</span>`],
+      [t("net.lg"), link(p.looking_glass, "\u2197")],
+      [t("net.website"), link(p.website, String(p.website || "").replace(/^https?:\/\//, ""))]
+    ])}
+  </div></div>`;
+}
+
+function upstreams(t, list) {
+  const max = Math.max(...list.map(u => u.power), 1);
+  return html`<section class="section"><div class="section-h"><h2>${t("net.upstreams")}</h2></div>
+    <div class="card"><div class="card-b">${list.map(u => html`
+      <div style="display:grid;grid-template-columns:110px minmax(0,1fr) 160px;gap:14px;align-items:center;padding:8px 0;border-top:1px solid var(--line-2)">
+        <a class="mono" href="https://bgp.tools/as/${u.asn}" rel="noopener">AS${u.asn}</a>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.name || ""}</span>
+        <span style="height:6px;border-radius:var(--radius-xs);background:var(--bg-sunk);overflow:hidden">
+          <i style="display:block;height:100%;width:${Math.round(u.power / max * 100)}%;background:var(--accent)"></i></span>
+      </div>`)}
+      <p class="faint" style="font-size:12px;margin:10px 0 0">${t("net.upstreams_note")}</p></div></div></section>`;
+}
+
+function presence(t, p) {
+  // Le champ s'appelle speed_mbps : lu sous le nom "speed", il valait
+  // undefined et chaque point d'echange affichait « —M ».
+  const speed = s => s >= 1000 ? I18N.num(s / 1000) + "G" : I18N.num(s) + "M";
+  return html`<div class="grid g2 section">
+    <div class="card"><div class="card-b">
+      <div class="section-h"><h2>${t("net.ixs")}</h2><span class="sub">${p.ixs.length}</span></div>
+      <div class="scroll-x"><table class="t"><tbody>${p.ixs.map(x => html`<tr>
+        <td>${x.name}</td>
+        <td class="mono" style="text-align:right">${speed(x.speed_mbps)}</td>
+        <td style="text-align:right">${x.rs_peer && html`<span class="badge b-n">RS</span>`}</td>
+      </tr>`)}</tbody></table></div>
+    </div></div>
+    <div class="card"><div class="card-b">
+      <div class="section-h"><h2>${t("net.facilities")}</h2><span class="sub">${p.facilities.length}</span></div>
+      <table class="t"><tbody>${p.facilities.map(f => html`<tr>
+        <td>${f.name}</td>
+        <td class="muted" style="text-align:right">${f.city}${f.country && ", " + f.country}</td>
+      </tr>`)}</tbody></table>
+    </div></div>
+  </div>`;
 }
 
 function render() {
-  const t = I18N.t, esc = App.esc, box = document.getElementById("body");
+  const t = I18N.t, box = document.getElementById("body");
   if (PENDING && !INFO) {
-    box.innerHTML = `<div class="note">${esc(t("common.loading"))}</div>`;
+    H.render(box, html`<div class="note">${t("common.loading")}</div>`);
     return;
   }
-  if (ERR) { box.innerHTML = `<div class="note">${esc(t("common.unavailable"))} — ${esc(ERR)}</div>`; return; }
+  if (ERR) {
+    H.render(box, html`<div class="note">${t("common.unavailable")} \u2014 ${ERR}</div>`);
+    return;
+  }
   if (!INFO) return;
   const i = INFO, p = i.peeringdb;
-  document.getElementById("title").textContent = "AS" + i.asn + (i.holder ? " — " + i.holder : "");
+  document.getElementById("title").textContent = "AS" + i.asn + (i.holder ? " \u2014 " + i.holder : "");
 
-  let h = `<div class="grid g4 section">
-    <div class="card card-b stat"><div class="k">${esc(t("net.prefixes_v4"))}</div><div class="v">${I18N.num(i.prefixes_v4)}</div></div>
-    <div class="card card-b stat"><div class="k">${esc(t("net.prefixes_v6"))}</div><div class="v">${I18N.num(i.prefixes_v6)}</div></div>
-    <div class="card card-b stat"><div class="k">${esc(t("net.nb_up"))}</div><div class="v">${I18N.num(i.nb_upstreams)}</div></div>
-    <div class="card card-b stat"><div class="k">${esc(t("net.ixs"))}</div><div class="v">${p ? I18N.num(p.ixs.length) : "—"}</div></div>
-  </div>`;
-
-  h += `<div class="grid g2 section">
-    <div class="card"><div class="card-b">
-      <div class="section-h"><h2>${esc(t("net.routing"))}</h2><span class="sub">RIPEstat</span></div>
-      ${kv([
-        [esc(t("net.holder")), esc(i.holder)],
-        [esc(t("net.country")), esc(i.country)],
-        [esc(t("net.announced")), i.announced ? `<span class="badge b-ok">${esc(t("common.yes"))}</span>` : `<span class="badge b-crit">${esc(t("common.no"))}</span>`],
-        [esc(t("net.nb_up")), I18N.num(i.nb_upstreams)],
-        [esc(t("net.nb_down")), I18N.num(i.nb_downstreams)],
-        [esc(t("net.nb_all")), I18N.num(i.nb_neighbours)]
-      ])}
-    </div></div>
-    <div class="card"><div class="card-b">
-      <div class="section-h"><h2>${esc(t("net.declared"))}</h2><span class="sub">PeeringDB</span></div>
-      ${p ? kv([
-        [esc(t("net.types")), esc((p.types||[]).join(", "))],
-        [esc(t("net.policy")), esc(p.policy) + (p.policy_url ? ` · <a href="${esc(p.policy_url)}" rel="noopener">↗</a>` : "")],
-        [esc(t("net.traffic")), esc(p.traffic)],
-        [esc(t("net.ratio")), esc(p.ratio)],
-        [esc(t("net.scope")), esc(p.scope)],
-        [esc(t("net.irr")), p.irr_as_set ? `<span class="mono">${esc(p.irr_as_set)}</span>` : ""],
-        [esc(t("net.lg")), p.looking_glass ? `<a href="${esc(p.looking_glass)}" rel="noopener">↗</a>` : ""],
-        [esc(t("net.website")), p.website ? `<a href="${esc(p.website)}" rel="noopener">${esc(p.website.replace(/^https?:\/\//,""))}</a>` : ""]
-      ]) : `<p class="muted">${esc(t("net.not_in_pdb"))}</p>`}
-    </div></div>
-  </div>`;
-
-  if (i.upstreams && i.upstreams.length) {
-    const max = Math.max(...i.upstreams.map(u => u.power), 1);
-    h += `<section class="section"><div class="section-h"><h2>${esc(t("net.upstreams"))}</h2></div>
-      <div class="card"><div class="card-b">` +
-      i.upstreams.map(u => `<div style="display:grid;grid-template-columns:110px minmax(0,1fr) 160px;gap:14px;align-items:center;padding:8px 0;border-top:1px solid var(--line-2)">
-        <a class="mono" href="https://bgp.tools/as/${u.asn}" rel="noopener">AS${u.asn}</a>
-        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name || "")}</span>
-        <span style="height:6px;border-radius:var(--radius-xs);background:var(--bg-sunk);overflow:hidden">
-          <i style="display:block;height:100%;width:${Math.round(u.power/max*100)}%;background:var(--accent)"></i></span>
-      </div>`).join("") +
-      `<p class="faint" style="font-size:12px;margin:10px 0 0">${esc(t("net.upstreams_note"))}</p></div></div></section>`;
-  }
-
-  if (p && (p.ixs.length || p.facilities.length)) {
-    h += `<div class="grid g2 section">`;
-    h += `<div class="card"><div class="card-b"><div class="section-h"><h2>${esc(t("net.ixs"))}</h2>
-      <span class="sub">${p.ixs.length}</span></div><div class="scroll-x"><table class="t"><tbody>` +
-      p.ixs.map(x => `<tr><td>${esc(x.name)}</td>
-        <td class="mono" style="text-align:right">${x.speed >= 1000 ? I18N.num(x.speed/1000) + "G" : I18N.num(x.speed) + "M"}</td>
-        <td style="text-align:right">${x.rs_peer ? `<span class="badge b-n">RS</span>` : ""}</td></tr>`).join("") +
-      `</tbody></table></div></div></div>`;
-    h += `<div class="card"><div class="card-b"><div class="section-h"><h2>${esc(t("net.facilities"))}</h2>
-      <span class="sub">${p.facilities.length}</span></div><table class="t"><tbody>` +
-      p.facilities.map(f => `<tr><td>${esc(f.name)}</td><td class="muted" style="text-align:right">${esc(f.city)}${f.country ? ", " + esc(f.country) : ""}</td></tr>`).join("") +
-      `</tbody></table></div></div>`;
-    h += `</div>`;
-  }
-
-  if (i.prefixes && i.prefixes.length) {
-    h += `<section class="section"><div class="section-h"><h2>${esc(t("net.sample_prefixes"))}</h2></div>
-      <div class="pill-list">${i.prefixes.map(x => `<span>${esc(x)}</span>`).join("")}</div></section>`;
-  }
-
-  h += `<div class="note">${esc(t("net.sources"))} :
-    <a href="${esc(i.links.ripestat)}" rel="noopener">RIPEstat</a>
-    ${i.links.peeringdb ? ` · <a href="${esc(i.links.peeringdb)}" rel="noopener">PeeringDB</a>` : ""}
-    · <a href="${esc(i.links.bgptools)}" rel="noopener">bgp.tools</a>.
-    ${esc(t("net.fetched", { date: I18N.date(i.fetched_at) }))}</div>`;
-  box.innerHTML = h;
+  H.render(box, html`
+    <div class="grid g4 section">
+      ${stat(t("net.prefixes_v4"), I18N.num(i.prefixes_v4))}
+      ${stat(t("net.prefixes_v6"), I18N.num(i.prefixes_v6))}
+      ${stat(t("net.nb_up"), I18N.num(i.nb_upstreams))}
+      ${stat(t("net.ixs"), p ? I18N.num(p.ixs.length) : "\u2014")}
+    </div>
+    <div class="grid g2 section">${routingCard(t, i)}${declaredCard(t, p)}</div>
+    ${i.upstreams && i.upstreams.length > 0 && upstreams(t, i.upstreams)}
+    ${p && (p.ixs.length > 0 || p.facilities.length > 0) && presence(t, p)}
+    ${i.prefixes && i.prefixes.length > 0 && html`<section class="section">
+      <div class="section-h"><h2>${t("net.sample_prefixes")}</h2></div>
+      <div class="pill-list">${i.prefixes.map(x => html`<span>${x}</span>`)}</div></section>`}
+    <div class="note">${t("net.sources")} :
+      ${link(i.links.ripestat, "RIPEstat")}
+      ${i.links.peeringdb && html` \u00b7 ${link(i.links.peeringdb, "PeeringDB")}`}
+      \u00b7 ${link(i.links.bgptools, "bgp.tools")}.
+      ${t("net.fetched", { date: I18N.date(i.fetched_at) })}</div>`);
 }
 
 const hash = (location.hash.match(/AS(\d+)/i) || [])[1];

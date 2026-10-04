@@ -2,6 +2,30 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **The federation page showed its peers as raw text.**
+
+  `H.render` passed a template through and escaped anything else, which was right for a string and wrong for a list: a caller building rows with `.map()` handed over an array, and the array was escaped into visible markup. It has been that way since the helper shipped, unnoticed because the page that uses it only fails once an instance actually has a peer.
+
+  A list now goes through the same path as a template nested inside a template. A plain string is still escaped, which is the point of passing a template rather than a string.
+
+- **An internet exchange never showed its link speed.**
+
+  The host network page read `speed` where the API publishes `speed_mbps`, so the column had printed an em dash followed by `M` for every exchange since it existed.
+
+### Changed
+
+- **The shared header and footer and three more pages are assembled by the template.**
+
+  `app.js`, `about.html`, `network.html` and `pairing.html` join `federation.html`: no `esc()` left in any of them, and no string concatenation building markup. The host network page gains named pieces — `routingCard`, `declaredCard`, `upstreams`, `presence` — in place of one function appending to a string across sixty lines.
+
+  Everything the host network page shows comes from RIPEstat and PeeringDB, and `H.url` now drops a `javascript:` address before it can reach an `href` — which the old code escaped but still rendered.
+
+  `App.escURL` is gone, having lost its last caller. `App.esc` stays until `index.html` and the back-office follow.
+
 ## 0.6.4
 
 Three corrections on 0.6.3. The theme button introduced there did nothing on the first press for anyone whose machine was set to light, which is most of them. A translation was being downloaded in full on every single page view. And the warning about load-balanced names has been taken off the public pages, where it sat permanently on the targets people look at most.

@@ -54,49 +54,57 @@
   </section>
 </main>
 <footer class="ftr" id="ftr"></footer>
+<script src="/html.js"></script>
 <script src="/i18n.js"></script>
 <script src="/app.js"></script>
 <script>
+const { html, url } = H;
+
+const kv = rows => html`<div class="kv">${rows.filter(r => r[1]).map(r =>
+  html`<div class="k">${I18N.t(r[0])}</div><div class="v">${r[1]}</div>`)}</div>`;
+
+const mailto = addr => addr && html`<a href="mailto:${addr}">${addr}</a>`;
+const out = (href, label) => {
+  const u = url(href);
+  return u && html`<a href="${u}" rel="noopener">${label}</a>`;
+};
+
 function render(s) {
-  const t = I18N.t, esc = App.esc;
-  const kv = rows => `<div class="kv">` + rows.filter(r => r[1]).map(r =>
-    `<div class="k">${esc(t(r[0]))}</div><div class="v">${r[1]}</div>`).join("") + `</div>`;
   const asnNum = String(s.asn || "").replace(/\D/g, "");
   document.getElementById("desc").textContent = s.description || "";
-  document.getElementById("operator").innerHTML = kv([
-    ["about.org", esc(s.org)],
-    ["about.asn", asnNum ? `<a class="mono" href="/network">${esc(s.asn)}</a>` : ""],
-    ["about.owner", esc(s.owner)],
-    ["about.location", esc(s.location)],
-    ["about.timezone", esc(s.timezone)],
-    ["about.peeringdb", s.peeringdb ? `<a href="${esc(s.peeringdb)}" rel="noopener">↗</a>` : ""]
-  ]);
+  H.render(document.getElementById("operator"), kv([
+    ["about.org", s.org],
+    ["about.asn", asnNum && html`<a class="mono" href="/network">${s.asn}</a>`],
+    ["about.owner", s.owner],
+    ["about.location", s.location],
+    ["about.timezone", s.timezone],
+    ["about.peeringdb", out(s.peeringdb, "\u2197")]
+  ]));
   contactForm(s);
-  document.getElementById("contact").innerHTML = kv([
-    ["about.email", s.email ? `<a href="mailto:${esc(s.email)}">${esc(s.email)}</a>` : ""],
-    ["about.noc", s.noc_email ? `<a href="mailto:${esc(s.noc_email)}">${esc(s.noc_email)}</a>` : ""],
-    ["about.website", s.url ? `<a href="${esc(s.url)}" rel="noopener">${esc(s.url.replace(/^https?:\/\//,""))}</a>` : ""]
-  ]);
+  H.render(document.getElementById("contact"), kv([
+    ["about.email", mailto(s.email)],
+    ["about.noc", mailto(s.noc_email)],
+    ["about.website", out(s.url, String(s.url || "").replace(/^https?:\/\//, ""))]
+  ]));
   document.getElementById("legal").textContent = s.legal || "";
   document.getElementById("legalSec").hidden = !s.legal;
-  renderInstance(kv);
+  renderInstance();
 }
 
 // What this instance is, and which network its packets leave from. A
 // measurement with no stated origin is of no use to whoever reads it.
 // The address itself is not published: the reverse name and the network
 // situate the probe, which is the same rule applied to the targets.
-async function renderInstance(kv) {
-  const t = I18N.t, esc = App.esc;
+async function renderInstance() {
+  const t = I18N.t;
   let v = null;
   try { v = await fetch("/api/v1/instance").then(r => r.ok ? r.json() : null); }
   catch (e) { /* the page is worth showing without it */ }
   if (!v) return;
   const n = String(v.asn || "").replace(/\D/g, "");
-  const links = n
-    ? `<a href="https://www.peeringdb.com/asn/${n}" rel="noopener" target="_blank">PeeringDB ↗</a>
-       · <a href="https://stat.ripe.net/app/launchpad/AS${n}" rel="noopener" target="_blank">RIPEstat ↗</a>`
-    : "";
+  const links = n && html`
+    <a href="https://www.peeringdb.com/asn/${n}" rel="noopener" target="_blank">PeeringDB \u2197</a>
+    \u00b7 <a href="https://stat.ripe.net/app/launchpad/AS${n}" rel="noopener" target="_blank">RIPEstat \u2197</a>`;
   const dur = s => {
     if (!s) return "";
     const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
@@ -104,23 +112,23 @@ async function renderInstance(kv) {
   };
   const size = b => b >= (1 << 30) ? Math.round(b / (1 << 30)) + " GB"
     : b ? Math.round(b / (1 << 20)) + " MB" : "";
-  document.getElementById("probenet").innerHTML = kv([
-    ["about.reverse", esc(v.reverse)],
-    ["about.network", v.behind_nat ? esc(t("about.behind_nat"))
-      : (v.network ? `<span class="mono">${esc(v.network)}</span>` : "")],
+  H.render(document.getElementById("probenet"), kv([
+    ["about.reverse", v.reverse],
+    ["about.network", v.behind_nat ? t("about.behind_nat")
+      : v.network && html`<span class="mono">${v.network}</span>`],
     ["about.family", v.family ? "IPv" + v.family : ""],
-    ["about.asn", v.asn ? `<span class="mono">${esc(v.asn)}</span>` : ""],
-    ["about.as_name", esc(v.as_name || v.net_name)],
+    ["about.asn", v.asn && html`<span class="mono">${v.asn}</span>`],
+    ["about.as_name", v.as_name || v.net_name],
     ["about.check", links]
-  ]);
-  document.getElementById("platform").innerHTML = kv([
-    ["about.version", esc(v.version)],
-    ["about.cpu", v.cpu_cores ? esc((v.cpu_model ? v.cpu_model + " · " : "") +
-      v.cpu_cores + " " + t("about.cores")) : ""],
-    ["about.ram", esc(size(v.ram_bytes))],
-    ["about.uptime", esc(dur(v.uptime_s))],
-    ["about.platform_k", esc(v.platform)]
-  ]);
+  ]));
+  H.render(document.getElementById("platform"), kv([
+    ["about.version", v.version],
+    ["about.cpu", v.cpu_cores ? (v.cpu_model ? v.cpu_model + " \u00b7 " : "") +
+      v.cpu_cores + " " + t("about.cores") : ""],
+    ["about.ram", size(v.ram_bytes)],
+    ["about.uptime", dur(v.uptime_s)],
+    ["about.platform_k", v.platform]
+  ]));
 }
 App.boot("about", render);
 
@@ -161,14 +169,14 @@ async function solveChallenge(state) {
 }
 
 function contactAlternatives(site) {
-  const box = document.getElementById("cform"), t = I18N.t, esc = App.esc;
+  const box = document.getElementById("cform"), t = I18N.t;
   const mode = contactMode(site);
   if (mode === "email" && site.email) {
     // Assembled at display time, never present as text in the HTML.
     const [user, domain] = site.email.split("@");
-    box.innerHTML = `<div class="card" style="margin-top:14px"><div class="card-b">
-      <h3 style="margin:0 0 8px;font-size:15px">${esc(t("contact.title"))}</h3>
-      <div id="cmail"></div></div></div>`;
+    H.render(box, html`<div class="card" style="margin-top:14px"><div class="card-b">
+      <h3 style="margin:0 0 8px;font-size:15px">${t("contact.title")}</h3>
+      <div id="cmail"></div></div></div>`);
     const a = document.createElement("a");
     a.href = "mailto:" + user + String.fromCharCode(64) + domain;
     a.textContent = user + String.fromCharCode(64) + domain;
@@ -177,11 +185,11 @@ function contactAlternatives(site) {
     return;
   }
   if (mode === "links" && (site.contact_links || []).length) {
-    box.innerHTML = `<div class="card" style="margin-top:14px"><div class="card-b">
-      <h3 style="margin:0 0 8px;font-size:15px">${esc(t("contact.other_ways"))}</h3>
+    H.render(box, html`<div class="card" style="margin-top:14px"><div class="card-b">
+      <h3 style="margin:0 0 8px;font-size:15px">${t("contact.other_ways")}</h3>
       <ul style="margin:0;padding-left:18px">${site.contact_links.map(l =>
-        `<li><a href="${esc(l.url)}" rel="noreferrer">${esc(l.label || l.url)}</a></li>`).join("")}</ul>
-      </div></div>`;
+        html`<li>${out(l.url, l.label || l.url)}</li>`)}</ul>
+      </div></div>`);
   }
 }
 
@@ -189,25 +197,25 @@ function contactForm(site) {
   const box = document.getElementById("cform");
   if (!box) return;
   if (contactMode(site) !== "form") { contactAlternatives(site); return; }
-  const t = I18N.t, esc = App.esc;
-  box.innerHTML = `<div class="card" style="margin-top:14px"><div class="card-b">
-    <h3 style="margin:0 0 4px;font-size:15px">${esc(t("contact.title"))}</h3>
-    <p class="faint" style="font-size:13px;margin:0 0 14px">${esc(t("contact.lead"))}</p>
+  const t = I18N.t;
+  H.render(box, html`<div class="card" style="margin-top:14px"><div class="card-b">
+    <h3 style="margin:0 0 4px;font-size:15px">${t("contact.title")}</h3>
+    <p class="faint" style="font-size:13px;margin:0 0 14px">${t("contact.lead")}</p>
     <div class="cf-grid">
-      <label>${esc(t("contact.name"))}<input id="cf-name" maxlength="120" autocomplete="name"></label>
-      <label>${esc(t("contact.email"))}<input id="cf-mail" type="email" maxlength="200" autocomplete="email"></label>
+      <label>${t("contact.name")}<input id="cf-name" maxlength="120" autocomplete="name"></label>
+      <label>${t("contact.email")}<input id="cf-mail" type="email" maxlength="200" autocomplete="email"></label>
     </div>
-    <label class="cf-full">${esc(t("contact.subject"))}
-      <input id="cf-sub" maxlength="200" placeholder="${esc(t("contact.subject_ph"))}"></label>
-    <label class="cf-full">${esc(t("contact.message"))}
+    <label class="cf-full">${t("contact.subject")}
+      <input id="cf-sub" maxlength="200" placeholder="${t("contact.subject_ph")}"></label>
+    <label class="cf-full">${t("contact.message")}
       <textarea id="cf-msg" rows="5" maxlength="4000"></textarea></label>
     <input id="cf-web" class="cf-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
     <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn-primary" id="cf-send">${esc(t("contact.send"))}</button>
+      <button class="btn-primary" id="cf-send">${t("contact.send")}</button>
       <span id="cf-state" class="faint" style="font-size:13px"></span>
     </div>
-    <p class="faint" style="font-size:11.5px;margin:12px 0 0">${esc(t("contact.privacy"))}</p>
-  </div></div>`;
+    <p class="faint" style="font-size:11.5px;margin:12px 0 0">${t("contact.privacy")}</p>
+  </div></div>`);
   const state = document.getElementById("cf-state"), btn = document.getElementById("cf-send");
   btn.onclick = async () => {
     btn.disabled = true; state.style.color = ""; state.textContent = t("contact.sending");
@@ -228,8 +236,8 @@ function contactForm(site) {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || r.status);
-      box.innerHTML = `<div class="card" style="margin-top:14px"><div class="card-b">
-        <span class="badge b-ok">${esc(t("contact.sent"))}</span></div></div>`;
+      H.render(box, html`<div class="card" style="margin-top:14px"><div class="card-b">
+        <span class="badge b-ok">${t("contact.sent")}</span></div></div>`);
     } catch (e) {
       state.style.color = "var(--crit)";
       state.textContent = t("contact.error") + " " + e.message;
