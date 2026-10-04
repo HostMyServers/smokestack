@@ -59,7 +59,7 @@ jobs:
           ./dist/smokestack selftest
       - name: Check front-end scripts
         run: |
-          for f in web/*.js; do node --check "$f"; done
+          find web -name "*.js" -print0 | xargs -0 -n1 node --check
           for f in web/*.html; do
             python3 - "$f" <<'PY'
           import re, sys, subprocess, tempfile
