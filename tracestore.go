@@ -558,7 +558,18 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	// Same reasoning as the publisher page, and it matters more here: an
+	// anonymous caller gets an empty path for a private target, a target
+	// that hides its host, or an instance that does not publish
+	// traceroutes, and masked addresses when the operator masks them. A
+	// shared cache must not be allowed to keep the authenticated answer
+	// under the address a visitor uses.
+	w.Header().Set("Vary", "Cookie, Authorization")
+	if authed {
+		w.Header().Set("Cache-Control", "no-store")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=300")
+	}
 	writeJSON(w, out)
 }
 
@@ -594,8 +605,11 @@ func (a *API) listTraceroutes(w http.ResponseWriter, r *http.Request, public boo
 		writeErr(w, 500, err.Error())
 		return
 	}
+	w.Header().Set("Vary", "Cookie, Authorization")
 	if public {
 		w.Header().Set("Cache-Control", "public, max-age=30")
+	} else {
+		w.Header().Set("Cache-Control", "no-store")
 	}
 	writeJSON(w, list)
 }
