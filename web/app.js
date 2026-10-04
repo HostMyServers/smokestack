@@ -51,10 +51,23 @@
       <a class="brand" href="/"><span class="mark"></span><span>${esc(SITE.title || "smokestack")}</span></a>
       <nav class="nav nav-wide">${nav}</nav>
       <span class="spacer"></span>${asn}
-      ${langPicker()}
+      ${themeButton()}${langPicker()}
       <button class="burger" id="burger" aria-label="${esc(t("nav.menu"))}" aria-expanded="false" aria-controls="navm">
         <span></span><span></span><span></span></button>
     </div><nav class="nav-menu" id="navm" hidden>${nav}</nav></div>`;
+  }
+
+  // Three states rather than two: a visitor whose system is dark may
+  // still want this page light, and "auto" has to stay reachable once
+  // one of the two has been chosen. The glyph carries a text-presentation
+  // selector so a platform does not turn it into an emoji.
+  const THEMES = ["auto", "light", "dark"];
+  const THEME_GLYPH = { auto: "\u25d0", light: "\u2600\ufe0e", dark: "\u263e\ufe0e" };
+
+  function themeButton() {
+    const t = I18N.t, pref = Theme.pref;
+    return `<button class="thm" id="thmBtn" aria-label="${esc(t("nav.theme"))}"
+            title="${esc(t("nav.theme_" + pref))}">${THEME_GLYPH[pref]}</button>`;
   }
 
   // Ten language names took a quarter of the header and said nothing a
@@ -115,6 +128,10 @@
     }
     document.getElementById("ftr").innerHTML = footer();
     wireLang();
+    const thm = document.getElementById("thmBtn");
+    if (thm) {
+      thm.onclick = () => Theme.set(THEMES[(THEMES.indexOf(Theme.pref) + 1) % THEMES.length]);
+    }
   }
 
   // The header is rebuilt on every language change, so the listeners the
@@ -168,6 +185,7 @@
     await I18N.init();
     const run = () => { paintChrome(active); I18N.apply(); render && render(SITE); };
     document.addEventListener("i18n:change", run);
+    document.addEventListener("theme:change", run);
     run();
   }
 

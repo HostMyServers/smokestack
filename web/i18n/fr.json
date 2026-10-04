@@ -13,7 +13,11 @@
     "pairing": "Appairage",
     "admin": "Administration",
     "language": "Langue",
-    "menu": "Menu"
+    "menu": "Menu",
+    "theme": "Thème",
+    "theme_auto": "Automatique",
+    "theme_light": "Clair",
+    "theme_dark": "Sombre"
   },
   "common": {
     "loading": "Chargement…",

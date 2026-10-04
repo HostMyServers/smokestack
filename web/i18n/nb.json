@@ -13,7 +13,11 @@
     "pairing": "Sammenkobling",
     "admin": "Administrasjon",
     "language": "Språk",
-    "menu": "Meny"
+    "menu": "Meny",
+    "theme": "Tema",
+    "theme_auto": "Automatisk",
+    "theme_light": "Lyst",
+    "theme_dark": "Mørkt"
   },
   "common": {
     "loading": "Laster…",

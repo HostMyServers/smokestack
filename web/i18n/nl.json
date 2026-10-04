@@ -13,7 +13,11 @@
     "pairing": "Koppelen",
     "admin": "Beheer",
     "language": "Taal",
-    "menu": "Menu"
+    "menu": "Menu",
+    "theme": "Thema",
+    "theme_auto": "Automatisch",
+    "theme_light": "Licht",
+    "theme_dark": "Donker"
   },
   "common": {
     "loading": "Laden…",
