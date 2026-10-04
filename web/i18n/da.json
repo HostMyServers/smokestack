@@ -1,7 +1,8 @@
 {
   "_meta": {
     "name": "Dansk",
-    "dir": "ltr"
+    "dir": "ltr",
+    "flag": "DK"
   },
   "nav": {
     "home": "Oversigt",

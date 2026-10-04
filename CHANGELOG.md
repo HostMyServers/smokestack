@@ -54,6 +54,18 @@ Nothing an operator configures. What changed is what the build is allowed to let
 
   Turning it on found eight things. Four were functions no caller had, in `sketch.go`, `instance.go`, `maintenance.go` and `doublecheck.go`, and they are removed. The other four are error strings that one style check dislikes, and that check is turned off in `staticcheck.conf` with the reason recorded beside it: ST1005 refuses `"Telegram needs a bot token"` while accepting `"SMTP needs a server"` three lines away in the same switch, so the difference it is pointing at is the case of a brand name, not the style of a message. Rewording two of seven would have made that file less consistent, not more.
 
+### Changed
+
+- **The language is chosen from a flag, not from a list of ten names.**
+
+  The header carried a `<select>` spelling out every shipped language — *English, Dansk, Deutsch, Español, Français, Italiano, Nederlands, Norsk bokmål, Português, Svenska*. It took a quarter of the bar on a laptop and a third of the width on a phone, for a control a visitor uses once.
+
+  It is now the flag of the current language, and a menu where each flag keeps its native name: a flag alone names no language, and several of them stand for more than one. It behaves as a menu button — `aria-haspopup`, `aria-checked` on the current language, arrow keys, Escape — and the listeners it needs on the document are removed when it closes rather than piling up one set per language change.
+
+  The country comes from the language file itself: `_meta.flag` (`"FR"`, `"SE"`) sits next to `name` and `dir`, is published by `/api/v1/i18n`, and is required of every shipped language by `TestI18nFiles`. A language dropped into `/var/lib/smokestack/i18n/` therefore arrives with its flag, and the interface has no table of countries to keep in step. A value that is not a two-letter country code is ignored, and that language falls back to its code.
+
+  English flies the British flag and Norwegian Bokmål the Norwegian one — both are one edit away in the files, with no rebuild. Where a platform has no flag glyphs, the pair of regional indicators renders as the two letters of the country, which is why the button shows the flag alone.
+
 ## 0.6.1
 
 Two things 0.6.0 got wrong or got late: the availability figure it shipped never worked, and the federated double-check landed a few minutes after the tag went out.
