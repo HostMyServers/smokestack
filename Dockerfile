@@ -1,7 +1,7 @@
 # smokestack container image — meant for tests and for people who already
 # run everything in containers. For published measurements, prefer the
 # native install (install.sh): see the disclaimer in DEPLOY.md § 12.
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 go build -trimpath \
       -ldflags "-s -w -X main.Version=${VERSION} -X main.BuildDate=$(date -u +%Y-%m-%d)" \
       -o /smokestack .
 
-FROM alpine:3.20
+FROM alpine:3.23
 RUN apk add --no-cache ca-certificates tzdata libcap && \
     adduser -S -D -H -u 10001 smokestack && \
     mkdir -p /var/lib/smokestack && chown smokestack /var/lib/smokestack

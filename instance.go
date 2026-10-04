@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -211,16 +210,4 @@ func asnLinks(asn string) map[string]string {
 		"peeringdb": "https://www.peeringdb.com/asn/" + n,
 		"ripe":      "https://stat.ripe.net/app/launchpad/AS" + n,
 	}
-}
-
-func humanBytes(n int64) string {
-	switch {
-	case n >= 1<<30:
-		return fmt.Sprintf("%.0f GB", float64(n)/(1<<30))
-	case n >= 1<<20:
-		return fmt.Sprintf("%.0f MB", float64(n)/(1<<20))
-	case n > 0:
-		return fmt.Sprintf("%d B", n)
-	}
-	return ""
 }

@@ -22,9 +22,11 @@ on:
         required: true
         type: string
 
+# Read at the workflow level: only the job that tags and publishes needs to
+# write, and the image job declares the package scope it needs itself. A
+# workflow-wide write token is handed to every job in it, including the gate.
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   # A gate, and nothing else. Required reviewers on the "release"
@@ -38,7 +40,11 @@ jobs:
     runs-on: ubuntu-24.04
     environment: release
     steps:
-      - run: echo "Publishing ${{ inputs.version }}, approved."
+      # Through the environment rather than interpolated: the value is typed
+      # by whoever starts the run, and `run:` is a shell script.
+      - env:
+          VERSION: ${{ inputs.version }}
+        run: echo "Publishing $VERSION, approved."
 
   release:
     needs: [authorize]
@@ -46,6 +52,8 @@ jobs:
     # otherwise skip this job too.
     if: always() && (needs.authorize.result == 'success' || needs.authorize.result == 'skipped')
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # pushes the tag, creates the release
     outputs:
       tag: ${{ steps.v.outputs.tag }}
       v: ${{ steps.v.outputs.v }}
@@ -63,13 +71,19 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             V="${INPUT_VERSION#v}"
-            case "$V" in
-              [0-9]*.[0-9]*.[0-9]*) ;;
-              *) echo "not a version: $INPUT_VERSION" >&2; exit 1 ;;
-            esac
           else
             V="${GITHUB_REF_NAME#v}"
           fi
+          # Checked on both doors now, and against the shell before its own
+          # shape. The shape pattern alone accepts "1.2.3; rm -rf /", because
+          # * matches any string — and a git ref name may carry a semicolon,
+          # so the tag door was not the safer one. This value reaches `make`
+          # and `gh` below. The character class keeps "-rc1" working.
+          case "$V" in
+            *[!0-9A-Za-z.-]*)     echo "not a version: $V" >&2; exit 1 ;;
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *)                    echo "not a version: $V" >&2; exit 1 ;;
+          esac
           echo "v=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
           echo "publishing $V"
@@ -79,32 +93,40 @@ jobs:
       # change what an instance already installed.
       - name: The version must not already be published
         if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ steps.v.outputs.tag }}
         run: |
-          if git rev-parse -q --verify "refs/tags/${{ steps.v.outputs.tag }}" >/dev/null; then
-            echo "${{ steps.v.outputs.tag }} already exists" >&2
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "$TAG already exists" >&2
             exit 1
           fi
 
       - name: Tag this commit
         if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ steps.v.outputs.tag }}
+          V: ${{ steps.v.outputs.v }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.v }}"
-          git push origin "${{ steps.v.outputs.tag }}"
+          git tag -a "$TAG" -m "Release $V"
+          git push origin "$TAG"
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: "1.26"
       - name: Resolve dependencies
         run: test -f go.sum || go mod tidy
       - name: Build and sign packages
         env:
           SMOKESTACK_RELEASE_KEY: ${{ secrets.SMOKESTACK_RELEASE_KEY }}
+          V: ${{ steps.v.outputs.v }}
+          OFFICIAL_URL: ${{ vars.OFFICIAL_URL || format('https://github.com/{0}', github.repository) }}
+          REPO_URL: https://github.com/${{ github.repository }}
         run: |
           test -n "$SMOKESTACK_RELEASE_KEY" || { echo "secret SMOKESTACK_RELEASE_KEY is missing"; exit 1; }
-          make dist VERSION="${{ steps.v.outputs.v }}" \
-                    OFFICIAL_URL="${{ vars.OFFICIAL_URL || format('https://github.com/{0}', github.repository) }}" \
-                    REPO_URL="https://github.com/${{ github.repository }}"
+          make dist VERSION="$V" \
+                    OFFICIAL_URL="$OFFICIAL_URL" \
+                    REPO_URL="$REPO_URL"
       # A published version must be described in the changelog. Catching it
       # here is what keeps the two from drifting apart.
       # Blocking here, on purpose: this is the moment a missing section
@@ -112,8 +134,9 @@ jobs:
       # version, or the Unreleased one, is required — not both, since a
       # version is often tagged while its entries still sit under Unreleased.
       - name: The changelog must describe this version
+        env:
+          V: ${{ steps.v.outputs.v }}
         run: |
-          V="${{ steps.v.outputs.v }}"
           awk -v v="## $V" '$0 == v {f=1; next} /^## / {f=0} f' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then
             # Pending work is written under "## Unreleased" until a number is
@@ -132,15 +155,16 @@ jobs:
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+          V: ${{ steps.v.outputs.v }}
         run: |
           # A version with a hyphen (v0.2.0-rc1) is published as a
           # pre-release: GitHub leaves it out of "latest", so servers with
           # automatic updates never install it by themselves.
-          TAG="${{ steps.v.outputs.tag }}"
           PRE=""
           case "$TAG" in *-*) PRE="--prerelease" ;; esac
           gh release create "$TAG" dist/* $PRE \
-            --title "smokestack ${{ steps.v.outputs.v }}" --notes-file notes.md
+            --title "smokestack $V" --notes-file notes.md
 
   # The image is built by the shared workflow, so the same definition serves
   # the release and a by-hand rebuild. Tests and native packages do not

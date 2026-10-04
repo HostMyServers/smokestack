@@ -33,15 +33,22 @@ jobs:
           ref: ${{ inputs.tag }}
       # The tag must exist and must be a tag: building "main" and pushing it
       # as a version would put something unreleased behind a version number.
+      # It travels through the environment rather than into the script, and
+      # the character class is checked before its shape: the tag is typed by
+      # whoever starts the run, `run:` is a shell, and a git ref name may
+      # carry a semicolon.
       - name: The tag must exist
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
-          case "${{ inputs.tag }}" in
+          case "$TAG" in
+            *[!0-9A-Za-z.-]*) echo "not a tag name: $TAG" >&2; exit 1 ;;
             v[0-9]*) ;;
-            *) echo "not a version tag: ${{ inputs.tag }}" >&2; exit 1 ;;
+            *) echo "not a version tag: $TAG" >&2; exit 1 ;;
           esac
           git fetch --tags --force --quiet
-          git rev-parse -q --verify "refs/tags/${{ inputs.tag }}" >/dev/null \
-            || { echo "tag ${{ inputs.tag }} does not exist" >&2; exit 1; }
+          git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
+            || { echo "tag $TAG does not exist" >&2; exit 1; }
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4

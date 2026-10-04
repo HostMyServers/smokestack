@@ -2,6 +2,8 @@
 #
 #   make                 build ./dist/smokestack for this machine
 #   make test            vet + unit tests
+#   make audit           gofmt, vet, staticcheck, govulncheck (needs audit-tools)
+#   make audit-tools     install the two pinned analysers into $GOPATH/bin
 #   make dist            signed release packages for linux amd64 + arm64
 #   make release-key     create the release signing key pair (once)
 #
@@ -16,11 +18,36 @@ OFFICIAL_URL ?= $(REPO_URL)
 RELEASE_KEY  ?= release.key
 ARCHS        ?= amd64 arm64
 
+# The audit tools, pinned. A new release of either can turn the build red on
+# a branch that changed nothing, and a red build nobody caused is a red build
+# people learn to ignore. Bumped deliberately; the CI keys its tool cache on
+# this file.
+#
+# Both require the go directive in go.mod to be at least 1.26, which is the
+# reason it is: the releases before these two were the last to build against
+# 1.25, and 1.25 itself has stopped receiving security fixes.
+GOVULNCHECK_VERSION ?= v1.8.0
+STATICCHECK_VERSION ?= v0.8.1
+
+# The toolchain the audit judges, named rather than inherited from the
+# machine. govulncheck reports standard library vulnerabilities for the Go it
+# runs under, so a developer on 1.27 would otherwise be told about the
+# standard library of a toolchain no release is built with — in either
+# direction, and silently. The CI matches go.mod by construction; naming the
+# version here is what makes a local run say the same thing. It costs a
+# toolchain download once on a machine that has a different Go, and nothing
+# where it is already installed.
+#
+# The current patch of the 1.26 line. Behind by a patch it reports a standard
+# library fix as still missing, which is a false alarm rather than a silence,
+# so it is worth bumping but not urgent.
+AUDIT_TOOLCHAIN ?= go1.26.8
+
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) \
            -X main.OfficialURL=$(OFFICIAL_URL) -X main.RepoURL=$(REPO_URL)
 GOBUILD := CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)"
 
-.PHONY: build test dist release-key check-branding clean install tidy
+.PHONY: build test audit audit-tools dist release-key check-branding clean install tidy
 
 build:
 	@mkdir -p dist
@@ -33,6 +60,25 @@ tidy:
 test:
 	go vet ./...
 	go test ./...
+
+# What ships is the Linux build, so that is what is judged: ts_other.go is a
+# stub, and analysing the host's GOOS on a Mac both skips the code every
+# instance runs and reports a comparison in tracer.go that is only ever true
+# there. Pinning GOOS is what makes a local run agree with the CI.
+#
+# gofmt is checked here rather than in `test` because it is a style gate, not
+# a correctness one — but it is checked, which it never was: it was written
+# down as mandatory and enforced nowhere.
+audit: AUDIT = GOTOOLCHAIN=$(AUDIT_TOOLCHAIN) GOOS=linux
+audit:
+	@test -z "$$(gofmt -l .)" || { echo "not gofmt'd:"; gofmt -l .; exit 1; }
+	$(AUDIT) go vet ./...
+	$(AUDIT) staticcheck ./...
+	$(AUDIT) govulncheck ./...
+
+audit-tools:
+	GOTOOLCHAIN=$(AUDIT_TOOLCHAIN) go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	GOTOOLCHAIN=$(AUDIT_TOOLCHAIN) go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
 # Refuses to publish with placeholder URLs: they would end up in the
 # footer of every instance and break automatic updates.
