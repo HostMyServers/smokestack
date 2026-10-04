@@ -45,7 +45,7 @@
     let s = S.dict[key];
     // An unknown key means a dictionary older than the page (a proxy
     // holding an old copy, a hand-written language file). Showing
-    // "detail.rotating" to a visitor is worse than showing nothing, so
+    // "detail.navigator" to a visitor is worse than showing nothing, so
     // short keys degrade to a readable last segment and long texts vanish.
     if (s == null) {
       if (typeof console !== "undefined") console.warn("i18n: missing key", key);

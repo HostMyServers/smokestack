@@ -644,8 +644,6 @@ function renderDetail() {
       ${tg.base_ms != null ? `<span class="tag">ref. ${n2(tg.base_ms)} ms</span>` : ""}</div>
     ${(SHARE && t("share.banner")) ? `<div class="note-share">${esc(t("share.banner", {
       org: (App.site.org || App.site.title || ""), loc: (App.site.location || App.site.asn || "—") }))}</div>` : ""}
-    ${(!tg.pin_ip && (tg.addr_count || 0) > 1 && t("detail.rotating")) ? `<div class="note-rot">
-      ${esc(t("detail.rotating", { n: tg.addr_count }))}</div>` : ""}
     ${maintNote(tg)}
     ${pinNote(tg)}
     <div class="presets" id="pr">${PRESETS.map(([key], i) => `<button class="preset" data-p="${i}" aria-pressed="${S.preset === i}">${esc(t(key))}</button>`).join("")}

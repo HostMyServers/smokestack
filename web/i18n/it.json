@@ -95,7 +95,6 @@
     "preset_10d": "10 g",
     "preset_3m": "3 mesi",
     "preset_1y": "1 anno",
-    "rotating": "Questo nome risponde da {n} indirizzi diversi: è un servizio con bilanciamento del carico. Ogni passaggio misura il server restituito dal DNS, quindi i valori sotto mescolano macchine che possono trovarsi in luoghi diversi e con carichi diversi. Un server che ignora l'ICMP appare come perdita.",
     "pinned": "Misurato su un indirizzo {fam} fisso ({ip}): il nome può puntare altrove, i valori sotto descrivono sempre la stessa macchina.",
     "pinned_plain": "Misurato su un indirizzo fisso: il nome può puntare altrove, i valori sotto descrivono sempre la stessa macchina.",
     "last24_hint": "Un blocco ogni 30 minuti: verde se la destinazione era conforme al riferimento, ambra se latenza o jitter si sono scostati, rosso in caso di perdita, grigio se non è stato misurato nulla.",
