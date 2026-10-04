@@ -13,7 +13,11 @@
     "pairing": "Parring",
     "admin": "Administration",
     "language": "Sprog",
-    "menu": "Menu"
+    "menu": "Menu",
+    "theme": "Tema",
+    "theme_auto": "Automatisk",
+    "theme_light": "Lyst",
+    "theme_dark": "Mørkt"
   },
   "common": {
     "loading": "Indlæser…",

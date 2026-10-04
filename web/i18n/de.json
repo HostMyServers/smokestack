@@ -13,7 +13,11 @@
     "pairing": "Kopplung",
     "admin": "Verwaltung",
     "language": "Sprache",
-    "menu": "Menü"
+    "menu": "Menü",
+    "theme": "Darstellung",
+    "theme_auto": "Automatisch",
+    "theme_light": "Hell",
+    "theme_dark": "Dunkel"
   },
   "common": {
     "loading": "Wird geladen…",
