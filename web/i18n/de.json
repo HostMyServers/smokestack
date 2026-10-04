@@ -279,6 +279,7 @@
     "address": "Adresse",
     "name": "Name",
     "as": "AS",
+    "ix_hint": "Peering-LAN von {ix}",
     "rtt": "RTT",
     "replies": "Antworten",
     "ref_col": "Gesunder Pfad",

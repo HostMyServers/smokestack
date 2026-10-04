@@ -280,7 +280,15 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 .asnode .asn { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 600; }
 .asnode .asname { font-size: 10.5px; color: var(--ink3); max-width: 100%; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
-.asarrow { flex: 0 0 auto; color: var(--ink3); font-size: 12px; padding: 0 2px; }
+.asarrow { flex: 0 0 auto; color: var(--ink3); font-size: 12px; padding: 0 2px;
+  display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; }
+/* Le point d'echange traverse pour entrer dans le reseau suivant : au-dessus
+   de la fleche du chemin, et a cote de l'AS dans le tableau des sauts. */
+.asvia { font-size: 9px; letter-spacing: .02em; max-width: 76px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
+.ixb { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--line);
+  border-radius: var(--radius-pill); background: var(--bg-soft); color: var(--ink-3);
+  vertical-align: 1px; font: 9.5px var(--font); letter-spacing: .02em; }
 
 /* --- carte des AS traversés --- */
 .asmap .gnode rect { fill: var(--bg-soft); stroke: var(--line); }
@@ -290,3 +298,5 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 .asmap .gasn { font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: var(--ink); }
 .asmap .gname { font: 10.5px system-ui, sans-serif; fill: var(--ink3); }
 .asmap .grtt { font: 10.5px ui-monospace, SFMono-Regular, Menlo, monospace; fill: var(--ink2); text-anchor: end; }
+.asmap .gix { font: 9px var(--font); fill: var(--ink-3); text-anchor: middle;
+  paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }

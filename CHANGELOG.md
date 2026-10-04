@@ -2,6 +2,26 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### New
+
+- **The hop where the route crosses a peering is named.**
+
+  A peering LAN is deliberately kept out of the global routing table, so the lookup that names every other hop of a traceroute answered nothing for exactly the one an operator looks for: the address where two networks meet. That line stayed blank, and the map of the route drew the peer behind it as unknown.
+
+  PeeringDB publishes both halves of what was missing — which prefixes belong to which exchange, and which member holds each address on them. A hop on a peering LAN now carries the AS of that member and the name of the exchange, shown next to the AS in the hop table, on the arrow of the route and on the link of the map.
+
+  The table of peering LANs is about 2 600 prefixes: fetched once a week, kept in `config.db` so a restart does not wait on PeeringDB, and consulted in memory. Member addresses are resolved one at a time in the background. No page waits for either, and an instance that cannot reach PeeringDB keeps what it had.
+
+### Fixed
+
+- **A hop whose lookup timed out stayed blank for good.**
+
+  A resolver that did not answer was written down as "no network announces this address", and nothing ever revisited that verdict. Only an answer is recorded now — a name that does not exist is one, a timeout is not.
+
+  Traceroutes already stored are named from the cache as they are read, so a path recorded with holes fills in on the next view instead of keeping them for its ninety days. Nothing is rewritten: the lookups are kept beside the measurements, not inside them.
+
 ## 0.6.8
 
 Every back-office screen has its own address. Refreshing stays where you were instead of dropping you on the dashboard, the back button works, and signing in from a deep address lands you there rather than at the front door.
