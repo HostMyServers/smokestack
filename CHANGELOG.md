@@ -28,6 +28,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Columns that hold nothing are dropped before anything is measured. The map draws the three networks again, each in its place.
 
+- **For five minutes after an update, a browser could pair the new page with the previous stylesheet.**
+
+  Pages are served `no-cache`, so the HTML a visitor sees is always the current one. The stylesheet and the scripts it loads were served `max-age=300`, so for up to five minutes after an upgrade a browser could hold the previous `app.css` against the new markup — and an intermediary cache could hold it for everyone behind it, not just one visitor.
+
+  The pages now name the build in the addresses they load, `/app.css?v=<version>-<build date>`, rewritten on the way out so the files on disk stay plain and openable. A new build is a new address, and no cache can confuse it with the old one.
+
+  Because such an address cannot go stale, the answer is kept for a year instead of five minutes (`max-age=31536000, immutable`), which is also fewer requests than before. An address without a version, or carrying the version of an earlier build, keeps the five-minute cache it has always had: a page cached before this change still works.
+
 ## 0.6.2
 
 A bug that made the long views lie by omission, and a public interface with less in it.

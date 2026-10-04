@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
 	"container/list"
 	"fmt"
@@ -117,19 +118,53 @@ func withGzip(next http.Handler) http.Handler {
 // assetETag change a chaque version : les navigateurs gardent CSS, JS et
 // pages en cache et ne les retelechargent qu'apres une mise a jour.
 func assetETag() string {
+	if v := assetVersion(); v != "" {
+		return `W/"` + v + `"`
+	}
+	return ""
+}
+
+// assetVersion is what the pages append to the stylesheet and the scripts
+// they load. An ETag alone leaves a window: the page HTML is served
+// no-cache and is therefore always current, while the assets behind it
+// were cached for up to five minutes, so a browser could pair the new
+// markup with the previous stylesheet for that long after an update.
+//
+// Putting the version in the address closes it. A new build is a new
+// address, which no cache can confuse with the old one, and the answer
+// can then be kept for a year instead of five minutes.
+func assetVersion() string {
 	if Version == "dev" {
 		return ""
 	}
-	return `W/"` + Version + "-" + BuildDate + `"`
+	return Version + "-" + BuildDate
+}
+
+// versionedAssets rewrites the references of a page on the way out, so the
+// files on disk stay plain and openable.
+func versionedAssets(b []byte) []byte {
+	v := assetVersion()
+	if v == "" {
+		return b
+	}
+	for _, name := range [...]string{"/app.css", "/app.js", "/i18n.js"} {
+		b = bytes.ReplaceAll(b, []byte(`"`+name+`"`), []byte(`"`+name+`?v=`+v+`"`))
+	}
+	return b
 }
 
 func withAssetCache(next http.Handler, maxAge int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if et := assetETag(); et != "" {
 			w.Header().Set("ETag", et)
-			if maxAge > 0 {
+			switch {
+			case r.URL.Query().Get("v") == assetVersion():
+				// The address names the build, so this answer cannot go
+				// stale: the next build asks for a different address.
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			case maxAge > 0:
 				w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
-			} else {
+			default:
 				w.Header().Set("Cache-Control", "no-cache")
 			}
 			if r.Header.Get("If-None-Match") == et {
