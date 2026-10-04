@@ -14,14 +14,6 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Nothing stops being measured or counted. The passes are recorded as before, and switching the setting back on shows the same history, including the period it was hidden.
 
-- **The availability figure can be left unpublished.**
-
-  It is the one number on a public target page a reader is likely to read as a commitment, whatever the two warnings beside it say. *Publisher → Availability* now decides whether it is published at all. On by default, and an instance that was already showing it keeps showing it after an upgrade: only an explicit choice takes it away.
-
-  Off does two things, not one. The block leaves every target page, and `/api/v1/availability` stops answering a visitor or a share link — hiding it in the browser alone would leave the endpoint serving the figure to whoever knows the address. The back-office still reads it, since that is where the choice is made.
-
-  Nothing stops being measured or counted. The passes are recorded as before, and switching the setting back on shows the same history, including the period it was hidden.
-
 - **Light or dark is now a choice, not only what the system says.**
 
   The public pages already followed `prefers-color-scheme`. A visitor whose system is dark but who wants this page light — or the other way round — had no say. A button in the header cycles through three states: *Automatic*, *Light*, *Dark*. The choice is remembered by the browser, on that machine only, like the language.
@@ -33,6 +25,12 @@ Versions are published as signed releases; servers with automatic updates instal
   The back-office is not covered: it carries its own light-only stylesheet and needs a palette of its own.
 
 ### Changed
+
+- **The footer is the link to the project and nothing else.**
+
+  The copyright line was the last thing standing next to it. It asserted a reserved right over figures the instance publishes openly, next to a page that says those figures come with no warranty and are not an SLA — a claim nobody had asked for and nothing relied on.
+
+  What is left is one line: *Powered by smokestack*, pointing at the project, from the address compiled into the binary.
 
 - **Less rounded, and rounded in one place.**
 
