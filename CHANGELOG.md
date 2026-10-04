@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.4
+
+Three corrections on 0.6.3. The theme button introduced there did nothing on the first press for anyone whose machine was set to light, which is most of them. A translation was being downloaded in full on every single page view. And the warning about load-balanced names has been taken off the public pages, where it sat permanently on the targets people look at most.
+
+An instance on automatic updates installs this by itself. Nothing to reconfigure.
 
 ### Changed
 
