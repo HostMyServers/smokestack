@@ -22,6 +22,15 @@
     return /^https?:\/\/[^\s]+$/i.test(v) ? esc(v) : "";
   };
 
+  // A flag is the pair of regional indicator symbols for the country the
+  // language declares in _meta.flag: no image to serve, and no table of
+  // countries to keep in step with the language files. A platform without
+  // flag glyphs renders the pair as the two letters of the country, which
+  // is why the button shows the flag alone and the code only without one.
+  const flag = cc => /^[A-Z]{2}$/.test(cc || "")
+    ? String.fromCodePoint(...Array.from(cc, c => 0x1f1e6 + c.charCodeAt(0) - 65))
+    : "";
+
   let SITE = {}, VERSION = null;
 
   // Pages the instance says are relevant: no Federation tab leading to an
@@ -35,9 +44,6 @@
     const t = I18N.t;
     const nav = pages().map(p =>
       `<a href="${p.href}" ${p.id === active ? 'aria-current="page"' : ""}>${esc(t(p.key))}</a>`).join("");
-    const opts = I18N.langs.map(l =>
-      `<option value="${esc(l.code)}" ${l.code === I18N.lang ? "selected" : ""}>${esc(l.name)}` +
-      (l.coverage < 1 ? ` · ${Math.round(l.coverage * 100)} %` : "") + `</option>`).join("");
     const asn = SITE.asn ? `<span class="chip mono hide-m">${esc(SITE.asn)}</span>` : "";
     // Under 760 px the links no longer fit: they move into a menu opened
     // by the button, instead of being cut off and unreachable.
@@ -45,10 +51,37 @@
       <a class="brand" href="/"><span class="mark"></span><span>${esc(SITE.title || "smokestack")}</span></a>
       <nav class="nav nav-wide">${nav}</nav>
       <span class="spacer"></span>${asn}
-      <select class="lang-select" id="langSel" aria-label="${esc(t("nav.language"))}">${opts}</select>
+      ${langPicker()}
       <button class="burger" id="burger" aria-label="${esc(t("nav.menu"))}" aria-expanded="false" aria-controls="navm">
         <span></span><span></span><span></span></button>
     </div><nav class="nav-menu" id="navm" hidden>${nav}</nav></div>`;
+  }
+
+  // Ten language names took a quarter of the header and said nothing a
+  // visitor reads twice. The flag of the current language opens the list,
+  // where the native name stays next to each flag: a flag alone names no
+  // language, and several of them stand for more than one.
+  function langPicker() {
+    const t = I18N.t;
+    const cur = I18N.langs.find(l => l.code === I18N.lang) || { code: I18N.lang, name: I18N.lang };
+    const face = l => {
+      const f = flag(l.flag);
+      return f ? `<span class="flag">${f}</span>`
+               : `<span class="lang-code">${esc(String(l.code).toUpperCase())}</span>`;
+    };
+    const items = I18N.langs.map(l =>
+      `<li role="none"><button type="button" role="menuitemradio" data-lang="${esc(l.code)}"` +
+      ` aria-checked="${l.code === I18N.lang}">${face(l)}<span>${esc(l.name)}</span>` +
+      (l.coverage < 1 ? `<span class="faint">${Math.round(l.coverage * 100)} %</span>` : "") +
+      `</button></li>`).join("");
+    return `<div class="lang">
+      <button class="lang-btn" id="langBtn" aria-haspopup="true" aria-expanded="false"
+              aria-controls="langm" aria-label="${esc(t("nav.language"))}" title="${esc(cur.name)}">
+        ${face(cur)}<span class="caret" aria-hidden="true">▾</span>
+      </button>
+      <ul class="lang-menu" id="langm" role="menu" aria-label="${esc(t("nav.language"))}"
+          hidden>${items}</ul>
+    </div>`;
   }
 
   // Le lien vers le site officiel vient de la constante OfficialURL du
@@ -81,7 +114,49 @@
       addEventListener("resize", () => { if (innerWidth > 760) setOpen(false); });
     }
     document.getElementById("ftr").innerHTML = footer();
-    document.getElementById("langSel").onchange = e => I18N.set(e.target.value);
+    wireLang();
+  }
+
+  // The header is rebuilt on every language change, so the listeners the
+  // open menu needs on the document are added when it opens and removed
+  // when it closes, rather than piling up one set per repaint.
+  function wireLang() {
+    const btn = document.getElementById("langBtn"), menu = document.getElementById("langm");
+    if (!btn || !menu) return;
+    const items = () => Array.from(menu.querySelectorAll("button"));
+
+    const onAway = e => { if (!menu.contains(e.target) && !btn.contains(e.target)) close(); };
+    const onKey = e => {
+      if (e.key === "Escape") { close(); btn.focus(); return; }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const list = items(), at = list.indexOf(document.activeElement);
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      list[(Math.max(at, 0) + step + list.length) % list.length].focus();
+    };
+
+    function close() {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      document.removeEventListener("click", onAway);
+      document.removeEventListener("keydown", onKey);
+    }
+    function open() {
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      document.addEventListener("click", onAway);
+      document.addEventListener("keydown", onKey);
+      (menu.querySelector('[aria-checked="true"]') || items()[0]).focus();
+    }
+
+    btn.onclick = e => { e.stopPropagation(); menu.hidden ? open() : close(); };
+    btn.onkeydown = e => { if (e.key === "ArrowDown" && menu.hidden) { e.preventDefault(); open(); } };
+    menu.onclick = e => {
+      const item = e.target.closest("button[data-lang]");
+      if (!item) return;
+      close();
+      I18N.set(item.dataset.lang);
+    };
   }
 
   async function boot(active, render) {

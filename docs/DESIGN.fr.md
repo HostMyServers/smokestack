@@ -516,7 +516,11 @@ cp web/i18n/en.json /var/lib/smokestack/i18n/it.json   # puis traduire
 ```
 
 Les fichiers acceptent des objets imbriqués (`{"home":{"faults":"…"}}` → `home.faults`)
-et des variables (`{n}`, `{total}`). Au chargement, chaque langue est comparée à
+et des variables (`{n}`, `{total}`). Les métadonnées vivent sous `_meta` : `name`
+(nom natif), `dir` (`ltr` ou `rtl`) et `flag`, le code pays à deux lettres dont
+l'en-tête tire le drapeau — la paire d'indicateurs régionaux — si bien que le
+menu des langues n'a ni image à servir ni liste à tenir à jour. Au chargement,
+chaque langue est comparée à
 l'anglais : clés manquantes, clés inconnues et **variables divergentes** sont
 signalées dans le back-office. Le test `TestI18nFiles` échoue si une langue
 livrée est incomplète.

@@ -56,21 +56,15 @@ Nothing an operator configures. What changed is what the build is allowed to let
 
 ### Changed
 
-- **The footer is one line again: the copyright and the link to the project.**
+- **The language is chosen from a flag, not from a list of ten names.**
 
-  It had grown into five columns repeated at the bottom of every public page, and nothing in them was published only there:
+  The header carried a `<select>` spelling out every shipped language — *English, Dansk, Deutsch, Español, Français, Italiano, Nederlands, Norsk bokmål, Português, Svenska*. It took a quarter of the bar on a laptop and a third of the width on a phone, for a control a visitor uses once.
 
-  | Column | Where it already is |
-  |---|---|
-  | Brand, organisation, location | the header, and `/about` |
-  | Pages | the header navigation |
-  | Operator | `/about` — organisation, ASN, owner, location, PeeringDB, NOC, website |
-  | Open data | `/api/v1/overview`, `/healthz`, `/api/v1/version` |
-  | Software | the project link, which stays in the bottom line |
+  It is now the flag of the current language, and a menu where each flag keeps its native name: a flag alone names no language, and several of them stand for more than one. It behaves as a menu button — `aria-haspopup`, `aria-checked` on the current language, arrow keys, Escape — and the listeners it needs on the document are removed when it closes rather than piling up one set per language change.
 
-  The cost is honest and small: no public page links the three open-data endpoints any more. They are documented, unauthenticated and unchanged, and `/about` is where a pointer to them would belong if one is wanted.
+  The country comes from the language file itself: `_meta.flag` (`"FR"`, `"SE"`) sits next to `name` and `dir`, is published by `/api/v1/i18n`, and is required of every shipped language by `TestI18nFiles`. A language dropped into `/var/lib/smokestack/i18n/` therefore arrives with its flag, and the interface has no table of countries to keep in step. A value that is not a two-letter country code is ignored, and that language falls back to its code.
 
-  Nineteen keys leave the ten language files, and `.fgrid`, `.fbrand` and `.fcol` leave the stylesheet. No endpoint, stored value or published surface changes.
+  English flies the British flag and Norwegian Bokmål the Norwegian one — both are one edit away in the files, with no rebuild. Where a platform has no flag glyphs, the pair of regional indicators renders as the two letters of the country, which is why the button shows the flag alone.
 
 ## 0.6.1
 

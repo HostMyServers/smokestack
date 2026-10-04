@@ -67,9 +67,27 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .spacer { flex: 1; }
 .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-2);
         border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; white-space: nowrap; }
-.lang-select { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg-soft);
-               border: 1px solid var(--line); border-radius: 9px; padding: 5px 8px; cursor: pointer; }
 @media (max-width: 900px) { .hide-m { display: none !important; } }
+
+/* --- choix de la langue : drapeau et menu --- */
+.lang { position: relative; flex: none; }
+.lang-btn { display: inline-flex; align-items: center; gap: 5px; background: var(--bg-soft);
+            border: 1px solid var(--line); border-radius: 9px; padding: 5px 8px; line-height: 1.2; }
+.lang-btn:hover { border-color: var(--ink-3); }
+.flag { font-size: 15px; line-height: 1;
+        font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font); }
+.lang-code { font-size: 12px; font-weight: 600; letter-spacing: .03em; }
+.caret { font-size: 9px; color: var(--ink-3); }
+.lang-menu { position: absolute; right: 0; top: calc(100% + 7px); z-index: 50; min-width: 190px;
+             margin: 0; padding: 6px; list-style: none; background: var(--bg); border: 1px solid var(--line);
+             border-radius: var(--radius); box-shadow: var(--shadow);
+             max-height: calc(100vh - 80px); overflow-y: auto; }
+.lang-menu button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 9px;
+                    border-radius: var(--radius-s); font-size: 13px; text-align: left; }
+.lang-menu button:hover { background: var(--bg-soft); }
+.lang-menu .faint { margin-left: auto; font-size: 11px; }
+.lang-menu [aria-checked="true"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 550; }
+.lang-menu [aria-checked="true"]::after { content: "\2713"; margin-left: auto; }
 
 /* --- menu mobile --- */
 .burger { display: none; flex-direction: column; justify-content: center; gap: 4px; width: 38px; height: 34px;
@@ -87,7 +105,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   .nav-menu:not([hidden]) { display: flex; }
   .hdr-in { gap: 10px; }
   .brand span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 42vw; }
-  .lang-select { max-width: 34vw; }
 }
 
 /* --- en-tête de page --- */
