@@ -248,6 +248,28 @@ function railBox() {
     ${esc(t("metric.categories"))} · ${n} ${esc(t("metric.targets").toLowerCase())}<span class="chev">▼</span></button>
     <div id="rail">${railHTML()}</div></aside>`;
 }
+// Un seul ecouteur : les « ? » sont reconstruits a chaque rendu, et deux
+// bulles ouvertes en meme temps se genent.
+document.addEventListener("click", e => {
+  const b = e.target.closest(".hintb");
+  document.querySelectorAll(".hintb[aria-expanded='true']").forEach(o => {
+    if (o === b) return;
+    o.setAttribute("aria-expanded", "false");
+    document.getElementById(o.getAttribute("aria-controls")).hidden = true;
+  });
+  if (!b) return;
+  const open = b.getAttribute("aria-expanded") !== "true";
+  b.setAttribute("aria-expanded", open ? "true" : "false");
+  document.getElementById(b.getAttribute("aria-controls")).hidden = !open;
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  document.querySelectorAll(".hintb[aria-expanded='true']").forEach(o => {
+    o.setAttribute("aria-expanded", "false");
+    document.getElementById(o.getAttribute("aria-controls")).hidden = true;
+  });
+});
+
 function bindRail() {
   const tg = $("#railTog"); if (tg) tg.onclick = () => $("#railBox").classList.toggle("open");
   const q = $("#q");
@@ -385,6 +407,17 @@ function asGraphSVG(g) {
     ${edges}${boxes}</svg>`;
 }
 
+// Les explications servent une fois, pas a chaque visite : elles passent
+// derriere un « ? » a cote du titre de la section, replie par defaut.
+let HINT_N = 0;
+const hint = key => {
+  const text = t(key);
+  if (!text) return "";
+  return `<span class="hint"><button type="button" class="hintb" aria-expanded="false"
+    aria-controls="hint${++HINT_N}" aria-label="${esc(t("common.explain"))}">?</button>
+    <span class="hintbox" id="hint${HINT_N}" role="note" hidden>${esc(text)}</span></span>`;
+};
+
 async function renderASPath(tg) {
   const box = document.getElementById("asbox"), chain = document.getElementById("aschain");
   if (!box || !chain) return;
@@ -405,7 +438,7 @@ async function renderASPath(tg) {
   // An unknown segment is said, not hidden: the ends do not touch.
   if (v.gap || v.empty) parts.push(`<span class="asnode unknown" title="${esc(t("detail.as_gap_hint"))}">
     <span class="asn">?</span><span class="asname">${esc(t("detail.as_gap"))}</span></span>`);
-  if (v.dest) parts.push(node(v.dest, "dest", t("detail.as_target")));
+  if (v.dest) parts.push(node(v.dest, "dest", ""));
   else if (v.pending) parts.push(`<span class="asnode unknown"><span class="asn">…</span>
     <span class="asname">${esc(t("common.loading"))}</span></span>`);
   // One observed path: the chain reads better. Several: the map shows the
@@ -622,40 +655,35 @@ function renderDetail() {
       <span><span class="sw" style="width:16px;height:9px;background:${rgba(acc, .3)}"></span>p25–p75</span>
       <span><span class="sw" style="width:16px;height:9px;background:${rgba(acc, .15)}"></span>p5–p95</span>
       <span><span class="sw" style="width:10px;height:9px;background:var(--crit)"></span>${esc(t("metric.loss"))}</span>
-      <span class="mono faint" id="res" style="margin-left:auto"></span></div>
-      <p class="strip-hint" style="margin-top:6px">${esc(t("detail.hint"))}</p></div></div>
+      <span class="mono faint" id="res" style="margin-left:auto"></span>${hint("detail.hint")}</div></div></div>
     <div class="card" style="margin-top:10px"><div class="card-b" style="padding-block:10px">
-      <div class="lbl" style="margin-bottom:5px">${esc(t("home.last24h"))}</div>${hbarHTML(tg)}
+      <div class="lbl" style="margin-bottom:5px">${esc(t("home.last24h"))}${hint("detail.last24_hint")}</div>${hbarHTML(tg)}
       <div class="hbar-l"><span>−24 h</span><span>−12 h</span><span>${esc(t("common.updated"))}</span></div>
-      <p class="strip-hint">${esc(t("detail.last24_hint"))}</p>
-      <div class="lbl" style="margin:14px 0 3px">${esc(t("detail.navigator"))}</div><canvas id="nv" height="58"></canvas>
-      <p class="strip-hint">${esc(t("detail.nav_hint"))}</p></div></div>
+      <div class="lbl" style="margin:14px 0 3px">${esc(t("detail.navigator"))}${hint("detail.nav_hint")}</div><canvas id="nv" height="58"></canvas>
+      </div></div>
     <div class="card" id="asbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
       <div class="lbl" style="margin-bottom:7px">${esc(t("detail.aspath"))}</div>
       <div class="aschain" id="aschain"></div>
       <div class="mono faint" id="asmeta" style="font-size:11px;margin-top:6px"></div>
-      <p class="strip-hint">${esc(t("detail.aspath_hint"))}</p>
       <div id="risbox" hidden style="margin-top:12px;padding-top:11px;border-top:1px solid var(--line)">
-        <div class="lbl" style="margin-bottom:5px">${esc(t("detail.ris"))}</div>
+        <div class="lbl" style="margin-bottom:5px">${esc(t("detail.ris"))}${hint("detail.ris_hint")}</div>
         <div id="risline" style="font-size:12.5px"></div>
         <div class="aschain" id="risup" style="margin-top:7px"></div>
-        <p class="strip-hint">${esc(t("detail.ris_hint"))}</p></div></div></div>
+        </div></div></div>
     <div class="card" id="evbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:6px">${esc(t("detail.events"))}</div>
+      <div class="lbl" style="margin-bottom:6px">${esc(t("detail.events"))}${hint("detail.ev_hint")}</div>
       <ol class="evlist" id="evlist"></ol>
-      <p class="strip-hint">${esc(t("detail.ev_hint"))}</p></div></div>
+      </div></div>
     <div class="stats" id="stats"></div>
     <div class="card" id="cobox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:7px">${esc(t("corr.title"))}</div>
+      <div class="lbl" style="margin-bottom:7px">${esc(t("corr.title"))}${hint("corr.hint")}</div>
       <div id="corr"></div>
-      <p class="strip-hint">${esc(t("corr.hint"))}</p></div></div>
+      </div></div>
     <div class="card" id="avbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:7px">${esc(t("avail.title"))}</div>
+      <div class="lbl" style="margin-bottom:7px">${esc(t("avail.title"))}${hint("avail.definition")}</div>
       <div class="avrow" id="avrow"></div>
-      <p class="strip-hint">${esc(t("avail.definition"))}</p>
       <p class="strip-hint" style="color:var(--warn)">${esc(t("avail.not_sla"))}</p></div></div>
-    <section class="section" id="trsec" hidden style="margin-top:22px"><div class="section-h"><h2>${esc(t("trace.title"))}</h2>
-      <span class="sub">${esc(t("trace.sub"))}</span></div><div class="card"><div class="card-b scroll-x" id="trbox"></div></div></section>
+    <section class="section" id="trsec" hidden style="margin-top:22px"><div class="section-h"><h2>${esc(t("trace.title"))}${hint("trace.sub")}</h2></div><div class="card"><div class="card-b scroll-x" id="trbox"></div></div></section>
   </div></div></div>`;
   bindRail();
   $("#bk").onclick = e => { e.preventDefault(); S.view = "home"; writeHash(true); renderHome(); };
