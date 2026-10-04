@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.9
+
+The hop where two networks hand traffic over is named. A peering LAN is announced in no routing table, so the lookup that names every other hop of a traceroute left exactly that line blank — the one an operator reads first. PeeringDB fills it in: the exchange, and the member holding the address.
+
+Hops are also named again each time a trace is read, so a lookup that failed the day the measurement ran no longer leaves a hole in the path for as long as the trace is kept.
 
 ### New
 
