@@ -2,7 +2,13 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.6
+
+The publisher page looked broken and was not: filling in the AS number, the title or a contact saved it, then showed the old value back. The form was reading its own answer out of the browser cache, where the server had told it to keep it for ten minutes.
+
+The header behind that was wrong on its own terms, and the same shape turned up on the route of a target. Both are answers whose content depends on who is asking, announced as cacheable for everyone — so a shared cache in front was allowed to keep the operator's version and hand it to a visitor.
+
+Upgrade if you have ever wondered why a field would not save. An instance on automatic updates installs this by itself; nothing to reconfigure.
 
 ### Fixed
 
