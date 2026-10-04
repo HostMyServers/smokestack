@@ -54,6 +54,22 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The diagnosis is not lost: *Why this loss?* in the back-office still names a rotating name when it is the explanation, which is where an operator looks when a figure puzzles them.
 
+- **HTML is assembled by a template that escapes by default.**
+
+  Pages are built in the browser by concatenating strings, which puts an escaping decision at every interpolation — there are over nine hundred of them. A scan found no defect among them today, which is a credit to whoever wrote them and not a property of the method: getting nine hundred right once is possible, keeping them right as the code changes is a promise nobody keeps by attention alone.
+
+  `html.js` adds a tagged template where the default is safe:
+
+  ```js
+  H.html`<td>${t.title}</td>`         // escaped
+  H.html`<tr>${rows.map(row)}</tr>`   // nested templates are not
+  H.html`<div>${H.raw(svg)}</div>`    // saying so is the only way
+  ```
+
+  A reviewer now looks for `H.raw` instead of reading every interpolation to decide whether the value behind it could have come from a person. `null`, `undefined` and `false` render as nothing, so a conditional fragment needs no empty branch, and `H.url` drops anything that is not plainly `http(s)` before it reaches an `href`.
+
+  `federation.html` is migrated as the first case, deliberately: everything that page shows was sent by another instance.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**
