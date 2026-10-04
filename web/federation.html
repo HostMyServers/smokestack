@@ -27,11 +27,13 @@
   </section>
 </main>
 <footer class="ftr" id="ftr"></footer>
+<script src="/html.js"></script>
 <script src="/i18n.js"></script>
 <script src="/app.js"></script>
 <script>
+const { html, url } = H;
 let PEERS = null, MATRIX = null;
-const lat = v => v == null ? "—" : I18N.num(v, 1) + " ms";
+const lat = v => v == null ? "\u2014" : I18N.num(v, 1) + " ms";
 const cls = (med, loss) => loss != null && loss > 2 ? "b-crit" : med != null && med > 40 ? "b-warn" : "b-ok";
 
 function cellStyle(m) {
@@ -41,49 +43,57 @@ function cellStyle(m) {
   return "background:var(--crit-soft);color:var(--crit)";
 }
 
-function render(site) {
-  const t = I18N.t, esc = App.esc;
-  if (!PEERS) return;
-  document.getElementById("count").textContent = PEERS.length ? String(PEERS.length) : "";
-  document.getElementById("peers").innerHTML = PEERS.length ? PEERS.map(p => `
+// Everything on this page was sent by another instance: organisation,
+// AS number, anchor names, website. fedsafe.go is the gate it crossed
+// server-side; here the template is what keeps it text.
+function peerCard(p, t) {
+  const site = url(p.url);
+  return html`
     <div class="card"><div class="card-b">
       <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-        <strong style="font-size:15px">${esc(p.org)}</strong>
-        <a class="mono" href="/network#AS${esc(String(p.asn).replace(/\D/g,""))}">${esc(p.asn)}</a>
+        <strong style="font-size:15px">${p.org}</strong>
+        <a class="mono" href="/network#AS${String(p.asn).replace(/\D/g, "")}">${p.asn}</a>
       </div>
       <div class="faint" style="font-size:12px;margin-top:2px">
-        ${esc(t("fed.since"))} ${p.since ? esc(I18N.date(p.since, {day:"2-digit",month:"short",year:"numeric"})) : "—"}
+        ${t("fed.since")} ${p.since ? I18N.date(p.since, { day: "2-digit", month: "short", year: "numeric" }) : "\u2014"}
       </div>
       <div class="grid g2" style="margin-top:14px;gap:10px">
-        <div><div class="faint" style="font-size:11.5px">${esc(t("fed.to_them"))}</div>
-          <span class="badge ${cls(p.to_med_ms,p.to_loss_pct)}">${lat(p.to_med_ms)}</span></div>
-        <div><div class="faint" style="font-size:11.5px">${esc(t("fed.from_them"))}</div>
-          <span class="badge ${cls(p.from_med_ms,p.from_loss_pct)}">${lat(p.from_med_ms)}</span></div>
+        <div><div class="faint" style="font-size:11.5px">${t("fed.to_them")}</div>
+          <span class="badge ${cls(p.to_med_ms, p.to_loss_pct)}">${lat(p.to_med_ms)}</span></div>
+        <div><div class="faint" style="font-size:11.5px">${t("fed.from_them")}</div>
+          <span class="badge ${cls(p.from_med_ms, p.from_loss_pct)}">${lat(p.from_med_ms)}</span></div>
       </div>
-      <div style="margin-top:12px"><div class="faint" style="font-size:11.5px;margin-bottom:4px">${esc(t("fed.anchors"))}</div>
-        <div class="pill-list">${(p.anchors||[]).map(a=>`<span>${esc(a)}</span>`).join("")}</div></div>
+      <div style="margin-top:12px"><div class="faint" style="font-size:11.5px;margin-bottom:4px">${t("fed.anchors")}</div>
+        <div class="pill-list">${(p.anchors || []).map(a => html`<span>${a}</span>`)}</div></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px">
-        <span class="faint">${esc(t("fed.last_seen"))} : ${p.last_seen_at ? esc(I18N.ago(p.last_seen_at)) : "—"}</span>
-        ${App.escURL(p.url) ? `<a href="${App.escURL(p.url)}" rel="noopener noreferrer">${esc(t("fed.visit"))} →</a>` : ""}
+        <span class="faint">${t("fed.last_seen")} : ${p.last_seen_at ? I18N.ago(p.last_seen_at) : "\u2014"}</span>
+        ${site && html`<a href="${site}" rel="noopener noreferrer">${t("fed.visit")} \u2192</a>`}
       </div>
-    </div></div>`).join("")
-    : `<div class="note" data-i18n="fed.none">${esc(t("fed.none"))}</div>`;
+    </div></div>`;
+}
 
-  if (!MATRIX) return;
+function matrixTable(t) {
   const asns = [...new Set(MATRIX.flatMap(c => [c.from_asn, c.to_asn]))].sort();
-  if (!asns.length) { document.getElementById("matrix").innerHTML = `<p class="faint">${esc(t("fed.none"))}</p>`; return; }
+  if (!asns.length) return html`<p class="faint">${t("fed.none")}</p>`;
   const cell = (f, to) => MATRIX.find(c => c.from_asn === f && c.to_asn === to);
-  let h = `<table class="t"><thead><tr><th>${esc(t("fed.row_col"))}</th>` +
-    asns.map(a => `<th class="mono">${esc(a)}</th>`).join("") + `</tr></thead><tbody>`;
-  for (const f of asns) {
-    h += `<tr><td class="mono" style="font-weight:600">${esc(f)}</td>`;
-    for (const to of asns) {
-      const c = f === to ? null : cell(f, to);
-      h += `<td><span class="badge mono" style="${cellStyle(c ? c.med_ms : null)}">${c ? I18N.num(c.med_ms,1) : "—"}</span></td>`;
-    }
-    h += `</tr>`;
-  }
-  document.getElementById("matrix").innerHTML = h + `</tbody></table>`;
+  const row = f => html`<tr><td class="mono" style="font-weight:600">${f}</td>${asns.map(to => {
+    const c = f === to ? null : cell(f, to);
+    return html`<td><span class="badge mono" style="${cellStyle(c ? c.med_ms : null)}">${
+      c ? I18N.num(c.med_ms, 1) : "\u2014"}</span></td>`;
+  })}</tr>`;
+  return html`<table class="t">
+    <thead><tr><th>${t("fed.row_col")}</th>${asns.map(a => html`<th class="mono">${a}</th>`)}</tr></thead>
+    <tbody>${asns.map(row)}</tbody></table>`;
+}
+
+function render(site) {
+  const t = I18N.t;
+  if (!PEERS) return;
+  document.getElementById("count").textContent = PEERS.length ? String(PEERS.length) : "";
+  H.render(document.getElementById("peers"), PEERS.length
+    ? PEERS.map(p => peerCard(p, t))
+    : html`<div class="note" data-i18n="fed.none">${t("fed.none")}</div>`);
+  if (MATRIX) H.render(document.getElementById("matrix"), matrixTable(t));
 }
 
 Promise.all([
