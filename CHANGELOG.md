@@ -4,6 +4,16 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ## Unreleased
 
+### New
+
+- **The availability figure can be left unpublished.**
+
+  It is the one number on a public target page a reader is likely to read as a commitment, whatever the two warnings beside it say. *Publisher → Availability* now decides whether it is published at all. On by default, and an instance that was already showing it keeps showing it after an upgrade: only an explicit choice takes it away.
+
+  Off does two things, not one. The block leaves every target page, and `/api/v1/availability` stops answering a visitor or a share link — hiding it in the browser alone would leave the endpoint serving the figure to whoever knows the address. The back-office still reads it, since that is where the choice is made.
+
+  Nothing stops being measured or counted. The passes are recorded as before, and switching the setting back on shows the same history, including the period it was hidden.
+
 ### Changed
 
 - **Less rounded, and rounded in one place.**

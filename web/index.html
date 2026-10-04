@@ -728,6 +728,9 @@ async function renderCorroboration(tg) {
 async function renderAvailability(tg) {
   const box = $("#avbox"), row = $("#avrow");
   if (!box || !row) return;
+  // The operator can stop publishing the figure. Asking for it anyway
+  // would be answered with a 404, so the page does not ask.
+  if (!App.site.public_availability) { box.hidden = true; return; }
   let d = null;
   try {
     const r = await fetch(`/api/v1/availability?target=${tg.id}` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : ""));
