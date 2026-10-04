@@ -16,7 +16,7 @@ async function viewMaint(m) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const fromLocal = v => v ? Math.floor(new Date(v).getTime() / 1000) : 0;
   const now = Math.floor(Date.now() / 1000);
-  m.innerHTML = `<h2>Maintenance calendar</h2>
+  H.render(m, html`<h2>Maintenance calendar</h2>
     <p class="lead">Declare a window before you touch a target and the graph explains itself: the on-call is
       not woken for a restart you planned, the public page carries a banner so a reader understands the stop
       instead of opening a ticket, and — when the window stops the measurement — the passes inside it are
@@ -42,37 +42,36 @@ async function viewMaint(m) {
           The graph shows a gap, and the public banner says why it is there.</small></span></label>
       <button class="btn p" id="msave">Declare the window</button>
     </div></div>
-    <div class="card"><h3>Windows</h3><div class="body" id="mlist">Loading…</div></div>`;
+    <div class="card"><h3>Windows</h3><div class="body" id="mlist">Loading…</div></div>`);
   try {
     const ts = await api("GET", "/api/v1/admin/targets");
-    $("#mt").innerHTML = (ts || []).map(x => `<option value="${x.id}">${esc(x.title)} — ${esc(x.host)}</option>`).join("");
-  } catch (e) { $("#mt").innerHTML = `<option value="">${esc(e.message)}</option>`; }
+    H.render($("#mt"), (ts || []).map(x => html`<option value="${x.id}">${x.title} — ${x.host}</option>`));
+  } catch (e) { H.render($("#mt"), html`<option value="">${e.message}</option>`); }
   const load = async () => {
     try {
       const d = await api("GET", "/api/v1/admin/maintenance");
       const L = d.maintenances || [];
-      if (!L.length) { $("#mlist").innerHTML = `<div class="empty">No window declared. Declaring one takes less
-        time than explaining a hole in a graph six months later.</div>`; return; }
+      if (!L.length) { H.render($("#mlist"), html`<div class="empty">No window declared. Declaring one takes less
+        time than explaining a hole in a graph six months later.</div>`); return; }
       const t0 = Math.floor(Date.now() / 1000);
-      $("#mlist").innerHTML = `<table><thead><tr><th>Target</th><th>Window</th><th>Period</th><th>Effect</th><th></th></tr></thead><tbody>`
-        + L.map(x => {
+      H.render($("#mlist"), html`<table><thead><tr><th>Target</th><th>Window</th><th>Period</th><th>Effect</th><th></th></tr></thead><tbody>${L.map(x => {
           const live = x.starts_at <= t0 && x.ends_at > t0, past = x.ends_at <= t0;
-          const state = live ? '<span class="badge b-warn">in progress</span>'
-            : past ? '<span class="badge b-n">over</span>' : '<span class="badge b-ok">planned</span>';
+          const state = live ? html`<span class="badge b-warn">in progress</span>`
+            : past ? html`<span class="badge b-n">over</span>` : html`<span class="badge b-ok">planned</span>`;
           const eff = [x.stop_alerts ? "alerting silenced" : "", x.stop_probe ? "measurement stopped" : ""]
             .filter(Boolean).join(", ");
-          return `<tr><td>${esc(x.target_title || ("#" + x.target_id))}</td>
-            <td>${esc(x.title)}${x.note ? `<div class="faint" style="font-size:11.5px">${esc(x.note)}</div>` : ""}</td>
+          return html`<tr><td>${x.target_title || ("#" + x.target_id)}</td>
+            <td>${x.title}${x.note ? html`<div class="faint" style="font-size:11.5px">${x.note}</div>` : ""}</td>
             <td>${new Date(x.starts_at * 1000).toLocaleString()} → ${new Date(x.ends_at * 1000).toLocaleString()}
               <div>${state}</div></td>
-            <td style="font-size:12.5px">${esc(eff)}</td>
+            <td style="font-size:12.5px">${eff}</td>
             <td><button class="btn s" data-del="${x.id}">Delete</button></td></tr>`;
-        }).join("") + `</tbody></table>`;
+        })}</tbody></table>`);
       document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
         try { await api("DELETE", "/api/v1/admin/maintenance/" + b.dataset.del); toast("Deleted"); load(); }
         catch (e) { toast(e.message, true); }
       });
-    } catch (e) { $("#mlist").innerHTML = `<div class="note">${esc(e.message)}</div>`; }
+    } catch (e) { H.render($("#mlist"), html`<div class="note">${e.message}</div>`); }
   };
   $("#msave").onclick = async () => {
     try {

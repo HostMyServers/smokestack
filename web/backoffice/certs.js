@@ -6,7 +6,7 @@
 // outages that is entirely predictable, and therefore one of the few worth
 // warning about weeks in advance rather than at the moment it breaks.
 async function viewCerts(m){
-  m.innerHTML=`<h2>TLS certificates</h2>
+  H.render(m,html`<h2>TLS certificates</h2>
     <p class="lead">Every TCP target with a port is inspected twice a day: one TLS handshake, the
       certificate read, and nothing kept in the latency series — a handshake is far slower than a
       connection and would distort the measurement. You are warned once per threshold crossed,
@@ -15,31 +15,31 @@ async function viewCerts(m){
     <div class="card"><div class="body" id="ce">Loading…</div></div>
     <div class="card"><h3>Certificates seen<span style="margin-left:auto">
       <button class="btn s" id="ce_now">Inspect now</button></span></h3>
-      <div class="body" id="cetab">Loading…</div></div>`;
+      <div class="body" id="cetab">Loading…</div></div>`);
   const badge=(r)=>{
-    if(r.off) return '<span class="badge b-n">not watched</span>';
-    if(!r.cert) return '<span class="badge b-n">not inspected yet</span>';
-    if(r.cert.problem) return '<span class="badge b-crit">refused</span>';
+    if(r.off) return html`<span class="badge b-n">not watched</span>`;
+    if(!r.cert) return html`<span class="badge b-n">not inspected yet</span>`;
+    if(r.cert.problem) return html`<span class="badge b-crit">refused</span>`;
     const d=r.cert.days_left;
-    if(d<0) return '<span class="badge b-crit">expired</span>';
-    if(d<=7) return `<span class="badge b-crit">${d} d left</span>`;
-    if(d<=30) return `<span class="badge b-warn">${d} d left</span>`;
-    return `<span class="badge b-ok">${d} d left</span>`;
+    if(d<0) return html`<span class="badge b-crit">expired</span>`;
+    if(d<=7) return html`<span class="badge b-crit">${d} d left</span>`;
+    if(d<=30) return html`<span class="badge b-warn">${d} d left</span>`;
+    return html`<span class="badge b-ok">${d} d left</span>`;
   };
   const table=(rows,stages)=>{
-    if(!rows||!rows.length) return `<div class="empty">No TCP target with a port yet. A certificate is
+    if(!rows||!rows.length) return html`<div class="empty">No TCP target with a port yet. A certificate is
       only inspected on a target measured over TCP, since that is where a port and a handshake exist.</div>`;
-    return `<table><thead><tr><th>Target</th><th>State</th><th>Expires</th><th>Issuer</th>
-      <th>Names</th><th></th></tr></thead><tbody>`+rows.map(r=>{
+    return html`<table><thead><tr><th>Target</th><th>State</th><th>Expires</th><th>Issuer</th>
+      <th>Names</th><th></th></tr></thead><tbody>${rows.map(r=>{
       const c=r.cert;
-      return `<tr><td>${esc(r.title)}<div class="mono" style="font-size:11.5px;color:var(--ink2)">${esc(r.host)}:${r.port}${r.family?" · IPv"+r.family:""}</div></td>
+      return html`<tr><td>${r.title}<div class="mono" style="font-size:11.5px;color:var(--ink2)">${r.host}:${r.port}${r.family?" · IPv"+r.family:""}</div></td>
         <td>${badge(r)}</td>
         <td>${c&&c.not_after?new Date(c.not_after*1000).toLocaleDateString():"—"}</td>
-        <td>${c?esc(c.issuer||"—"):"—"}</td>
-        <td class="mono" style="font-size:11.5px">${c&&c.dns_names&&c.dns_names.length?esc(c.dns_names.slice(0,3).join(", "))+(c.dns_names.length>3?" +"+(c.dns_names.length-3):""):"—"}</td>
+        <td>${c?c.issuer||"—":"—"}</td>
+        <td class="mono" style="font-size:11.5px">${c&&c.dns_names&&c.dns_names.length?c.dns_names.slice(0,3).join(", ")+(c.dns_names.length>3?" +"+(c.dns_names.length-3):""):"—"}</td>
         <td><button class="btn s" data-off="${r.target_id}" data-now="${r.off?1:0}">${r.off?"Watch":"Stop watching"}</button></td></tr>`
-        +(c&&c.problem?`<tr><td colspan="6" style="background:var(--bg2);color:var(--crit);font-size:12.5px">${esc(c.problem)}</td></tr>`:"");
-    }).join("")+`</tbody></table>
+        +(c&&c.problem?html`<tr><td colspan="6" style="background:var(--bg2);color:var(--crit);font-size:12.5px">${c.problem}</td></tr>`:"");
+    })}</tbody></table>
     <div class="note">Alert thresholds: ${stages.join(", ")} days before expiry, plus one the day it
       expires and one when the certificate is refused outright — a wrong name, an unverifiable chain,
       or a handshake that does not complete. The first threshold is the one you set above; the others
@@ -55,7 +55,7 @@ async function viewCerts(m){
   };
   try{
     const d=await api("GET","/api/v1/admin/certs"); const c=d.config||{};
-    $("#ce").innerHTML=`
+    H.render($("#ce"),html`
       <label class="chk"><input type="checkbox" id="ce_en" ${c.enabled!==false?"checked":""}>
         <span>Warn me before a certificate expires<small>On by default. Turning it off stops the
           messages but keeps the inspection, so the table below stays current.</small></span></label>
@@ -65,26 +65,26 @@ async function viewCerts(m){
           <small>Thirty days suits an automated renewal that may fail silently; sixty suits a
             certificate someone still orders by hand.</small></div>
         <div class="field"><label>Extra recipients (never public)</label>
-          <input id="ce_to" value="${esc(c.recipients||"")}" placeholder="web@example.net, pki@example.net">
+          <input id="ce_to" value="${c.recipients||""}" placeholder="web@example.net, pki@example.net">
           <small>In addition to the notification channels. Useful when the certificate belongs to a
             team that is not the one receiving network incidents.</small></div>
       </div>
       <div class="note">Messages leave through the channels configured in
         <a href="#" data-goto="channels">Notification channels</a>, plus the addresses above.</div>
-      <button class="btn p" id="ce_save">Save</button>`;
+      <button class="btn p" id="ce_save">Save</button>`);
     document.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
     $("#ce_save").onclick=async()=>{
       try{await api("PUT","/api/v1/admin/certs",{enabled:$("#ce_en").checked,
         warn_days:parseInt($("#ce_days").value,10),recipients:$("#ce_to").value});
         toast("Saved");}catch(e){toast(e.message,true);}
     };
-    $("#cetab").innerHTML=table(d.rows,d.stages||[30,14,7,1]); wire();
+    H.render($("#cetab"),table(d.rows,d.stages||[30,14,7,1])); wire();
     $("#ce_now").onclick=async()=>{
       const b=$("#ce_now"); b.disabled=true; b.textContent="Inspecting…";
       try{const r=await api("POST","/api/v1/admin/certs/check",{});
-        $("#cetab").innerHTML=table(r.rows,d.stages||[30,14,7,1]); wire(); toast("Inspected");}
+        H.render($("#cetab"),table(r.rows,d.stages||[30,14,7,1])); wire(); toast("Inspected");}
       catch(e){toast(e.message,true);}
       finally{b.disabled=false; b.textContent="Inspect now";}
     };
-  }catch(e){$("#ce").innerHTML=`<div class="note">${esc(e.message)}</div>`;}
+  }catch(e){H.render($("#ce"),html`<div class="note">${e.message}</div>`);}
 }

@@ -18,6 +18,16 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ### Changed
 
+- **The back-office assembles its markup with the template too.**
+
+  The twenty files of `/backoffice/` lose **238 `esc()` calls and 99 `innerHTML` assignments**, and gain no `H.raw`: not one place in the back-office needs to say a value is already markup. Nothing on any page of this instance, public or authenticated, is built by joining strings any more.
+
+  Three things came out of the conversion, each a defect that escaping by hand had hidden. Markup stored in plain strings — forty-two `'<span class="badge">…</span>'` — was invisible to the eye as markup and had to become templates. Five `.map(esc).join("<br>")` escaped their items and left the separator as live markup, which is the right answer written the wrong way round. And a boolean dropped into an attribute, `aria-pressed="${kind === k}"`, printed nothing at either end.
+
+  Checked by driving all twenty-one views before and after and comparing the markup produced: eighteen identical. The other three differ between two runs of the *same* binary — a login line the capture itself adds to the audit log, the service log of another process, and an update check that had landed in one run and not the other.
+
+  Then the test that matters: a category and a target named `<img src=x onerror=…>`, created through the API and opened in the back-office. No tag, no execution, the name shown as the text it is.
+
 - **The back-office is twenty files instead of one.**
 
   `admin.html` was 2 374 lines carrying a single 2 230-line `<script>`. Nothing in it could be opened on its own, and `go test` never saw it: the CI extracted the block and ran `node --check` over the whole thing.

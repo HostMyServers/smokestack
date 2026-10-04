@@ -3,7 +3,7 @@
  * portee globale, comme app.js et i18n.js du site public. */
 /* --------------------------------------------------- entry screens */
 function gateSetup(){
-  $("#app").innerHTML=`<div class="gate"><div class="gatebox">
+  H.render($("#app"),html`<div class="gate"><div class="gatebox">
     <div class="logo">S</div>
     <h1>First-time setup</h1>
     <p class="sub">No account exists yet. Create the master account: it can manage
@@ -16,7 +16,7 @@ function gateSetup(){
     <div class="field"><label>Password (12 characters minimum)</label>
       <input id="p" type="password" autocomplete="new-password"></div>
     <button class="btn p" id="go" style="width:100%">Create the master account</button>
-  </div></div>`;
+  </div></div>`);
   const go=async()=>{
     try{
       const r=await api("POST","/api/v1/auth/setup",
@@ -28,7 +28,7 @@ function gateSetup(){
   $("#p").onkeydown=e=>{if(e.key==="Enter")go();};
 }
 function gateLogin(){
-  $("#app").innerHTML=`<div class="gate"><div class="gatebox">
+  H.render($("#app"),html`<div class="gate"><div class="gatebox">
     <div class="logo">S</div>
     <h1>Administration</h1>
     <p class="sub">Sign in to access the back-office.</p>
@@ -37,7 +37,7 @@ function gateLogin(){
     <button class="btn p" id="go" style="width:100%">Sign in</button>
     <p class="sub" style="margin:16px 0 0;font-size:12px">
       <a href="/" style="color:var(--blue)">← Back to the public graphs</a></p>
-  </div></div>`;
+  </div></div>`);
   const go=async()=>{
     try{
       const r=await api("POST","/api/v1/auth/login",{email:$("#e").value,password:$("#p").value});

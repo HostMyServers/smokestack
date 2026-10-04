@@ -32,27 +32,27 @@ const NAV=[
 const LVL={viewer:1,editor:2,admin:3,master:4};
 
 function shell(){
-  let nav="";
+  const nav=[];
   for(const n of NAV){
-    if(n.grp){nav+=`<div class="grp">${n.grp}</div>`;continue;}
+    if(n.grp){nav.push(html`<div class="grp">${n.grp}</div>`);continue;}
     if(LVL[ME.role]<n.min) continue;
-    nav+=`<button data-v="${n.id}" aria-current="${VIEW===n.id}">${n.label}`+
-      (n.badge&&PENDING?`<span class="n">${PENDING}</span>`:"")+
-      (n.mbadge&&UNREAD?`<span class="n">${UNREAD}</span>`:"")+`</button>`;
+    nav.push(html`<button data-v="${n.id}" aria-current="${VIEW===n.id?"true":"false"}">${n.label}${
+      n.badge&&PENDING?html`<span class="n">${PENDING}</span>`:""}${
+      n.mbadge&&UNREAD?html`<span class="n">${UNREAD}</span>`:""}</button>`);
   }
-  $("#app").innerHTML=`
+  H.render($("#app"),html`
     <div class="top"><div class="topin">
       <button class="btn s burger" id="nav-burger" aria-label="Menu" aria-expanded="false">☰</button>
       <div class="brand" id="home" style="cursor:pointer" title="Dashboard"><span class="logo">S</span><span>smokestack</span>
         <span class="badge b-n" style="margin-left:6px">admin</span></div>
       <span class="spacer"></span>
-      <div class="who"><div>${esc(ME.display_name)}</div>
+      <div class="who"><div>${ME.display_name}</div>
         <div><span class="badge b-n">${ME.role}</span></div></div>
       <button class="btn s" id="pw">Password</button>
       <button class="btn s" id="out">Sign out</button>
     </div></div>
     <div class="shell"><nav class="side" id="side">${nav}</nav><main id="main"></main></div>
-    <div class="scrim" id="scrim" hidden></div>`;
+    <div class="scrim" id="scrim" hidden></div>`);
   $("#home").onclick=()=>{EDIT=null;go("dash");};
   $("#out").onclick=async()=>{await api("POST","/api/v1/auth/logout");location.reload();};
   $("#pw").onclick=changePassword;
