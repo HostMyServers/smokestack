@@ -171,6 +171,14 @@ func (a *API) availability(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing target parameter")
 		return
 	}
+	// A figure the operator does not publish does not leave by this door
+	// either: hiding it in the browser would leave the API serving it to
+	// whoever knows the address. The back-office still reads it, since it
+	// is where publishing is decided.
+	if !a.store.Site().PublicAvailability && !a.authenticated(r) {
+		writeErr(w, 404, "availability is not published")
+		return
+	}
 	probeID := a.probeID
 	if v := q.Get("probe"); v != "" {
 		if p, err := strconv.ParseInt(v, 10, 64); err == nil {
