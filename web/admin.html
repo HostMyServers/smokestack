@@ -8,7 +8,10 @@
 <title>smokestack — administration</title>
 <style>
   :root{--ink:#0f172a;--ink2:#64748b;--ink3:#94a3b8;--line:#e4e9f0;--line2:#f1f5f9;
-        --panel:#f8fafc;--blue:#2563eb;--ok:#15803d;--warn:#b45309;--crit:#dc2626}
+        --panel:#f8fafc;--blue:#2563eb;--ok:#15803d;--warn:#b45309;--crit:#dc2626;
+        /* The back-office does not load app.css, so it carries the same
+           radius scale rather than inheriting one it never sees. */
+        --radius:6px;--radius-s:4px;--radius-xs:2px;--radius-pill:999px}
   *{box-sizing:border-box}
   body{margin:0;background:#fff;color:var(--ink);
     font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -16,11 +19,11 @@
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   button{font:inherit;cursor:pointer}
   input,select,textarea{font:inherit;width:100%;padding:7px 10px;border:1px solid var(--line);
-    border-radius:8px;background:#fff;color:var(--ink)}
+    border-radius:var(--radius-s);background:#fff;color:var(--ink)}
   input:focus,select:focus,textarea:focus{outline:2px solid #bfdbfe;outline-offset:-1px;border-color:#93c5fd}
   label{display:block;font-size:12px;color:var(--ink2);margin-bottom:4px}
   .field{margin-bottom:11px}
-  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 14px;
+  .btn{border:1px solid var(--line);background:#fff;border-radius:var(--radius-s);padding:7px 14px;
        font-size:13px;color:var(--ink)}
   .btn:hover{border-color:#93c5fd}
   .btn.p{background:var(--blue);border-color:var(--blue);color:#fff}
@@ -33,10 +36,10 @@
   /* entry screens */
   .gate{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--panel)}
   .gatebox{width:100%;max-width:400px;background:#fff;border:1px solid var(--line);
-           border-radius:14px;padding:26px}
+           border-radius:var(--radius);padding:26px}
   .gatebox h1{font-size:18px;margin:0 0 4px}
   .gatebox p.sub{font-size:13px;color:var(--ink2);margin:0 0 18px}
-  .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#2563eb,#0891b2);
+  .logo{width:26px;height:26px;border-radius:var(--radius-s);background:linear-gradient(135deg,#2563eb,#0891b2);
         display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700;margin-bottom:14px}
 
   /* layout */
@@ -46,10 +49,10 @@
   .brand .logo{margin:0;width:22px;height:22px;font-size:11px}
   .spacer{flex:1}
   .who{font-size:12px;color:var(--ink2);text-align:right;line-height:1.3}
-  .badge{border-radius:999px;padding:2px 9px;font-size:11px;font-weight:500}
+  .badge{border-radius:var(--radius-pill);padding:2px 9px;font-size:11px;font-weight:500}
   .terr{margin-top:4px;font-size:11.5px;color:var(--crit);max-width:520px;line-height:1.35}
   .twarn{margin-top:4px;font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;
-         border-radius:8px;padding:6px 8px;max-width:520px;line-height:1.4}
+         border-radius:var(--radius-s);padding:6px 8px;max-width:520px;line-height:1.4}
   .tpin{margin-top:4px;font-size:11.5px;color:var(--ink2)}
   .b-ok{background:#f0fdf4;color:var(--ok)}
   .b-warn{background:#fffbeb;color:var(--warn)}
@@ -83,21 +86,21 @@
     table.resp td.ttl{display:block;text-align:left;padding-bottom:6px}
   }
   nav.side button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;
-    background:none;border:none;padding:8px 11px;border-radius:8px;font-size:13px;color:var(--ink2)}
+    background:none;border:none;padding:8px 11px;border-radius:var(--radius-s);font-size:13px;color:var(--ink2)}
   nav.side button:hover{background:#fff}
   nav.side button[aria-current="true"]{background:#eff6ff;color:#1d4ed8;font-weight:500}
   nav.side .grp{font-size:10px;text-transform:uppercase;letter-spacing:.06em;
     color:var(--ink3);margin:14px 11px 5px}
-  .bbar{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:5px;max-width:260px;background:var(--bg2)}
+  .bbar{display:flex;height:5px;border-radius:var(--radius-xs);overflow:hidden;margin-top:5px;max-width:260px;background:var(--bg2)}
   .bseg{display:block;height:100%}
   .b-dns{background:#7a3fe0} .b-conn{background:#2458e6} .b-tls{background:#0f917a}
-  nav.side .n{margin-left:auto;background:var(--crit);color:#fff;border-radius:999px;
+  nav.side .n{margin-left:auto;background:var(--crit);color:#fff;border-radius:var(--radius-pill);
     font-size:10px;padding:1px 6px;font-weight:600}
 
   main{padding:clamp(16px,2.4vw,28px);min-width:0}
   h2{font-size:17px;font-weight:600;margin:0 0 3px;letter-spacing:-.01em}
   .lead{font-size:13px;color:var(--ink2);margin:0 0 20px}
-  .card{border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+  .card{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
   .card h3{margin:0;padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;
            font-weight:600;display:flex;align-items:center;gap:8px}
   .card .body{padding:14px}
@@ -106,15 +109,15 @@
      letter-spacing:.03em;padding:6px 10px}
   td{padding:9px 10px;border-top:1px solid var(--line2);vertical-align:middle}
   tr.dis td{opacity:.55}
-  .note{font-size:12px;color:var(--ink2);background:var(--panel);border-radius:8px;
+  .note{font-size:12px;color:var(--ink2);background:var(--panel);border-radius:var(--radius-s);
         padding:10px 12px;margin-bottom:12px}
   .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:100;
-    background:#0f172a;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;
+    background:#0f172a;color:#fff;padding:10px 16px;border-radius:var(--radius-s);font-size:13px;
     box-shadow:0 6px 24px rgba(15,23,42,.25);display:none;max-width:90vw}
   .toast.err{background:var(--crit)}
   .fp{font-size:15px;letter-spacing:.06em;font-weight:600}
   .empty{font-size:13px;color:var(--ink3);padding:6px 0}
-  .pend{border:1px solid #fed7aa;background:#fffbeb;border-radius:10px;padding:13px;margin-bottom:10px}
+  .pend{border:1px solid #fed7aa;background:#fffbeb;border-radius:var(--radius-s);padding:13px;margin-bottom:10px}
   .acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
   .quote{border-left:3px solid #fdba74;padding:6px 11px;margin:8px 0;font-size:13px;background:#fff}
   .quote.priv{border-left-color:#a5b4fc;background:#f5f7ff}
@@ -124,14 +127,14 @@
   .chk{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--ink);margin:10px 0}
   .chk input{width:auto;margin-top:3px}
   .chk small{display:block;color:var(--ink2);font-size:12px}
-  .bar{height:6px;border-radius:3px;background:var(--line2);overflow:hidden;min-width:90px}
+  .bar{height:6px;border-radius:var(--radius-xs);background:var(--line2);overflow:hidden;min-width:90px}
   .bar i{display:block;height:100%;background:var(--ok)}
   .diff td{background:#fffbeb}
   .hopnote{color:var(--crit);font-weight:600;margin-left:6px}
   .trrow{cursor:pointer}
   .trrow:hover td{background:var(--panel)}
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-  .tabs button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 11px;font-size:12px;color:var(--ink2)}
+  .tabs button{border:1px solid var(--line);background:#fff;border-radius:var(--radius-s);padding:5px 11px;font-size:12px;color:var(--ink2)}
   .tabs button[aria-pressed="true"]{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
 </style>
 </head>

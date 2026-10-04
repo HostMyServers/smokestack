@@ -14,6 +14,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Nothing stops being measured or counted. The passes are recorded as before, and switching the setting back on shows the same history, including the period it was hidden.
 
+- **The availability figure can be left unpublished.**
+
+  It is the one number on a public target page a reader is likely to read as a commitment, whatever the two warnings beside it say. *Publisher → Availability* now decides whether it is published at all. On by default, and an instance that was already showing it keeps showing it after an upgrade: only an explicit choice takes it away.
+
+  Off does two things, not one. The block leaves every target page, and `/api/v1/availability` stops answering a visitor or a share link — hiding it in the browser alone would leave the endpoint serving the figure to whoever knows the address. The back-office still reads it, since that is where the choice is made.
+
+  Nothing stops being measured or counted. The passes are recorded as before, and switching the setting back on shows the same history, including the period it was hidden.
+
 - **Light or dark is now a choice, not only what the system says.**
 
   The public pages already followed `prefers-color-scheme`. A visitor whose system is dark but who wants this page light — or the other way round — had no say. A button in the header cycles through three states: *Automatic*, *Light*, *Dark*. The choice is remembered by the browser, on that machine only, like the language.
@@ -23,6 +31,16 @@ Versions are published as signed releases; servers with automatic updates instal
   The dark palette moves from the `prefers-color-scheme` media query to a `data-theme` attribute, which `theme.js` resolves from `<head>` before the first paint — so there is no light flash to swap away, and the palette is written once instead of once per condition. The chart colours read the same attribute, so a graph drawn after a switch is drawn in the right palette.
 
   The back-office is not covered: it carries its own light-only stylesheet and needs a palette of its own.
+
+### Changed
+
+- **Less rounded, and rounded in one place.**
+
+  Sixty `border-radius` declarations carried thirteen different values for the same handful of roles: 6, 7, 8, 9 and 10 px on controls that are the same kind of control, 12 and 14 px on panels that are the same kind of panel. Nothing distinguished them but the order they were written in.
+
+  They become four variables — `--radius` for panels and cards, `--radius-s` for controls and small surfaces, `--radius-xs` for hairline bars, `--radius-pill` for the badges and chips that stay pills — and the scale is halved: 12 px becomes 6, 8 px becomes 4. True circles (status dots, the step numbers) keep `50%`, because they are circles rather than rounded corners.
+
+  How round the interface looks is now four values rather than sixty. The back-office does not load `app.css`, so it carries the same four in its own `:root` instead of a scale it would never see.
 
 ### Fixed
 

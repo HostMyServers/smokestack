@@ -81,7 +81,7 @@ function render() {
       i.upstreams.map(u => `<div style="display:grid;grid-template-columns:110px minmax(0,1fr) 160px;gap:14px;align-items:center;padding:8px 0;border-top:1px solid var(--line-2)">
         <a class="mono" href="https://bgp.tools/as/${u.asn}" rel="noopener">AS${u.asn}</a>
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name || "")}</span>
-        <span style="height:6px;border-radius:3px;background:var(--bg-sunk);overflow:hidden">
+        <span style="height:6px;border-radius:var(--radius-xs);background:var(--bg-sunk);overflow:hidden">
           <i style="display:block;height:100%;width:${Math.round(u.power/max*100)}%;background:var(--accent)"></i></span>
       </div>`).join("") +
       `<p class="faint" style="font-size:12px;margin:10px 0 0">${esc(t("net.upstreams_note"))}</p></div></div></section>`;
