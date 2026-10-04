@@ -2,6 +2,18 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **No container image was published for 0.6.2.**
+
+  The image job builds `ghcr.io/<owner>/<repo>`, taking the owner as GitHub spells it. A registry refuses an upper-case letter in an image path, so the job failed at the last step of the release — after both packages, `latest.json` and `install.sh` were already published. The native install was unaffected; the image simply does not exist for that tag.
+
+  The owner is lower-cased before the tags are built. The upstream owner is lower-case already, which is why this surfaces only in a fork, and only there at the very end of a release.
+
+  No version is burned to repair it: *Actions → image → Run workflow* with the tag rebuilds and pushes the image for a tag that already exists.
+
 ## 0.6.2
 
 Two batches in one version. The build was tightened: the binaries were compiled by a Go that no longer receives security fixes, the container image was running on a distribution that had stopped publishing security advisories, and a dispatched release could carry a shell command inside its version number. And the public pages lost what they were repeating — the footer is one line again, and the language is chosen from a flag rather than a list of ten names.
