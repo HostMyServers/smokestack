@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.7
+
+Five back-office tables printed their own markup instead of drawing it — the breakdown, the certificates, the peers, the updates and the host network. 0.6.5 introduced it and 0.6.6 carried it; upgrade if you have seen a page full of `<tr><td>`.
+
+Nothing else changes. The check that was supposed to catch it now hands every view rows to draw rather than looking at the empty tables it happened to find.
 
 ### Fixed
 
