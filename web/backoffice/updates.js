@@ -13,7 +13,7 @@ async function viewUpdate(m){
   const h=[html`<div class="card"><h3>Installed version</h3><div class="body"><table><tbody>
     <tr><td style="width:220px">Version</td><td><strong class="mono">${S.version}</strong> <span style="color:var(--ink3)">${S.platform} ${S.build_date||""}</span></td></tr>
     <tr><td>Previous version</td><td class="mono">${S.previous||"—"}</td></tr>
-    <tr><td>In-place updates</td><td>${S.managed?html`<span class="badge b-ok">available</span> <span class="mono" style="font-size:12px">`+S.root+html`</span>`
+    <tr><td>In-place updates</td><td>${S.managed?html`<span class="badge b-ok">available</span> <span class="mono" style="font-size:12px">${S.root}</span>`
       :html`<span class="badge b-crit">unavailable</span> ${S.reason}`}</td></tr>
     <tr><td>Release keys</td><td class="mono">${S.trusted_keys.length?S.trusted_keys.join(", "):html`<span style="color:var(--crit)">none</span>`}
       ${S.allow_unsigned?html` <span class="badge b-warn">unsigned packages allowed</span>`:""}</td></tr>

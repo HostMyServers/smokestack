@@ -2,6 +2,26 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **Five back-office tables printed their own markup instead of drawing it.**
+
+  *Response-time breakdown*, *TLS certificates*, *Peers*, *Updates* and *Host network* showed rows as raw text — `<tr><td>Cloudflare…` written out on the page. 0.6.5 introduced it, and 0.6.6 carried it.
+
+  The cause is one shape in nine places. A row built as `html\`<tr>…</tr>\` + (cond ? html\`…\` : "")` is a *string*, because `+` has no idea what a template is, and the table that interpolates it then escapes it as it would any other text. Four of those were row-plus-optional-error-row; one was a path spliced between two fragments. Three more were markup held in double-quoted strings and one a `"<br>"` used as a separator — same ending, different road.
+
+  All nine are interpolations now. Two scans over every file in `web/` say there is no tenth: none where a template meets a `+`, and none where a string literal carries a tag.
+
+### Changed
+
+- **A back-office view is now checked with data in it.**
+
+  The migration was verified by driving all twenty-one views and comparing the markup produced. It passed, and it missed this, because on the instance used for the check the breakdown, the certificates and the peers were all empty: the row path never ran, and an empty table compares equal to an empty table.
+
+  The check now substitutes the API client and hands every view rows to draw, each carrying `<img src=x onerror=…>` in every text field, then asserts that no tag appears escaped anywhere and that nothing executes. On the nine defects above it fails; on the fix it passes.
+
 ## 0.6.6
 
 The publisher page looked broken and was not: filling in the AS number, the title or a contact saved it, then showed the old value back. The form was reading its own answer out of the browser cache, where the server had told it to keep it for ten minutes.

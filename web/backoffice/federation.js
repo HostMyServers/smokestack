@@ -109,8 +109,8 @@ async function viewFed(m){
           <span style="font-size:12px">${p.peer_consent?(p.public?"listed":"hidden"):"no consent"}</span></label></td>
         <td style="font-size:12px">${dt(p.last_seen_at)}</td>
         <td style="text-align:right"><button class="btn s" data-prot="${p.id}">Rotate key</button>
-          <button class="btn d s" data-pdel="${p.id}">Remove</button></td></tr>`+
-        (p.last_error?html`<tr><td colspan="6" style="font-size:11px;color:var(--crit);border-top:none;padding-top:0">${p.last_error}</td></tr>`:"")
+          <button class="btn d s" data-pdel="${p.id}">Remove</button></td></tr>${
+        p.last_error?html`<tr><td colspan="6" style="font-size:11px;color:var(--crit);border-top:none;padding-top:0">${p.last_error}</td></tr>`:""}`
       )}</tbody></table>`:html`<div class="empty">No peer yet.</div>`);
     out.push(html`</div></div>`);
     H.render($("#f"),out);
