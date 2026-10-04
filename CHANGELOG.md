@@ -6,6 +6,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ### Fixed
 
+- **No container image was published for 0.6.2.**
+
+  The image job builds `ghcr.io/<owner>/<repo>`, taking the owner as GitHub spells it. A registry refuses an upper-case letter in an image path, so the job failed at the last step of the release — after both packages, `latest.json` and `install.sh` were already published. The native install was unaffected; the image simply does not exist for that tag.
+
+  The owner is lower-cased before the tags are built. The upstream owner is lower-case already, which is why this surfaces only in a fork, and only there at the very end of a release.
+
+  No version is burned to repair it: *Actions → image → Run workflow* with the tag rebuilds and pushes the image for a tag that already exists.
+
 - **For five minutes after an update, a browser could pair the new page with the previous stylesheet.**
 
   Pages are served `no-cache`, so the HTML a visitor sees is always the current one. The stylesheet and the scripts it loads were served `max-age=300`, so for up to five minutes after an upgrade a browser could hold the previous `app.css` against the new markup — and an intermediary cache could hold it for everyone behind it, not just one visitor.
