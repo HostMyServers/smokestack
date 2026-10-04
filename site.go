@@ -160,7 +160,21 @@ func (a *API) siteGet(w http.ResponseWriter, r *http.Request) {
 		"pairing":    a.fed != nil && a.fed.Enabled() && site.ASN != "",
 		"network":    site.ASN != "",
 	}
-	w.Header().Set("Cache-Control", "public, max-age=600")
+	// Who asks changes the answer: an authenticated caller gets the NOC
+	// phone, the address that receives contact notifications and the
+	// operator's own address. Announced as publicly cacheable with no
+	// Vary, that answer may be kept by a shared cache and handed to a
+	// visitor — which is the one thing the stripping above is for.
+	//
+	// It also made the back-office look broken: it reads this endpoint,
+	// and after saving kept showing values the browser had cached ten
+	// minutes earlier.
+	w.Header().Set("Vary", "Cookie, Authorization")
+	if a.authenticated(r) {
+		w.Header().Set("Cache-Control", "no-store")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=600")
+	}
 	writeJSON(w, out)
 }
 

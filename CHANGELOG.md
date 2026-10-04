@@ -4,6 +4,22 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ## Unreleased
 
+### Fixed
+
+- **The publisher page said *Saved* and showed the old values back.**
+
+  Filling in the AS number, the title or a contact and saving worked: the value reached the database. The form then re-read `/api/v1/site`, which the server marks `public, max-age=600`, so the browser answered from its own cache — for ten minutes, including across a full page reload. An operator had every reason to conclude the page was broken.
+
+  The back-office now reads with `cache: "no-store"`. Nothing it reads should ever come from a cache: it reads public endpoints, which are cacheable because they are, for a visitor — and the operator who has just saved is not a visitor.
+
+- **A response that depends on who asks no longer says it may be cached for everyone.**
+
+  `/api/v1/site` hands an authenticated caller the NOC phone, the address that receives contact notifications and the operator's own address, and strips all three for a visitor — then marked the answer `public, max-age=600` with no `Vary`. `/api/v1/aspath` is the same shape and matters more: an anonymous caller gets an empty path for a private target, for a target that hides its host, or on an instance that does not publish traceroutes, and masked addresses where the operator masks them.
+
+  A shared cache in front — the reverse proxy [DEPLOY.md](DEPLOY.md) tells you to run — was therefore allowed to keep the operator's answer and hand it to a visitor. No proxy does this unless it is configured to cache, so this is a door left open rather than one anybody walked through, but it is the one thing the stripping exists to prevent.
+
+  Both now send `Vary: Cookie, Authorization`, and `no-store` when the caller is authenticated. The list of traceroutes, which set no header at all on that path, says `no-store` too. A test fails on the old headers.
+
 ### Changed
 
 - **There is one way markup reaches the DOM, with no exception left.**
