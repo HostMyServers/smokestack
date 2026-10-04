@@ -13,7 +13,11 @@
     "pairing": "Parkoppling",
     "admin": "Administration",
     "language": "Språk",
-    "menu": "Meny"
+    "menu": "Meny",
+    "theme": "Tema",
+    "theme_auto": "Automatiskt",
+    "theme_light": "Ljust",
+    "theme_dark": "Mörkt"
   },
   "common": {
     "loading": "Laddar…",

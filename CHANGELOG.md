@@ -14,6 +14,16 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Nothing stops being measured or counted. The passes are recorded as before, and switching the setting back on shows the same history, including the period it was hidden.
 
+- **Light or dark is now a choice, not only what the system says.**
+
+  The public pages already followed `prefers-color-scheme`. A visitor whose system is dark but who wants this page light — or the other way round — had no say. A button in the header cycles through three states: *Automatic*, *Light*, *Dark*. The choice is remembered by the browser, on that machine only, like the language.
+
+  *Automatic* stays the default and keeps following the system, including when the system changes while the page is open. From *Automatic* the button goes to the opposite of what is on screen, so the first press always shows — a fixed *Automatic → Light → Dark* order would change nothing on the first press for anyone whose machine is set to light, which is most of them. *Automatic* comes back at the end of the round, the one place where a press that changes only the button is not a surprise: it hands the decision back to the system.
+
+  The dark palette moves from the `prefers-color-scheme` media query to a `data-theme` attribute, which `theme.js` resolves from `<head>` before the first paint — so there is no light flash to swap away, and the palette is written once instead of once per condition. The chart colours read the same attribute, so a graph drawn after a switch is drawn in the right palette.
+
+  The back-office is not covered: it carries its own light-only stylesheet and needs a palette of its own.
+
 ### Changed
 
 - **Less rounded, and rounded in one place.**
