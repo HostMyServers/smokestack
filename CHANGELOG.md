@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.8
+
+Every back-office screen has its own address. Refreshing stays where you were instead of dropping you on the dashboard, the back button works, and signing in from a deep address lands you there rather than at the front door.
+
+Nothing else changes, and nothing on the server: `/admin/` was already served for its whole subtree.
 
 ### New
 
