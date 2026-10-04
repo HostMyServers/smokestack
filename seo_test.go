@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -255,5 +256,51 @@ func TestPublicOverviewHidesAddresses(t *testing.T) {
 	}
 	if !found {
 		t.Error("the back-office view must carry the addresses")
+	}
+}
+
+// A page is served no-cache and is therefore always current, while the
+// assets it loads were cached for five minutes: for that long after an
+// update a browser could pair the new markup with the previous
+// stylesheet. Naming the build in the address closes the window, and
+// lets the answer be kept for a year instead.
+func TestAssetsAreAddressedByBuild(t *testing.T) {
+	version, date := Version, BuildDate
+	defer func() { Version, BuildDate = version, date }()
+	page := []byte(`<link rel="stylesheet" href="/app.css"><script src="/app.js"></script>`)
+
+	// A development build has no version to name, and must not pretend.
+	Version, BuildDate = "dev", ""
+	if got := versionedAssets(page); !bytes.Equal(got, page) {
+		t.Errorf("a dev build must leave the addresses alone: %s", got)
+	}
+
+	Version, BuildDate = "0.6.3", "2026-10-04"
+	got := string(versionedAssets(page))
+	for _, want := range []string{
+		`href="/app.css?v=0.6.3-2026-10-04"`,
+		`src="/app.js?v=0.6.3-2026-10-04"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("%s missing from %s", want, got)
+		}
+	}
+
+	cacheOf := func(url string) string {
+		rec := httptest.NewRecorder()
+		withAssetCache(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), 300).
+			ServeHTTP(rec, httptest.NewRequest("GET", url, nil))
+		return rec.Header().Get("Cache-Control")
+	}
+	if cc := cacheOf("/app.css?v=0.6.3-2026-10-04"); cc != "public, max-age=31536000, immutable" {
+		t.Errorf("address naming the build: %q", cc)
+	}
+	// Without it, or carrying the version of an older build, the answer
+	// keeps the short cache it has always had.
+	if cc := cacheOf("/app.css"); cc != "public, max-age=300" {
+		t.Errorf("address without a version: %q", cc)
+	}
+	if cc := cacheOf("/app.css?v=0.6.2-2026-10-01"); cc != "public, max-age=300" {
+		t.Errorf("version of an earlier build: %q", cc)
 	}
 }

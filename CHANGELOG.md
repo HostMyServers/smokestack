@@ -2,6 +2,18 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **For five minutes after an update, a browser could pair the new page with the previous stylesheet.**
+
+  Pages are served `no-cache`, so the HTML a visitor sees is always the current one. The stylesheet and the scripts it loads were served `max-age=300`, so for up to five minutes after an upgrade a browser could hold the previous `app.css` against the new markup — and an intermediary cache could hold it for everyone behind it, not just one visitor.
+
+  The pages now name the build in the addresses they load, `/app.css?v=0.6.3-2026-10-04`, rewritten on the way out so the files on disk stay plain and openable. A new build is a new address, and no cache can confuse it with the old one.
+
+  Because such an address cannot go stale, the answer is kept for a year instead of five minutes (`max-age=31536000, immutable`), which is also fewer requests than before. An address without a version, or carrying the version of an earlier build, keeps the five-minute cache it has always had: a page cached before this change still works.
+
 ## 0.6.2
 
 Two batches in one version. The build was tightened: the binaries were compiled by a Go that no longer receives security fixes, the container image was running on a distribution that had stopped publishing security advisories, and a dispatched release could carry a shell command inside its version number. And the public pages lost what they were repeating — the footer is one line again, and the language is chosen from a flag rather than a list of ten names.

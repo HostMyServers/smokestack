@@ -348,6 +348,7 @@ func main() {
 				http.NotFound(w, r)
 				return
 			}
+			b = versionedAssets(b)
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Header().Set("X-Frame-Options", "DENY")
 			w.Header().Set("Referrer-Policy", "same-origin")
