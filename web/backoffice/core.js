@@ -13,7 +13,11 @@ async function api(method,path,body){
   const h={};
   if(body!==undefined){h["Content-Type"]="application/json";}
   if(CSRF) h["X-CSRF-Token"]=CSRF;
-  const r=await fetch(path,{method,headers:h,
+  // Rien de ce que lit le back-office ne doit sortir d'un cache. Il lit
+  // des endpoints publics, /api/v1/site en tête, qui s'annoncent
+  // cachables parce qu'ils le sont pour un visiteur : l'exploitant qui
+  // vient d'enregistrer, lui, doit voir ce qu'il a enregistré.
+  const r=await fetch(path,{method,headers:h,cache:"no-store",
     body:body!==undefined?JSON.stringify(body):undefined,credentials:"same-origin"});
   if(r.status===204) return null;
   let data=null;
