@@ -95,7 +95,6 @@
     "preset_10d": "10 d",
     "preset_3m": "3 mån",
     "preset_1y": "1 år",
-    "rotating": "Det här namnet svarar från {n} olika adresser: det är en lastbalanserad tjänst. Varje omgång mäter den server som DNS gav, så siffrorna nedan blandar maskiner som kan stå på olika platser och ha olika belastning. En server som ignorerar ICMP visas som förlust.",
     "pinned": "Mätt mot en fast {fam}-adress ({ip}): namnet kan peka någon annanstans, siffrorna nedan beskriver alltid samma maskin.",
     "pinned_plain": "Mätt mot en fast adress: namnet kan peka någon annanstans, siffrorna nedan beskriver alltid samma maskin.",
     "last24_hint": "Ett block per 30 minuter: grönt när målet följde sin referens, bärnsten när latens eller jitter avvek, rött vid paketförlust, grått när inget mättes.",

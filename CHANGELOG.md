@@ -48,6 +48,12 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The *target* label under the last hop is gone with it. The frame is already green where the others are grey, and the origin's is blue — a word under each one said what the colour said first.
 
+- **The load-balancing warning leaves the target pages.**
+
+  A target whose name answered from more than one address carried a paragraph in an amber box explaining that the figures mix machines. It was right, and it was a wall of text above the graph on exactly the targets people look at most — public resolvers and CDNs, which are load-balanced by design.
+
+  The diagnosis is not lost: *Why this loss?* in the back-office still names a rotating name when it is the explanation, which is where an operator looks when a figure puzzles them.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**
