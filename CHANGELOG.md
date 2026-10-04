@@ -2,6 +2,16 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **The theme button appeared to do nothing on the first press.**
+
+  It cycled *Automatic → Light → Dark* in that fixed order. On a machine set to light — which is most of them — leaving *Automatic* for *Light* changed nothing on screen, so the first press looked broken and the page only turned dark on the second.
+
+  From *Automatic* the button now goes to the opposite of what is on screen, so the first press always shows. *Automatic* comes back at the end of the round, which is the one place where a press that changes only the button is not a surprise: it is the press that hands the decision back to the system.
+
 ## 0.6.3
 
 A version about the pages themselves. What a target page shows is unchanged; how much of it a reader has to walk past before reaching the measurements is not. Eight explanatory paragraphs fold behind a question mark, the route across the networks takes the width it describes, the footer is one line, and the corners are rounded half as much and from one place instead of sixty.

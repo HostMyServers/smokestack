@@ -41,6 +41,23 @@
   window.Theme = {
     // What was chosen, not what is displayed: data-theme says that.
     get pref() { return stored() || choice || "auto"; },
+
+    // The state the button moves to. A fixed auto -> light -> dark order
+    // looked right and was not: on a machine set to light, leaving "auto"
+    // for "light" changed nothing on screen, so the first press appeared
+    // to do nothing and the page only turned dark on the second.
+    //
+    // From "auto" it therefore goes to the opposite of what is on screen.
+    // Automatic comes back at the end of the round, which is the one place
+    // where a press that changes only the button is not a surprise: it is
+    // the press that hands the decision back to the system.
+    next() {
+      const shown = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+      const pref = this.pref;
+      if (pref === "auto") return shown === "dark" ? "light" : "dark";
+      if (pref === (system.matches ? "dark" : "light")) return "auto";
+      return pref === "dark" ? "light" : "dark";
+    },
     set(pref) {
       choice = pref === "light" || pref === "dark" ? pref : null;
       try {

@@ -61,7 +61,6 @@
   // still want this page light, and "auto" has to stay reachable once
   // one of the two has been chosen. The glyph carries a text-presentation
   // selector so a platform does not turn it into an emoji.
-  const THEMES = ["auto", "light", "dark"];
   const THEME_GLYPH = { auto: "\u25d0", light: "\u2600\ufe0e", dark: "\u263e\ufe0e" };
 
   function themeButton() {
@@ -128,7 +127,7 @@
     wireLang();
     const thm = document.getElementById("thmBtn");
     if (thm) {
-      thm.onclick = () => Theme.set(THEMES[(THEMES.indexOf(Theme.pref) + 1) % THEMES.length]);
+      thm.onclick = () => Theme.set(Theme.next());
     }
   }
 
