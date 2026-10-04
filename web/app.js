@@ -88,42 +88,8 @@
   // binaire (/api/v1/version) : il est ecrit en dur et ne se configure
   // pas depuis le back-office.
   function footer() {
-    const t = I18N.t, V = VERSION || {};
-    const asn = String(SITE.asn || "").replace(/\D/g, "");
-    const link = (href, label, ext) => href
-      ? `<a href="${esc(href)}"${ext ? ' rel="noopener" target="_blank"' : ""}>${esc(label)}</a>` : "";
-    const col = (title, items) => {
-      const li = items.filter(Boolean).map(x => `<li>${x}</li>`).join("");
-      return li ? `<div class="fcol"><h4>${esc(title)}</h4><ul>${li}</ul></div>` : "";
-    };
-    const official = V.official_url || "";
+    const t = I18N.t, official = (VERSION || {}).official_url || "";
     return `<div class="wrap">
-      <div class="fgrid">
-        <div class="fcol fbrand">
-          <a class="brand" href="/"><span class="mark"></span><span>${esc(SITE.title || "smokestack")}</span></a>
-          <p>${esc(SITE.org || "")}${SITE.asn ? " · " + esc(SITE.asn) : ""}</p>
-          ${SITE.location ? `<p class="faint">${esc(SITE.location)}</p>` : ""}
-        </div>
-        ${col(t("footer.pages"), [
-          link("/", t("footer.graphs")),
-          ...pages().filter(p => p.id !== "home" && p.id !== "about")
-            .map(p => link(p.href, t("footer." + p.id))),
-          link("/about", t("footer.about"))])}
-        ${col(t("footer.operator"), [
-          link(SITE.url, t("footer.website"), 1),
-          SITE.noc_email ? link("mailto:" + SITE.noc_email, t("footer.noc")) : "",
-          link(SITE.peeringdb, t("footer.peeringdb"), 1),
-          asn ? link("https://stat.ripe.net/AS" + asn, t("footer.ripe"), 1) : "",
-          asn ? link("https://bgp.tools/as/" + asn, t("footer.bgptools"), 1) : ""])}
-        ${col(t("footer.data"), [
-          link("/api/v1/overview", t("footer.api")),
-          link("/healthz", t("footer.health")),
-          link("/api/v1/version", "/api/v1/version")])}
-        ${col(t("footer.software"), [
-          link(official, t("footer.official_site"), 1),
-          link(V.repo_url, t("footer.source"), 1),
-          V.version ? `<span class="faint">${esc(t("footer.version", { v: V.version }))}</span>` : ""])}
-      </div>
       <div class="fbottom">
         <span>© ${new Date().getFullYear()}${SITE.org ? " " + esc(SITE.org) : ""}</span>
         <span class="spacer"></span>

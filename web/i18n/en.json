@@ -261,26 +261,8 @@
     "tech_body": "Message-level Ed25519 signatures, 5-minute clock tolerance, replay protection by nonce cache."
   },
   "footer": {
-    "graphs": "Graphs",
-    "about": "About & contact",
-    "federation": "Federation",
-    "network": "Host network",
-    "pairing": "Pairing",
     "powered": "Powered by smokestack",
-    "pages": "Pages",
-    "operator": "Operator",
-    "data": "Open data",
-    "software": "Software",
-    "official_site": "smokestack official website",
-    "source": "Source code",
-    "version": "Version {v}",
-    "api": "JSON API",
-    "health": "Service health",
-    "noc": "Contact the NOC",
-    "website": "Operator website",
-    "ripe": "RIPEstat",
-    "peeringdb": "PeeringDB",
-    "bgptools": "bgp.tools"
+    "rights": "All measurements are published as-is, without warranty."
   },
   "trace": {
     "title": "Traceroutes",

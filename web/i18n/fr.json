@@ -261,26 +261,8 @@
     "tech_body": "Signatures Ed25519 au niveau du message, tolérance d'horloge de 5 minutes, protection contre le rejeu par cache de nonces."
   },
   "footer": {
-    "graphs": "Graphes",
-    "about": "À propos et contact",
-    "federation": "Fédération",
-    "network": "Réseau hôte",
-    "pairing": "Appairage",
     "powered": "Propulsé par smokestack",
-    "pages": "Pages",
-    "operator": "Exploitant",
-    "data": "Données ouvertes",
-    "software": "Logiciel",
-    "official_site": "Site officiel de smokestack",
-    "source": "Code source",
-    "version": "Version {v}",
-    "api": "API JSON",
-    "health": "État du service",
-    "noc": "Contacter le NOC",
-    "website": "Site de l'exploitant",
-    "ripe": "RIPEstat",
-    "peeringdb": "PeeringDB",
-    "bgptools": "bgp.tools"
+    "rights": "Les mesures sont publiées telles quelles, sans garantie."
   },
   "trace": {
     "title": "Traceroutes",

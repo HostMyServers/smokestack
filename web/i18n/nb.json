@@ -261,26 +261,8 @@
     "tech_body": "Ed25519-signaturer på meldingsnivå, 5 minutters klokketoleranse, beskyttelse mot gjentakelse via nonce-hurtigbuffer."
   },
   "footer": {
-    "graphs": "Diagrammer",
-    "about": "Om og kontakt",
-    "federation": "Føderasjon",
-    "network": "Vertsnett",
-    "pairing": "Sammenkobling",
     "powered": "Drevet av smokestack",
-    "pages": "Sider",
-    "operator": "Operatør",
-    "data": "Åpne data",
-    "software": "Programvare",
-    "official_site": "Offisielt nettsted for smokestack",
-    "source": "Kildekode",
-    "version": "Versjon {v}",
-    "api": "JSON-API",
-    "health": "Tjenestestatus",
-    "noc": "Kontakt NOC-en",
-    "website": "Operatørens nettsted",
-    "ripe": "RIPEstat",
-    "peeringdb": "PeeringDB",
-    "bgptools": "bgp.tools"
+    "rights": "Alle målinger publiseres som de er, uten garanti."
   },
   "trace": {
     "title": "Traceroutes",

@@ -180,17 +180,8 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 
 /* --- pied de page --- */
 .ftr { border-top: 1px solid var(--line); margin-top: 64px; background: var(--bg-soft); font-size: 13px; color: var(--ink-2); }
-.fgrid { display: grid; gap: 28px 40px; padding: 36px 0 28px;
-         grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
-.fbrand { grid-column: span 2; }
-@media (max-width: 700px) { .fbrand { grid-column: auto; } }
-.fbrand p { margin: 8px 0 0; }
-.fcol h4 { margin: 0 0 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }
-.fcol ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
-.fcol a { color: var(--ink-2); }
-.fcol a:hover { color: var(--accent); }
-.fbottom { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--line);
-           padding: 16px 0 28px; font-size: 12px; color: var(--ink-3); }
+.fbottom { display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+           padding: 20px 0 24px; font-size: 12px; color: var(--ink-3); }
 .fbottom a { color: var(--ink-2); font-weight: 550; }
 
 /* --- formulaire de contact --- */
