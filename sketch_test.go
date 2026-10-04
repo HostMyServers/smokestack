@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"math/rand"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sort"
@@ -219,5 +220,60 @@ func TestParseTimeShorthand(t *testing.T) {
 	}
 	if parseTime("-3x", def) != def {
 		t.Error("an invalid unit must return the default")
+	}
+}
+
+// Un dictionnaire pese dix fois la liste qui le decrit, et il etait
+// retelecharge a chaque page. Servi sous une adresse qui nomme sa
+// revision, il se garde un an ; la revision doit donc suivre le contenu,
+// y compris un fichier depose a cote et recharge a chaud.
+func TestI18nRevFollowsContent(t *testing.T) {
+	dir := t.TempDir()
+	over := filepath.Join(dir, "i18n")
+	os.MkdirAll(over, 0o755)
+
+	i, err := NewI18n(os.DirFS("web"), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := i.Rev()
+	if first == "" {
+		t.Fatal("aucune revision")
+	}
+	// Meme contenu recharge : la meme revision, sinon chaque redemarrage
+	// jetterait le cache de tous les visiteurs.
+	if err := i.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	if i.Rev() != first {
+		t.Errorf("revision instable a contenu egal: %s puis %s", first, i.Rev())
+	}
+	// Une traduction corrigee sans recompiler doit changer la revision.
+	os.WriteFile(filepath.Join(over, "fr.json"),
+		[]byte(`{"_meta":{"name":"Français"},"home":{"faults":"Autre chose"}}`), 0o644)
+	if err := i.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	if i.Rev() == first {
+		t.Error("une traduction modifiee doit changer la revision")
+	}
+
+	// L'en-tete suit la revision demandee, et rien d'autre.
+	api := &API{i18n: i, store: nil}
+	head := func(q string) string {
+		r := httptest.NewRequest("GET", "/api/v1/i18n/fr"+q, nil)
+		r.SetPathValue("code", "fr")
+		w := httptest.NewRecorder()
+		api.i18nDict(w, r)
+		return w.Header().Get("Cache-Control")
+	}
+	if cc := head("?v=" + i.Rev()); cc != "public, max-age=31536000, immutable" {
+		t.Errorf("revision courante: %q", cc)
+	}
+	if cc := head("?v=" + first); cc != "no-cache" {
+		t.Errorf("revision perimee: %q", cc)
+	}
+	if cc := head(""); cc != "no-cache" {
+		t.Errorf("sans revision: %q", cc)
 	}
 }
