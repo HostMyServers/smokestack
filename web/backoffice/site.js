@@ -50,7 +50,7 @@ Mastodon | https://mastodon.example/@noc">${(s.contact_links||[]).map(l=>`${l.la
       ${f("peeringdb","PeeringDB record",s.peeringdb)}
       </div>
       <div class="note" style="margin:10px 0 0">The notification address is never shown publicly. It is
-        used only if SMTP is configured in <a href="#" data-goto="notify">NOC alerting</a>; otherwise
+        used only if SMTP is configured in <a href="${pathOf("notify")}" data-goto="notify">NOC alerting</a>; otherwise
         messages simply wait in Messages.</div>
     </div></div>
     <div class="card"><h3>Search engines</h3><div class="body">

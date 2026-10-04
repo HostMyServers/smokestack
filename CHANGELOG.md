@@ -2,6 +2,24 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### New
+
+- **Every back-office screen has its own address.**
+
+  `/admin/targets`, `/admin/traces`, `/admin/site` — one segment per screen, named after the screen. Refreshing stays where you were instead of dropping you back on the dashboard, the browser's back button works, and an address can be pasted to a colleague who lands on the right page.
+
+  Nothing changed on the server: `GET /admin/` was already registered for its whole subtree, which is why the back-office scripts live under `/backoffice/`.
+
+  Three cases that would otherwise make it worse than no routing at all:
+
+  - **signing in from a deep address** lands you there, not on the dashboard — which is the case that makes a refresh worth having;
+  - **an address your role may not open** falls back to the dashboard, and the address follows rather than lying about what is shown;
+  - **an address that no longer exists** does the same, without an error.
+
+  The screens keep what they had in memory, so the selected target of the traceroutes page and the target being edited are not in the address. They can be, later, without moving anything that is there now.
+
 ## 0.6.7
 
 Two things that drew the wrong thing on the page.

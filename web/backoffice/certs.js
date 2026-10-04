@@ -70,7 +70,7 @@ async function viewCerts(m){
             team that is not the one receiving network incidents.</small></div>
       </div>
       <div class="note">Messages leave through the channels configured in
-        <a href="#" data-goto="channels">Notification channels</a>, plus the addresses above.</div>
+        <a href="${pathOf("channels")}" data-goto="channels">Notification channels</a>, plus the addresses above.</div>
       <button class="btn p" id="ce_save">Save</button>`);
     document.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
     $("#ce_save").onclick=async()=>{

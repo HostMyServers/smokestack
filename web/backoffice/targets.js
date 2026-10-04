@@ -425,7 +425,7 @@ async function viewTargets(m){
           <button class="btn s" id="cpy">Copy</button>
           <span class="faint" style="font-size:11.5px;margin-left:8px">${l.expires_at?
             "expires "+new Date(l.expires_at*1000).toLocaleDateString():"no expiry"} ·
-            revoke it in <a href="#" data-goto="shares">Share links</a></span></div></td>`);
+            revoke it in <a href="${pathOf("shares")}" data-goto="shares">Share links</a></span></div></td>`);
         b.closest("tr").parentNode.insertBefore(box,b.closest("tr").nextSibling);
         box.querySelector("#cpy").onclick=()=>{navigator.clipboard?.writeText(l.url);toast("Link copied");};
         box.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
