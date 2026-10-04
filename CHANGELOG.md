@@ -2,9 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.2
 
-Nothing an operator configures. What changed is what the build is allowed to let through: the binaries were compiled by a Go that no longer receives security fixes, the container image was running on a distribution that had stopped publishing security advisories, and a dispatched release could carry a shell command inside its version number.
+Two batches in one version. The build was tightened: the binaries were compiled by a Go that no longer receives security fixes, the container image was running on a distribution that had stopped publishing security advisories, and a dispatched release could carry a shell command inside its version number. And the public pages lost what they were repeating — the footer is one line again, and the language is chosen from a flag rather than a list of ten names.
+
+An instance on automatic updates installs this by itself. Nothing to reconfigure.
 
 ### Fixed
 
