@@ -2,7 +2,13 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.3
+
+A version about the pages themselves. What a target page shows is unchanged; how much of it a reader has to walk past before reaching the measurements is not. Eight explanatory paragraphs fold behind a question mark, the route across the networks takes the width it describes, the footer is one line, and the corners are rounded half as much and from one place instead of sixty.
+
+Two choices that were not choices before: an operator decides whether the availability figure is published at all, and a visitor picks light or dark from a button in the header instead of inheriting whatever their system says.
+
+An instance on automatic updates installs this by itself. Nothing to reconfigure.
 
 ### New
 
