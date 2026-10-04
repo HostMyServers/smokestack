@@ -2,7 +2,15 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.5
+
+Nothing an operator configures, and nothing a visitor sees differently. What changed is how the pages are built: every piece of markup in the browser now goes through a template that escapes by default, instead of nine hundred places where somebody had to remember. The back-office, which was one file of 2 374 lines, is twenty files of one concern each.
+
+The conversion turned up three defects it was not looking for — a federation page that showed its peers as raw text, an internet exchange that never displayed its link speed, and a `javascript:` address that was escaped and then rendered anyway.
+
+Each step was checked by driving the pages in a browser before and after and comparing the markup produced, character for character, and by rendering names carrying `<img src=x onerror=…>` to confirm they stay text.
+
+An instance on automatic updates installs this by itself. Nothing to reconfigure.
 
 ### Fixed
 
