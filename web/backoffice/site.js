@@ -3,16 +3,16 @@
  * portee globale, comme app.js et i18n.js du site public. */
 /* ---------------------------------------------------- publisher page */
 async function viewSite(m){
-  m.innerHTML=`<h2>Publisher page</h2>
+  H.render(m,html`<h2>Publisher page</h2>
     <p class="lead">This information feeds the public <a href="/about" target="_blank">/about</a> page.
       The NOC phone number never appears there: it is only returned to authenticated calls.</p>
-    <div id="s">Loading…</div>`;
+    <div id="s">Loading…</div>`);
   try{
     const s=await api("GET","/api/v1/site");
     LANGS=(await api("GET","/api/v1/i18n").catch(()=>({languages:[]}))).languages;
-    const f=(id,lab,val,ph)=>`<div class="field"><label>${lab}</label>
-      <input id="${id}" value="${esc(val||"")}" placeholder="${esc(ph||"")}"></div>`;
-    $("#s").innerHTML=`<div class="card"><h3>Identity</h3><div class="body"><div class="row2">
+    const f=(id,lab,val,ph)=>html`<div class="field"><label>${lab}</label>
+      <input id="${id}" value="${val||""}" placeholder="${ph||""}"></div>`;
+    H.render($("#s"),html`<div class="card"><h3>Identity</h3><div class="body"><div class="row2">
       ${f("title","Instance title",s.title)}
       ${f("org","Organisation",s.org)}
       ${f("asn","AS number",s.asn,"AS64500")}
@@ -20,7 +20,7 @@ async function viewSite(m){
       ${f("location","Location",s.location,"Paris, FR")}
       ${f("timezone","Time zone",s.timezone,"Europe/Paris")}
       <div class="field"><label>Default language of public pages</label>
-        <select id="default_lang">${(LANGS||[]).map(l=>`<option value="${esc(l.code)}" ${l.code===(s.default_lang||"en")?"selected":""}>${esc(l.name)}</option>`).join("")}</select></div>
+        <select id="default_lang">${(LANGS||[]).map(l=>html`<option value="${l.code}" ${l.code===(s.default_lang||"en")?"selected":""}>${l.name}</option>`)}</select></div>
     </div></div></div>
     <div class="card"><h3>Contacts</h3><div class="body">
       <div class="field" style="max-width:420px"><label>How visitors reach you</label>
@@ -29,7 +29,7 @@ async function viewSite(m){
              ["email","Email address, assembled in JavaScript against harvesters"],
              ["links","Links to your own tools"],
              ["off","Nothing at all"]].map(([v,l])=>
-            `<option value="${v}" ${(s.contact_mode||(s.contact_form?"form":"off"))===v?"selected":""}>${esc(l)}</option>`).join("")}
+            html`<option value="${v}" ${(s.contact_mode||(s.contact_form?"form":"off"))===v?"selected":""}>${l}</option>`)}
         </select></div>
       <label class="chk"><input type="checkbox" id="captcha" ${s.captcha?"checked":""}>
         <span>Add a robot check to the form<small>A built-in proof-of-work check: nothing to read, so it
@@ -37,7 +37,7 @@ async function viewSite(m){
           Invisible to a person, expensive for a bot.</small></span></label>
       <div class="field"><label>Links (label | URL, one per line) — used by the “links” mode</label>
         <textarea id="contact_links" rows="3" placeholder="Support portal | https://support.example.net
-Mastodon | https://mastodon.example/@noc">${esc((s.contact_links||[]).map(l=>`${l.label} | ${l.url}`).join("\n"))}</textarea></div>
+Mastodon | https://mastodon.example/@noc">${(s.contact_links||[]).map(l=>`${l.label} | ${l.url}`).join("\n")}</textarea></div>
       <label class="chk"><input type="checkbox" id="show_email" ${s.show_email?"checked":""}>
         <span>Also publish the general email address<small>Off by default: an address on a public page
           ends up on spam lists. Leave it off to be reachable only through the form.</small></span></label>
@@ -108,10 +108,10 @@ Mastodon | https://mastodon.example/@noc">${esc((s.contact_links||[]).map(l=>`${
           never raises anything, whatever the factor.</div></div>
     </div></div>
     <div class="card"><h3>Texts</h3><div class="body">
-      <div class="field"><label>Description</label><textarea id="description" rows="3">${esc(s.description||"")}</textarea></div>
-      <div class="field"><label>Legal notice</label><textarea id="legal" rows="2">${esc(s.legal||"")}</textarea></div>
+      <div class="field"><label>Description</label><textarea id="description" rows="3">${s.description||""}</textarea></div>
+      <div class="field"><label>Legal notice</label><textarea id="legal" rows="2">${s.legal||""}</textarea></div>
       <button class="btn p" id="save">Save</button>
-    </div></div>`;
+    </div></div>`);
     document.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
     $("#save").onclick=async()=>{
       const ids=["title","org","asn","owner","location","timezone","email",
@@ -136,5 +136,5 @@ Mastodon | https://mastodon.example/@noc">${esc((s.contact_links||[]).map(l=>`${
       try{await api("PUT","/api/v1/admin/site",body);toast("Saved");}
       catch(e){toast(e.message,true);}
     };
-  }catch(e){$("#s").innerHTML=`<div class="note">${esc(e.message)}</div>`;}
+  }catch(e){H.render($("#s"),html`<div class="note">${e.message}</div>`);}
 }

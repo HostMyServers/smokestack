@@ -8,7 +8,7 @@ let EDIT=null;   // target being edited, null when creating
 
 async function viewTargets(m){
   const editing=!!EDIT;
-  m.innerHTML=`<h2>Targets and categories</h2>
+  H.render(m,html`<h2>Targets and categories</h2>
     <p class="lead">A burst must fit in its interval: packets × spacing + timeout must stay
       below 75 % of the interval. At 30 s, use 10 packets spaced by 200 ms.
       A <strong>private</strong> target is measured like any other but never appears on the public
@@ -26,7 +26,7 @@ async function viewTargets(m){
       <button class="btn p" id="addcat">Create the category</button>
     </div></div>
 
-    <div class="card" ${editing?'style="border-color:#93c5fd"':''}><h3>${editing?`Edit “${esc(EDIT.title)}”`:"New target"}</h3><div class="body">
+    <div class="card" ${editing?'style="border-color:#93c5fd"':''}><h3>${editing?`Edit “${EDIT.title}”`:"New target"}</h3><div class="body">
       <div class="row2">
         <div class="field"><label>Category</label><select id="tcat"></select></div>
         <div class="field"><label>Title</label><input id="ttitle" placeholder="Cogent Paris"></div>
@@ -41,7 +41,7 @@ async function viewTargets(m){
           <option value="icmp">ICMP</option><option value="tcp">TCP connect</option></select></div>
         <div class="field" id="portfield" hidden><label>TCP port</label>
           <input id="tport" list="ports" placeholder="443">
-          <datalist id="ports">${COMMON_PORTS.map(([p,l])=>`<option value="${p}">${p} — ${l}</option>`).join("")}</datalist></div>
+          <datalist id="ports">${COMMON_PORTS.map(([p,l])=>html`<option value="${p}">${p} — ${l}</option>`)}</datalist></div>
         <div class="note" style="grid-column:1/-1">Prefer a name over a public IP address.
           Publishing the address of a machine you do not own exposes it, and that stays the
           responsibility of whoever runs this instance — not of the tool. Public pages show only
@@ -57,7 +57,7 @@ async function viewTargets(m){
         <div class="field"><label>Interval (seconds, 10 to 86400 — empty inherits from the category)</label>
           <input id="tiv" type="number" min="10" max="86400" placeholder="—" list="ivs">
           <datalist id="ivs">${[[30,"30 s"],[60,"1 min"],[120,"2 min"],[300,"5 min"],[600,"10 min"],
-            [1800,"30 min"],[3600,"1 hour"]].map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</datalist>
+            [1800,"30 min"],[3600,"1 hour"]].map(([v,l])=>html`<option value="${v}">${l}</option>`)}</datalist>
           <div style="font-size:11px;color:var(--ink3);margin-top:3px">The burst must fit:
             packets × spacing + timeout under 75 % of the interval.</div></div>
         <div class="field"><label>Keep measurements for (days, 0 = instance tiers)</label>
@@ -94,9 +94,9 @@ async function viewTargets(m){
           here, but never appears on the public pages or in the public API.</small></span></label>
       <div class="acts">
         <button class="btn p" id="savetgt">${editing?"Save changes":"Create the target"}</button>
-        ${editing?`<button class="btn" id="canceledit">Cancel</button>`:""}
+        ${editing?html`<button class="btn" id="canceledit">Cancel</button>`:""}
       </div>
-      ${editing?"":`<div class="note" style="margin:12px 0 0">A new target is measured right away:
+      ${editing?"":html`<div class="note" style="margin:12px 0 0">A new target is measured right away:
         its first result appears within a few seconds, without waiting a whole interval.</div>`}
     </div></div>
     <div class="card"><h3>Ready-made targets</h3><div class="body">
@@ -114,18 +114,18 @@ async function viewTargets(m){
       <p style="margin:0 0 10px;font-size:13px;color:var(--ink2)">Deleting a target archives it: its
         measurements stay, its name becomes free again, and a new target of the same name never inherits
         its history. Purging removes an archived target and its measurements for good.</p>
-      <div id="arch">Loading…</div></div></div>`;
+      <div id="arch">Loading…</div></div></div>`);
 
   const tree=await api("GET","/api/v1/tree").catch(()=>[]);
-  $("#tcat").innerHTML=(tree||[]).map(c=>
-    `<option value="${c.id}">${esc(c.menu_en||c.menu_fr)}</option>`).join("")||
-    `<option value="">— create a category first —</option>`;
+  H.render($("#tcat"),(tree||[]).map(c=>
+    html`<option value="${c.id}">${c.menu_en||c.menu_fr}</option>`)||
+    html`<option value="">— create a category first —</option>`);
 
   /* categories */
-  $("#clist").innerHTML=(tree&&tree.length)?`<table><thead><tr><th>English label</th><th>French label</th>
-    <th>Targets</th><th></th></tr></thead><tbody>`+tree.map(c=>`<tr>
-      <td><input data-cen="${c.id}" value="${esc(c.menu_en||"")}" style="padding:4px 8px"></td>
-      <td><input data-cfr="${c.id}" value="${esc(c.menu_fr||"")}" style="padding:4px 8px"></td>
+  H.render($("#clist"),(tree&&tree.length)?html`<table><thead><tr><th>English label</th><th>French label</th>
+    <th>Targets</th><th></th></tr></thead><tbody>${tree.map(c=>html`<tr>
+      <td><input data-cen="${c.id}" value="${c.menu_en||""}" style="padding:4px 8px"></td>
+      <td><input data-cfr="${c.id}" value="${c.menu_fr||""}" style="padding:4px 8px"></td>
       <td>${(c.targets||[]).length}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn s" data-cup="${c.id}" title="Move up">↑</button>
@@ -147,16 +147,15 @@ async function viewTargets(m){
                              ["loss_warn","Warn above loss (%)",0,100,0.1],
                              ["loss_crit","Critical above loss (%)",0,100,0.1],
                              ["lat_factor","Latency factor",0,100,0.05]]
-          .map(([k,label,min,max,step])=>`<div class="field"><label>${esc(label)}
+          .map(([k,label,min,max,step])=>html`<div class="field"><label>${label}
             <span class="faint" style="font-weight:400" id="cnt-${c.id}-${k}"></span></label>
             <input id="cp-${c.id}-${k}" type="number" min="${min}" max="${max}" step="${step}"
-              value="${(c.params&&c.params[k])||""}" placeholder="—"></div>`).join("")}</div>
+              value="${(c.params&&c.params[k])||""}" placeholder="—"></div>`)}</div>
         <div class="acts">
           <button class="btn p s" data-cpsave="${c.id}">Save parameters</button>
           <button class="btn s" data-cpreset="${c.id}"
             title="Clear these fields on every target of the category, so its values apply">
-            Make its targets inherit…</button></div></td></tr>`).join("")+
-    `</tbody></table>`:`<div class="empty">No category yet.</div>`;
+            Make its targets inherit…</button></div></td></tr>`)}</tbody></table>`:html`<div class="empty">No category yet.</div>`);
   document.querySelectorAll("[data-csave]").forEach(b=>b.onclick=async()=>{
     const id=b.dataset.csave;
     try{await api("PATCH","/api/v1/admin/categories/"+id,
@@ -282,14 +281,14 @@ async function viewTargets(m){
     const sug=await api("GET","/api/v1/admin/suggested");
     const groups={};
     (sug||[]).forEach(x=>{(groups[x.group]=groups[x.group]||[]).push(x);});
-    $("#sug").innerHTML=Object.entries(groups).map(([g,items])=>`
-      <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px;margin-bottom:4px">${esc(g)}</div>
-      ${items.map(x=>`<label class="chk" style="margin:3px 0">
-        <input type="checkbox" data-sug="${esc(x.key)}" ${x.existing?"disabled":""}>
-        <span>${esc(x.title)} <span class="mono" style="color:var(--ink2)">${esc(x.host)}${x.port?":"+x.port:""}</span>
-          ${x.existing?'<span class="badge b-n">already added</span>':""}
-          ${x.note?`<small>${esc(x.note)}</small>`:""}</span></label>`).join("")}</div>`).join("")+
-      `<button class="btn p" id="addsug">Add the selected targets</button>`;
+    H.render($("#sug"),Object.entries(groups).map(([g,items])=>html`
+      <div style="margin-bottom:10px"><div style="font-weight:600;font-size:12.5px;margin-bottom:4px">${g}</div>
+      ${items.map(x=>html`<label class="chk" style="margin:3px 0">
+        <input type="checkbox" data-sug="${x.key}" ${x.existing?"disabled":""}>
+        <span>${x.title} <span class="mono" style="color:var(--ink2)">${x.host}${x.port?":"+x.port:""}</span>
+          ${x.existing?html`<span class="badge b-n">already added</span>`:""}
+          ${x.note?html`<small>${x.note}</small>`:""}</span></label>`)}</div>`).concat(
+      html`<button class="btn p" id="addsug">Add the selected targets</button>`));
     $("#addsug").onclick=async()=>{
       const keys=[...document.querySelectorAll("[data-sug]:checked")].map(i=>i.dataset.sug);
       if(!keys.length){toast("Nothing selected",true);return;}
@@ -297,24 +296,24 @@ async function viewTargets(m){
         toast(`${r.added} target(s) added`+(r.skipped?`, ${r.skipped} skipped`:""));render();}
       catch(e){toast(e.message,true);}
     };
-  }catch(e){$("#sug").innerHTML=`<div class="note">${esc(e.message)}</div>`;}
+  }catch(e){H.render($("#sug"),html`<div class="note">${e.message}</div>`);}
 
   /* archived targets */
   try{
     const arch=await api("GET","/api/v1/admin/targets/archived");
-    $("#arch").innerHTML=(arch&&arch.length)?`<table class="resp"><thead><tr><th>Target</th>
-      <th>Archived</th><th></th></tr></thead><tbody>`+arch.map(t=>`<tr>
-      <td class="ttl" data-l=""><div>${esc(t.title)}</div>
-        <div class="mono" style="font-size:11.5px;color:var(--ink2)">${esc(t.host)}${t.port?":"+t.port:""}</div></td>
+    H.render($("#arch"),(arch&&arch.length)?html`<table class="resp"><thead><tr><th>Target</th>
+      <th>Archived</th><th></th></tr></thead><tbody>${arch.map(t=>html`<tr>
+      <td class="ttl" data-l=""><div>${t.title}</div>
+        <div class="mono" style="font-size:11.5px;color:var(--ink2)">${t.host}${t.port?":"+t.port:""}</div></td>
       <td data-l="Archived">${new Date(t.archived_at*1000).toLocaleDateString()}</td>
       <td class="acts" data-l=""><button class="btn d s" data-purge="${t.id}">Purge for good</button></td>
-      </tr>`).join("")+`</tbody></table>`:`<div class="empty">Nothing archived.</div>`;
+      </tr>`)}</tbody></table>`:html`<div class="empty">Nothing archived.</div>`);
     document.querySelectorAll("[data-purge]").forEach(b=>b.onclick=async()=>{
       if(!confirm("Purge this archived target and all its measurements? This cannot be undone.")) return;
       try{await api("DELETE","/api/v1/admin/targets/"+b.dataset.purge+"?purge=1");
         toast("Archived target purged");render();}catch(e){toast(e.message,true);}
     });
-  }catch(e){$("#arch").innerHTML=`<div class="note">${esc(e.message)}</div>`;}
+  }catch(e){H.render($("#arch"),html`<div class="note">${e.message}</div>`);}
 
   /* target list */
   try{
@@ -323,42 +322,41 @@ async function viewTargets(m){
     // Host and category sit under the title: fewer columns, and the table
     // turns into one card per target on a phone.
     const cname={}; (tree||[]).forEach(c=>cname[c.id]=c.menu_en||c.menu_fr);
-    $("#tlist").innerHTML=(list&&list.length)?`<table class="resp">
+    H.render($("#tlist"),(list&&list.length)?html`<table class="resp">
       <thead><tr><th title="Critical target: always shown at the top of the home page">★</th><th>Target</th>
-      <th>Family</th><th>Check</th><th>Interval</th><th>Alerts</th><th>Visibility</th><th></th></tr></thead><tbody>`+
-      list.map(t=>`<tr><td data-l=""><button class="btn s" data-star="${t.id}" title="Critical target"
+      <th>Family</th><th>Check</th><th>Interval</th><th>Alerts</th><th>Visibility</th><th></th></tr></thead><tbody>${list.map(t=>html`<tr><td data-l=""><button class="btn s" data-star="${t.id}" title="Critical target"
           style="color:${F.has(t.id)?"#d97706":"var(--ink3)"}">${F.has(t.id)?"★":"☆"}</button></td>
-        <td class="ttl" data-l="" style="text-align:left"><div style="font-weight:550">${esc(t.title)}</div>
-          <div class="mono" style="font-size:11.5px;color:var(--ink2)">${esc(t.host)}${t.port?":"+t.port:""}</div>
-          <div style="font-size:11.5px;color:var(--ink3)">${esc(cname[t.category_id]||"—")}</div>
-          ${t.hide_host?`<div class="tpin">🙈 address hidden on the public page</div>`:""}
-          ${t.pin_ip?`<div class="tpin">📌 pinned to ${esc(t.pin_ip)}
+        <td class="ttl" data-l="" style="text-align:left"><div style="font-weight:550">${t.title}</div>
+          <div class="mono" style="font-size:11.5px;color:var(--ink2)">${t.host}${t.port?":"+t.port:""}</div>
+          <div style="font-size:11.5px;color:var(--ink3)">${cname[t.category_id]||"—"}</div>
+          ${t.hide_host?html`<div class="tpin">🙈 address hidden on the public page</div>`:""}
+          ${t.pin_ip?html`<div class="tpin">📌 pinned to ${t.pin_ip}
             <button class="btn s" data-unpin="${t.id}">Unpin</button></div>`:
-            ((t.addresses||[]).length>1?`<div class="twarn">This name answered from
+            ((t.addresses||[]).length>1?html`<div class="twarn">This name answered from
               ${(t.addresses||[]).length} different addresses in the last 24 h
-              (${esc((t.addresses||[]).slice(0,3).join(", "))}${(t.addresses||[]).length>3?"…":""}).
+              (${(t.addresses||[]).slice(0,3).join(", ")}${(t.addresses||[]).length>3?"…":""}).
               The graph mixes several machines, and a server that does not answer ICMP shows up as loss.
-              <button class="btn s" data-pin="${t.id}" data-ip="${esc(t.addresses[0])}">Pin ${esc(t.addresses[0])}</button>
+              <button class="btn s" data-pin="${t.id}" data-ip="${t.addresses[0]}">Pin ${t.addresses[0]}</button>
               </div>`:"")}
-          ${(t.family||0)===0?`<div class="${t.mixed_family?"twarn":"tpin"}">
+          ${(t.family||0)===0?html`<div class="${t.mixed_family?"twarn":"tpin"}">
             ${t.mixed_family
-              ? `This target states no address family and its measurements <strong>mixed IPv4 and
+              ? html`This target states no address family and its measurements <strong>mixed IPv4 and
                  IPv6</strong> in the last 24 h. The two cross different networks, so its history
                  holds two paths with no way to tell them apart. Pick one:`
-              : `This target states no address family. It measured over
+              : html`This target states no address family. It measured over
                  <strong>IPv${t.measured_family||4}</strong>, but that can change on its own if the
                  name gains or loses a record. State it:`}
             <button class="btn s" data-fam4="${t.id}">Set IPv4</button>
             <button class="btn s" data-fam6="${t.id}">Set IPv6</button></div>`:""}
-          ${t.last_error?`<div class="terr" title="Last failure: ${esc(new Date(t.last_error_ts*1000).toLocaleString())}">
-            ⚠ ${esc(t.last_error)}</div>`:""}</td>
-        <td data-l="Family">${FAMILY[t.family||0]}</td><td data-l="Check">${esc(t.proto)}</td>
+          ${t.last_error?html`<div class="terr" title="Last failure: ${new Date(t.last_error_ts*1000).toLocaleString()}">
+            ⚠ ${t.last_error}</div>`:""}</td>
+        <td data-l="Family">${FAMILY[t.family||0]}</td><td data-l="Check">${t.proto}</td>
         <td data-l="Interval">${t.interval_s} s</td>
         <td data-l="Alerts"><button class="btn s" data-alert="${t.id}" data-off="${t.alerts_off?1:0}"
           title="Alert when this target stays in incident">${t.alerts_off?
-            '<span class="badge b-n">off</span>':'<span class="badge b-ok">on</span>'}</button></td>
+            html`<span class="badge b-n">off</span>`:html`<span class="badge b-ok">on</span>`}</button></td>
         <td data-l="Visibility"><button class="btn s" data-vis="${t.id}" data-pub="${t.public?1:0}"
-          title="Click to switch">${t.public?'<span class="badge b-ok">public</span>':'<span class="badge b-warn">private</span>'}</button></td>
+          title="Click to switch">${t.public?html`<span class="badge b-ok">public</span>`:html`<span class="badge b-warn">private</span>`}</button></td>
         <td class="acts" data-l="" style="text-align:right;white-space:nowrap">
           <button class="btn s" data-edit="${t.id}">Edit</button>
           <button class="btn s" data-now="${t.id}" title="Measure right away">Check now</button>
@@ -369,7 +367,7 @@ async function viewTargets(m){
             title="Measure the same service in the other address family, as its own target">
             ${t.family===4?"Also IPv6":t.family===6?"Also IPv4":"Split v4 / v6"}</button>
           <button class="btn d s" data-del="${t.id}">Delete</button></td>
-        </tr>`).join("")+`</tbody></table>`:`<div class="empty">No target yet.</div>`;
+        </tr>`)}</tbody></table>`:html`<div class="empty">No target yet.</div>`);
     const setFamily=async(id,fam)=>{
       try{await api("PATCH","/api/v1/admin/targets/"+id,{family:fam});
         toast("Target set to IPv"+fam);render();}
@@ -421,13 +419,13 @@ async function viewTargets(m){
         const l=await api("POST","/api/v1/admin/targets/"+b.dataset.share+"/share",
           {days:parseInt(days||"30",10),note});
         const box=document.createElement("tr");
-        box.innerHTML=`<td colspan="9"><div class="note" style="margin:0">
+        H.render(box,html`<td colspan="9"><div class="note" style="margin:0">
           <strong>Share link created</strong> — copy it now, it is not shown again:
-          <div class="mono" style="margin:6px 0;word-break:break-all;font-size:12px">${esc(l.url)}</div>
+          <div class="mono" style="margin:6px 0;word-break:break-all;font-size:12px">${l.url}</div>
           <button class="btn s" id="cpy">Copy</button>
           <span class="faint" style="font-size:11.5px;margin-left:8px">${l.expires_at?
             "expires "+new Date(l.expires_at*1000).toLocaleDateString():"no expiry"} ·
-            revoke it in <a href="#" data-goto="shares">Share links</a></span></div></td>`;
+            revoke it in <a href="#" data-goto="shares">Share links</a></span></div></td>`);
         b.closest("tr").parentNode.insertBefore(box,b.closest("tr").nextSibling);
         box.querySelector("#cpy").onclick=()=>{navigator.clipboard?.writeText(l.url);toast("Link copied");};
         box.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
@@ -441,15 +439,15 @@ async function viewTargets(m){
         const VERD={clean:"b-ok","rate limiting":"b-warn","real outages":"b-crit",
                     "scattered loss":"b-warn","not enough data":"b-n"};
         const box=document.createElement("tr");
-        box.innerHTML=`<td colspan="8"><div class="note" style="margin:0">
-          <span class="badge ${VERD[a.verdict]||"b-n"}">${esc(a.verdict)}</span>
-          ${a.loss_pct?` <strong>${a.loss_pct.toFixed(2)} %</strong> loss over 24 h`:""}
-          <div style="margin-top:6px">${esc(a.detail)}</div>
-          ${(a.suggestions||[]).map((s,i)=>`<div style="margin-top:8px">
-            <strong>${esc(s.label)}</strong> — ${esc(s.why)}
-            <button class="btn p s" data-apply="${id}" data-patch="${esc(JSON.stringify(s.patch))}"
-              style="margin-left:8px">Apply</button></div>`).join("")}
-          </div></td>`;
+        H.render(box,html`<td colspan="8"><div class="note" style="margin:0">
+          <span class="badge ${VERD[a.verdict]||"b-n"}">${a.verdict}</span>
+          ${a.loss_pct?html` <strong>${a.loss_pct.toFixed(2)} %</strong> loss over 24 h`:""}
+          <div style="margin-top:6px">${a.detail}</div>
+          ${(a.suggestions||[]).map((s,i)=>html`<div style="margin-top:8px">
+            <strong>${s.label}</strong> — ${s.why}
+            <button class="btn p s" data-apply="${id}" data-patch="${JSON.stringify(s.patch)}"
+              style="margin-left:8px">Apply</button></div>`)}
+          </div></td>`);
         host.parentNode.insertBefore(box,host.nextSibling);
         box.querySelectorAll("[data-apply]").forEach(ab=>ab.onclick=async()=>{
           try{await api("PATCH","/api/v1/admin/targets/"+ab.dataset.apply,JSON.parse(ab.dataset.patch));
@@ -469,5 +467,5 @@ async function viewTargets(m){
       try{await api("DELETE","/api/v1/admin/targets/"+b.dataset.del);
         toast("Target deleted");render();}catch(e){toast(e.message,true);}
     });
-  }catch(e){$("#tlist").innerHTML=`<div class="note">${esc(e.message)}</div>`;}
+  }catch(e){H.render($("#tlist"),html`<div class="note">${e.message}</div>`);}
 }

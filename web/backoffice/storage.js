@@ -3,27 +3,27 @@
  * portee globale, comme app.js et i18n.js du site public. */
 /* ----------------------------------------------------------- storage */
 async function viewStorage(m){
-  m.innerHTML=`<h2>Storage</h2>
+  H.render(m,html`<h2>Storage</h2>
     <p class="lead">Hourly and daily aggregates are never evicted. Only the raw archive is
       rotated, and chunks already stored on S3 go first since they remain retrievable.</p>
-    <div id="s">Loading…</div>`;
+    <div id="s">Loading…</div>`);
   try{
     const d=await api("GET","/api/v1/admin/storage");
     const c=d.config,r=d.report||{},s3=c.s3||{},lo=c.local||{};
-    $("#s").innerHTML=`<div class="card"><h3>Mode</h3><div class="body">
+    H.render($("#s"),html`<div class="card"><h3>Mode</h3><div class="body">
       <div class="field"><label>Policy</label><select id="mode">
         <option value="local" ${c.mode==="local"?"selected":""}>Local only (capacity-based rotation)</option>
         <option value="s3" ${c.mode==="s3"?"selected":""}>S3 first</option>
         <option value="hybrid" ${c.mode==="hybrid"?"selected":""}>Hybrid (local, then S3)</option>
       </select></div></div></div>
       <div class="card"><h3>S3 target</h3><div class="body"><div class="row2">
-        <div class="field"><label>Endpoint</label><input id="ep" value="${esc(s3.endpoint||"")}" placeholder="s3.fr-par.scw.cloud"></div>
-        <div class="field"><label>Bucket</label><input id="bk" value="${esc(s3.bucket||"")}"></div>
-        <div class="field"><label>Prefix</label><input id="px" value="${esc(s3.prefix||"")}"></div>
-        <div class="field"><label>Region</label><input id="rg" value="${esc(s3.region||"")}"></div>
-        <div class="field"><label>Access key</label><input id="ak" value="${esc(s3.access_key||"")}"></div>
+        <div class="field"><label>Endpoint</label><input id="ep" value="${s3.endpoint||""}" placeholder="s3.fr-par.scw.cloud"></div>
+        <div class="field"><label>Bucket</label><input id="bk" value="${s3.bucket||""}"></div>
+        <div class="field"><label>Prefix</label><input id="px" value="${s3.prefix||""}"></div>
+        <div class="field"><label>Region</label><input id="rg" value="${s3.region||""}"></div>
+        <div class="field"><label>Access key</label><input id="ak" value="${s3.access_key||""}"></div>
         <div class="field"><label>Secret key</label><input id="sk" type="password" placeholder="unchanged"></div>
-        <div class="field"><label>Storage class</label><input id="cl" value="${esc(s3.storage_class||"")}"></div>
+        <div class="field"><label>Storage class</label><input id="cl" value="${s3.storage_class||""}"></div>
         <label class="chk"><input type="checkbox" id="ps" ${s3.path_style?"checked":""}><span>Path-style URLs (MinIO, Ceph)</span></label>
       </div></div></div>
       <div class="card"><h3>Local rotation</h3><div class="body"><div class="row2">
@@ -37,11 +37,11 @@ async function viewStorage(m){
       <div class="card"><h3>Status</h3><div class="body"><table><tbody>
         <tr><td style="width:210px">Local archive</td><td>${gb(r.local_bytes||0)} / ${gb(r.quota_bytes||0)}</td></tr>
         <tr><td>Disk usage</td><td>${((r.disk_used_pct||0)*100).toFixed(1)} %
-          ${r.degraded?'<span class="badge b-crit">degraded mode</span>':""}</td></tr>
+          ${r.degraded?html`<span class="badge b-crit">degraded mode</span>`:""}</td></tr>
         <tr><td>Chunks</td><td>${r.chunks||0}</td></tr>
         <tr><td>Pending uploads</td><td>${r.pending_uploads||0}</td></tr>
         <tr><td>Projected retention</td><td>${r.projected_days?r.projected_days.toFixed(0)+" days":"—"}</td></tr>
-      </tbody></table></div></div>`;
+      </tbody></table></div></div>`);
     document.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
     $("#save").onclick=async()=>{
       try{
@@ -57,5 +57,5 @@ async function viewStorage(m){
         toast("Saved");render();
       }catch(e){toast(e.message,true);}
     };
-  }catch(e){$("#s").innerHTML=`<div class="note">${esc(e.message)}</div>`;}
+  }catch(e){H.render($("#s"),html`<div class="note">${e.message}</div>`);}
 }

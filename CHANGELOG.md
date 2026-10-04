@@ -96,6 +96,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
   `find web -name "*.js"` in the CI replaces `web/*.js`, which would have stopped checking the back-office the moment it was split, and a page's references to its own scripts and stylesheets are now versioned by pattern rather than from a list of five names that the twenty new files would have silently fallen off.
 
+- **The back-office assembles its markup with the template too.**
+
+  The twenty files of `/backoffice/` lose **238 `esc()` calls and 99 `innerHTML` assignments**, and gain no `H.raw`: not one place in the back-office needs to say a value is already markup. Nothing on any page of this instance, public or authenticated, is built by joining strings any more.
+
+  Three things came out of the conversion, each a defect that escaping by hand had hidden. Markup stored in plain strings — forty-two `'<span class="badge">…</span>'` — was invisible to the eye as markup and had to become templates. Five `.map(esc).join("<br>")` escaped their items and left the separator as live markup, which is the right answer written the wrong way round. And a boolean dropped into an attribute, `aria-pressed="${kind === k}"`, printed nothing at either end.
+
+  Checked by driving all twenty-one views before and after and comparing the markup produced, then again with the API client substituted so that every view has rows to draw, each carrying `<img src=x onerror=…>` in every text field: no tag appears escaped anywhere, nothing executes, and the name shows as the text it is. The second pass matters — a view whose table is empty on the instance used for the check compares equal to itself whatever its row path does.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**
