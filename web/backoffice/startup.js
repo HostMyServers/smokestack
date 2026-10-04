@@ -13,7 +13,7 @@
       return shell();}
     gateLogin();
   }catch(e){
-    $("#app").innerHTML=`<div class="gate"><div class="gatebox">
-      <h1>Instance unreachable</h1><p class="sub">${esc(e.message)}</p></div></div>`;
+    H.render($("#app"),html`<div class="gate"><div class="gatebox">
+      <h1>Instance unreachable</h1><p class="sub">${e.message}</p></div></div>`);
   }
 })();

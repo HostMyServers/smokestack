@@ -21,10 +21,10 @@ async function api(method,path,body){
   if(!r.ok) throw new Error((data&&data.error)||("HTTP "+r.status));
   return data;
 }
-const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,
-  c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-// Échapper ne protège pas un href : javascript:… reste cliquable. Toute
-// URL qui vient d'ailleurs (pair, PeeringDB) passe par ici.
+// Le balisage est assemblé par le gabarit de html.js : il échappe par
+// défaut, et H.raw serait le seul moyen de dire qu'une valeur est déjà
+// du balisage — le back-office n'en a besoin nulle part.
+const { html } = H;
 // An empty numeric field means "inherit", which the API spells as zero.
 const num0=v=>{const t=String(v==null?"":v).trim();return t===""?0:parseInt(t,10)||0;};
 // What this target would inherit if its fields stay empty, shown under them.
@@ -35,18 +35,21 @@ async function showInherited(catID){
     const r=await api("GET","/api/v1/admin/categories/"+catID+"/params");
     const p=r.params||{}, shipped={interval_s:60,packets:20,spacing_ms:500,timeout_ms:2000};
     const eff=k=>p[k]||shipped[k];
-    box.innerHTML="Left empty, this target measures "+eff("packets")+" packets spaced by "+
+    box.textContent=("Left empty, this target measures "+eff("packets")+" packets spaced by "+
       eff("spacing_ms")+" ms every "+eff("interval_s")+" s, timing out after "+eff("timeout_ms")+
       " ms"+(Object.keys(p).length?" — from this category":" — the shipped values, this category lending none")+
-      ". Changing the category later changes this target with it.";
+      ". Changing the category later changes this target with it.");
     box.style.display="";
     ["interval_s","packets","spacing_ms","timeout_ms"].forEach((k,i)=>{
       const el=$("#"+["tiv","tpk","tsp","tto"][i]); if(el) el.placeholder=String(eff(k));
     });
   }catch(e){box.style.display="none";}
 }
-const escURL=s=>{const v=String(s==null?"":s).trim();
-  return /^https?:\/\/[^\s]+$/i.test(v)?esc(v):"";};
+// Échapper ne protège pas un href : javascript:… reste cliquable. Toute
+// URL qui vient d'ailleurs (pair, PeeringDB) passe par ici, et revient
+// non échappée parce que le gabarit où elle atterrit s'en charge.
+const escURL = H.url;
+
 const dt=ts=>ts?new Date(ts*1000).toLocaleString("en-GB",
   {day:"2-digit",month:"short",year:"2-digit",hour:"2-digit",minute:"2-digit"}):"—";
 const gb=b=>(b/1073741824).toFixed(2)+" GB";

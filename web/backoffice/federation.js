@@ -3,7 +3,7 @@
  * portee globale, comme app.js et i18n.js du site public. */
 /* -------------------------------------------------------- federation */
 async function viewFed(m){
-  m.innerHTML=`<h2>Peers and pairing</h2>
+  H.render(m,html`<h2>Peers and pairing</h2>
     <p class="lead">Pairing requires a human decision on both sides. You send a justified request
       to the public URL of another instance; its administrator sees it here, compares your
       fingerprint with the one exchanged out of band, reads your justification, then accepts
@@ -16,7 +16,7 @@ async function viewFed(m){
       your AS number and where you measure from — and pick the ones whose paths interest you.
       Pairing still needs a human decision on both sides, so publishing your URL commits you to nothing.
     </div>
-    <div id="f">Loading…</div>`;
+    <div id="f">Loading…</div>`);
   try{
     const [id,pairings,peers,info]=await Promise.all([
       api("GET","/api/v1/admin/fed/identity"),
@@ -29,28 +29,27 @@ async function viewFed(m){
     const outbound=(pairings||[]).filter(p=>p.direction==="out");
     PENDING=inbound.length;
 
-    let html=`<div class="card"><h3>Our identity</h3><div class="body"><table><tbody>
-        <tr><td style="width:210px">AS number</td><td class="mono">${esc(id.profile.asn||"— not set —")}</td></tr>
-        <tr><td>Organisation</td><td>${esc(id.profile.org||"—")}</td></tr>
-        <tr><td>Pairing page to share</td><td class="mono">${esc((id.profile.url||"")+"/pairing")}</td></tr>
-        <tr><td>Fingerprint</td><td class="mono fp">${esc(id.fingerprint)}</td></tr>
-        <tr><td>Declared anchors</td><td class="mono">${(id.profile.anchors||[]).map(esc).join(", ")||"—"}</td></tr>
-      </tbody></table></div></div>`;
+    const out=[html`<div class="card"><h3>Our identity</h3><div class="body"><table><tbody>
+        <tr><td style="width:210px">AS number</td><td class="mono">${id.profile.asn||"— not set —"}</td></tr>
+        <tr><td>Organisation</td><td>${id.profile.org||"—"}</td></tr>
+        <tr><td>Pairing page to share</td><td class="mono">${(id.profile.url||"")+"/pairing"}</td></tr>
+        <tr><td>Fingerprint</td><td class="mono fp">${id.fingerprint}</td></tr>
+        <tr><td>Declared anchors</td><td class="mono">${(id.profile.anchors||[]).join(", ")||"—"}</td></tr>
+      </tbody></table></div></div>`];
 
-    html+=`<div class="card"><h3>Incoming requests`+
-      (inbound.length?` <span class="badge b-crit">${inbound.length}</span>`:"")+`</h3><div class="body">`;
-    html+= inbound.length? inbound.map(p=>`<div class="pend">
+    out.push(html`<div class="card"><h3>Incoming requests${(inbound.length?html` <span class="badge b-crit">${inbound.length}</span>`:"")}</h3><div class="body">`);
+    out.push(inbound.length? inbound.map(p=>html`<div class="pend">
       <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
-        <strong>${esc(p.org||"(no name)")}</strong><span class="mono">${esc(p.asn)}</span>
-        ${p.contact_name?`<span style="font-size:12px;color:var(--ink2)">· ${esc(p.contact_name)}</span>`:""}
+        <strong>${p.org||"(no name)"}</strong><span class="mono">${p.asn}</span>
+        ${p.contact_name?html`<span style="font-size:12px;color:var(--ink2)">· ${p.contact_name}</span>`:""}
         <span style="margin-left:auto;font-size:12px;color:var(--ink2)">${dt(p.created_at)}</span>
       </div>
-      <div class="mono" style="font-size:12px;color:var(--ink2);margin-top:3px">${esc(p.url)}</div>
-      <div style="margin-top:8px;font-size:12px">Announced fingerprint: <span class="mono fp">${esc(p.fingerprint)}</span></div>
-      <div class="quote"><span class="lbl">Justification</span>${esc(p.justification)}</div>
-      ${p.private_note?`<div class="quote priv"><span class="lbl">Private note for you</span>${esc(p.private_note)}</div>`:""}
-      <div style="font-size:12px;color:var(--ink2)">Anchors: <span class="mono">${(p.anchors||[]).map(esc).join(", ")||"—"}</span>
-        · Public listing: ${p.public_listing?'<span class="badge b-ok">accepted by the requester</span>':'<span class="badge b-n">declined by the requester</span>'}</div>
+      <div class="mono" style="font-size:12px;color:var(--ink2);margin-top:3px">${p.url}</div>
+      <div style="margin-top:8px;font-size:12px">Announced fingerprint: <span class="mono fp">${p.fingerprint}</span></div>
+      <div class="quote"><span class="lbl">Justification</span>${p.justification}</div>
+      ${p.private_note?html`<div class="quote priv"><span class="lbl">Private note for you</span>${p.private_note}</div>`:""}
+      <div style="font-size:12px;color:var(--ink2)">Anchors: <span class="mono">${(p.anchors||[]).join(", ")||"—"}</span>
+        · Public listing: ${p.public_listing?html`<span class="badge b-ok">accepted by the requester</span>`:html`<span class="badge b-n">declined by the requester</span>`}</div>
       <div class="field" style="margin-top:11px"><label>Fingerprint as the operator gave it to you
         <span style="color:var(--crit)">*</span> — required to accept</label>
         <input class="mono" id="fpc${p.id}" placeholder="0000-0000-0000-0000" autocomplete="off">
@@ -66,10 +65,10 @@ async function viewFed(m){
       <div class="acts">
         <button class="btn p s" data-acc="${p.id}">Accept the pairing</button>
         <button class="btn d s" data-rej="${p.id}">Decline</button>
-      </div></div>`).join("") : `<div class="empty">No pending request.</div>`;
-    html+=`</div></div>`;
+      </div></div>`) : html`<div class="empty">No pending request.</div>`);
+    out.push(html`</div></div>`);
 
-    html+=`<div class="card"><h3>Request a pairing</h3><div class="body">
+    out.push(html`<div class="card"><h3>Request a pairing</h3><div class="body">
       <div class="field"><label>Public URL of the other instance</label>
         <input id="purl" placeholder="https://smokestack.example.net/pairing"></div>
       <div class="field"><label>Justification <span style="color:var(--crit)">*</span>
@@ -78,44 +77,43 @@ async function viewFed(m){
         <div class="counter" id="pjc">0 / ${MINJ}</div></div>
       <div class="field"><label>Private note for the remote administrator (optional)</label>
         <textarea id="pnote" rows="2" placeholder="Hello, following our chat at the last RIPE meeting…"></textarea></div>
-      <div class="row2"><div class="field"><label>Signing contact</label><input id="pcontact" value="${esc(ME.display_name)}"></div></div>
+      <div class="row2"><div class="field"><label>Signing contact</label><input id="pcontact" value="${ME.display_name}"></div></div>
       <label class="chk"><input type="checkbox" id="ppub" checked>
         <span>Agree to this pairing being listed publicly<small>On both sides, listing requires both parties to agree.
           You can hide it later.</small></span></label>
       <button class="btn p" id="pgo">Send the request</button>
       <div class="note" style="margin-top:12px">The justification and the private note are only sent to the
         remote administrator. They never appear on any public page.</div>
-    </div></div>`;
+    </div></div>`);
 
-    html+=`<div class="card"><h3>Sent requests</h3><div class="body">`;
-    html+= outbound.length? outbound.map(p=>`<div style="padding:10px 0;border-top:1px solid var(--line2)">
+    out.push(html`<div class="card"><h3>Sent requests</h3><div class="body">`);
+    out.push(outbound.length? outbound.map(p=>html`<div style="padding:10px 0;border-top:1px solid var(--line2)">
       <div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap">
-        <span class="mono" style="font-weight:600">${esc(p.asn)}</span><span>${esc(p.org)}</span>
-        <span class="badge ${p.state==="accepted"?"b-ok":p.state==="pending"?"b-warn":"b-crit"}">${esc(p.state)}</span>
+        <span class="mono" style="font-weight:600">${p.asn}</span><span>${p.org}</span>
+        <span class="badge ${p.state==="accepted"?"b-ok":p.state==="pending"?"b-warn":"b-crit"}">${p.state}</span>
         <span style="margin-left:auto;font-size:12px;color:var(--ink2)">${dt(p.created_at)}</span></div>
-      <div class="mono" style="font-size:11.5px;color:var(--ink3);margin-top:2px">remote fingerprint ${esc(p.fingerprint)}</div>
-      <div class="quote"><span class="lbl">Your justification</span>${esc(p.justification)}</div>
-      ${p.reply_note?`<div class="quote priv"><span class="lbl">Reply from ${esc(p.org)}</span>${esc(p.reply_note)}</div>`:""}
-      ${p.error?`<div style="font-size:12px;color:var(--crit)">${esc(p.error)}</div>`:""}
-    </div>`).join("") : `<div class="empty">No request sent.</div>`;
-    html+=`</div></div>`;
+      <div class="mono" style="font-size:11.5px;color:var(--ink3);margin-top:2px">remote fingerprint ${p.fingerprint}</div>
+      <div class="quote"><span class="lbl">Your justification</span>${p.justification}</div>
+      ${p.reply_note?html`<div class="quote priv"><span class="lbl">Reply from ${p.org}</span>${p.reply_note}</div>`:""}
+      ${p.error?html`<div style="font-size:12px;color:var(--crit)">${p.error}</div>`:""}
+    </div>`) : html`<div class="empty">No request sent.</div>`);
+    out.push(html`</div></div>`);
 
-    html+=`<div class="card"><h3>Peers</h3><div class="body">`;
-    html+= (peers&&peers.length)?`<table><thead><tr><th>AS</th><th>Organisation</th>
-      <th>Fingerprint</th><th>Public</th><th>Last seen</th><th></th></tr></thead><tbody>`+
-      peers.map(p=>`<tr><td class="mono">${esc(p.asn)}</td><td>${esc(p.org)}
-        <div style="font-size:11.5px;color:var(--ink3)">${esc(p.noc_email||"")}</div></td>
-        <td class="mono" style="font-size:12px">${esc(p.fingerprint)}</td>
+    out.push(html`<div class="card"><h3>Peers</h3><div class="body">`);
+    out.push((peers&&peers.length)?html`<table><thead><tr><th>AS</th><th>Organisation</th>
+      <th>Fingerprint</th><th>Public</th><th>Last seen</th><th></th></tr></thead><tbody>${peers.map(p=>html`<tr><td class="mono">${p.asn}</td><td>${p.org}
+        <div style="font-size:11.5px;color:var(--ink3)">${p.noc_email||""}</div></td>
+        <td class="mono" style="font-size:12px">${p.fingerprint}</td>
         <td><label class="chk" style="margin:0"><input type="checkbox" data-pubtog="${p.id}"
           ${p.public?"checked":""} ${p.peer_consent?"":"disabled"}>
           <span style="font-size:12px">${p.peer_consent?(p.public?"listed":"hidden"):"no consent"}</span></label></td>
         <td style="font-size:12px">${dt(p.last_seen_at)}</td>
         <td style="text-align:right"><button class="btn s" data-prot="${p.id}">Rotate key</button>
           <button class="btn d s" data-pdel="${p.id}">Remove</button></td></tr>`+
-        (p.last_error?`<tr><td colspan="6" style="font-size:11px;color:var(--crit);border-top:none;padding-top:0">${esc(p.last_error)}</td></tr>`:"")
-      ).join("")+`</tbody></table>`:`<div class="empty">No peer yet.</div>`;
-    html+=`</div></div>`;
-    $("#f").innerHTML=html;
+        (p.last_error?html`<tr><td colspan="6" style="font-size:11px;color:var(--crit);border-top:none;padding-top:0">${p.last_error}</td></tr>`:"")
+      )}</tbody></table>`:html`<div class="empty">No peer yet.</div>`);
+    out.push(html`</div></div>`);
+    H.render($("#f"),out);
 
     const jc=()=>{const n=[...$("#pjust").value.trim()].length;
       $("#pjc").textContent=n+" / "+MINJ;$("#pjc").className="counter"+(n<MINJ?" bad":"");};
@@ -159,5 +157,5 @@ async function viewFed(m){
       try{await api("DELETE","/api/v1/admin/fed/peers/"+b.dataset.pdel);
         toast("Peer removed");render();}catch(e){toast(e.message,true);}
     });
-  }catch(e){$("#f").innerHTML=`<div class="note">${esc(e.message)}</div>`;}
+  }catch(e){H.render($("#f"),html`<div class="note">${e.message}</div>`);}
 }
