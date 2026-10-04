@@ -150,7 +150,8 @@ canvas{display:block;width:100%}
 <script src="/app.js"></script>
 <script>
 "use strict";
-const $ = s => document.querySelector(s), esc = s => App.esc(s), t = (k, v) => I18N.t(k, v);
+const $ = s => document.querySelector(s), t = (k, v) => I18N.t(k, v);
+const { html, raw, url } = H;
 const PALETTE = ["#2458e6", "#0e8fa8", "#7a3fe0", "#0f917a", "#c26a00", "#c2185b", "#5d7a00", "#8d6e63"];
 const PALETTE_DARK = ["#6b93ff", "#3cc3dc", "#a98bff", "#3fd1b4", "#f0a93a", "#f06292", "#aed581", "#bcaaa4"];
 const dark = () => document.documentElement.dataset.theme === "dark";
@@ -198,55 +199,62 @@ async function loadSide() {
 
 /* ------------------------------------------------------------ gabarits */
 function hbarHTML(tg) {
-  return `<div class="hbar" title="${esc(t("home.last24h"))}">${tg.hours.map(k =>
-    `<i class="${k === "crit" ? "c" : k === "warn" ? "w" : k === "nodata" ? "n" : ""}"></i>`).join("")}</div>`;
+  return html`<div class="hbar" title="${t("home.last24h")}">${tg.hours.map(k =>
+    html`<i class="${k === "crit" ? "c" : k === "warn" ? "w" : k === "nodata" ? "n" : ""}"></i>`)}</div>`;
 }
 function rowHTML(tg, showCat) {
-  const k = tg.status, ratio = tg.ratio && tg.ratio > 1.15 ? `<span class="x">×${n1(tg.ratio)}</span>` : "";
-  const since = tg.since ? `<div class="since" style="color:var(--${k === "crit" ? "crit" : "warn"})">${esc(t("common.since"))} ${clock(tg.since)} · ${esc(I18N.ago(tg.since))}</div>` : "";
-  return `<div class="row ${k === "crit" || k === "warn" ? "a-" + k : ""}" data-t="${tg.id}">
-    <div><div class="who"><span class="dot d-${k}"></span><div style="min-width:0"><div class="nm">${esc(tg.title)}</div>
-      <div class="sb"><span class="mono">${esc(tg.host)}</span>${showCat ? ` · <span style="color:${color(tg._ci)}">${esc(cname(tg._cat))}</span>` : ""}${tg.public === false ? ` · <span class="badge b-n">${esc(t("status.private"))}</span>` : ""}</div></div></div>${since}</div>
+  const k = tg.status;
+  return html`<div class="row ${k === "crit" || k === "warn" ? "a-" + k : ""}" data-t="${tg.id}">
+    <div><div class="who"><span class="dot d-${k}"></span><div style="min-width:0"><div class="nm">${tg.title}</div>
+      <div class="sb"><span class="mono">${tg.host}</span>${
+        showCat && html` · <span style="color:${color(tg._ci)}">${cname(tg._cat)}</span>`}${
+        tg.public === false && html` · <span class="badge b-n">${t("status.private")}</span>`}</div></div></div>${
+      tg.since && html`<div class="since" style="color:var(--${k === "crit" ? "crit" : "warn"})">${
+        t("common.since")} ${clock(tg.since)} · ${I18N.ago(tg.since)}</div>`}</div>
     <div class="hb">${hbarHTML(tg)}</div>
     <div class="spk"><canvas height="30" data-spark="${tg.id}"></canvas></div>
-    <div><div class="lbl">${esc(t("metric.median"))}</div><div class="num"><b>${n2(tg.med_ms)}</b> ms${ratio}</div></div>
-    <div class="lc"><div class="lbl">${esc(t("metric.loss"))}</div><div class="num"><b>${n1(tg.loss_pct)}</b> %</div></div>
-    <div style="text-align:right"><span class="badge b-${k === "nodata" ? "n" : k}">${esc(t("status." + k))}</span></div></div>`;
+    <div><div class="lbl">${t("metric.median")}</div><div class="num"><b>${n2(tg.med_ms)}</b> ms${
+      tg.ratio && tg.ratio > 1.15 ? html`<span class="x">×${n1(tg.ratio)}</span>` : ""}</div></div>
+    <div class="lc"><div class="lbl">${t("metric.loss")}</div><div class="num"><b>${n1(tg.loss_pct)}</b> %</div></div>
+    <div style="text-align:right"><span class="badge b-${k === "nodata" ? "n" : k}">${t("status." + k)}</span></div></div>`;
+}
+
+function railGroup(c, ci, q) {
+  const cm = q && cname(c).toLowerCase().includes(q);
+  const list = c.targets.filter(x => !q || cm || x.title.toLowerCase().includes(q) || x.host.includes(q));
+  if (!list.length) return "";
+  return html`<div class="rg" data-open="${S.open[c.id] || !!q ? "true" : "false"}"><button class="rgt" data-tog="${c.id}"><span class="chev">▼</span>
+      <span class="cbar" style="background:${color(ci)}"></span><span>${cname(c)}</span>
+      <span class="rgn"><span class="dot d-${worst(list)}"></span>${list.length}</span></button><div class="rl">${
+    list.map(x => html`<button class="ri" data-t="${x.id}" aria-current="${
+      S.view === "detail" && S.target && S.target.id === x.id ? "true" : "false"}">
+        <span class="dot d-${x.status}"></span><span class="nm">${x.title}</span><span class="vl mono">${n2(x.med_ms)}</span></button>`)
+    }</div></div>`;
+}
+
+// The host-network figures are fetched from RIPEstat in the background:
+// until the cache is warm the server answers {pending:true}, and a card
+// full of "undefined" is worse than no card.
+function netCard() {
+  if (!S.net || S.net.pending || !S.net.asn) return "";
+  const p = S.net.peeringdb, num = v => (v == null ? "—" : v);
+  return html`<a class="netcard" href="/network"><div class="h">${t("home.hosted_by")}</div>
+      <div class="n">AS${S.net.asn}${S.net.holder && " · " + S.net.holder.split(" - ")[0]}</div>
+      <div class="s"><span><b>${num(S.net.prefixes_v4)}</b> IPv4 · <b>${num(S.net.prefixes_v6)}</b> IPv6</span>
+      <span><b>${num(S.net.nb_upstreams)}</b> ${t("net.nb_up").toLowerCase()}</span>
+      ${p && p.ixs && html`<span><b>${p.ixs.length}</b> IX</span><span>PeeringDB · ${p.policy || "—"}</span>`}</div>
+      <div style="font-size:12px;color:var(--accent);margin-top:8px">${t("home.see_network")} →</div></a>`;
 }
 
 function railHTML() {
   const q = S.q.toLowerCase();
-  let h = `<input class="search" id="q" placeholder="⌕  ${esc(t("metric.targets"))}…" value="${esc(S.q)}">`;
-  S.ov.categories.forEach((c, ci) => {
-    const cm = q && cname(c).toLowerCase().includes(q);
-    const list = c.targets.filter(x => !q || cm || x.title.toLowerCase().includes(q) || x.host.includes(q));
-    if (!list.length) return;
-    h += `<div class="rg" data-open="${S.open[c.id] || !!q}"><button class="rgt" data-tog="${c.id}"><span class="chev">▼</span>
-      <span class="cbar" style="background:${color(ci)}"></span><span>${esc(cname(c))}</span>
-      <span class="rgn"><span class="dot d-${worst(list)}"></span>${list.length}</span></button><div class="rl">` +
-      list.map(x => `<button class="ri" data-t="${x.id}" aria-current="${S.view === "detail" && S.target && S.target.id === x.id}">
-        <span class="dot d-${x.status}"></span><span class="nm">${esc(x.title)}</span><span class="vl mono">${n2(x.med_ms)}</span></button>`).join("") +
-      `</div></div>`;
-  });
-  // The host-network figures are fetched from RIPEstat in the background:
-  // until the cache is warm the server answers {pending:true}, and a card
-  // full of "undefined" is worse than no card.
-  if (S.net && !S.net.pending && S.net.asn) {
-    const p = S.net.peeringdb;
-    const num = v => (v == null ? "—" : v);
-    h += `<a class="netcard" href="/network"><div class="h">${esc(t("home.hosted_by"))}</div>
-      <div class="n">AS${esc(S.net.asn)}${S.net.holder ? " · " + esc(S.net.holder.split(" - ")[0]) : ""}</div>
-      <div class="s"><span><b>${num(S.net.prefixes_v4)}</b> IPv4 · <b>${num(S.net.prefixes_v6)}</b> IPv6</span>
-      <span><b>${num(S.net.nb_upstreams)}</b> ${esc(t("net.nb_up").toLowerCase())}</span>
-      ${p && p.ixs ? `<span><b>${p.ixs.length}</b> IX</span><span>PeeringDB · ${esc(p.policy || "—")}</span>` : ""}</div>
-      <div style="font-size:12px;color:var(--accent);margin-top:8px">${esc(t("home.see_network"))} →</div></a>`;
-  }
-  return h;
+  return html`<input class="search" id="q" placeholder="⌕  ${t("metric.targets")}…" value="${S.q}">${
+    S.ov.categories.map((c, ci) => railGroup(c, ci, q))}${netCard()}`;
 }
 function railBox() {
   const n = allTargets().length;
-  return `<aside class="rail" id="railBox"><button class="rail-tog" id="railTog"><span class="cbar" style="background:var(--accent)"></span>
-    ${esc(t("metric.categories"))} · ${n} ${esc(t("metric.targets").toLowerCase())}<span class="chev">▼</span></button>
+  return html`<aside class="rail" id="railBox"><button class="rail-tog" id="railTog"><span class="cbar" style="background:var(--accent)"></span>
+    ${t("metric.categories")} · ${n} ${t("metric.targets").toLowerCase()}<span class="chev">▼</span></button>
     <div id="rail">${railHTML()}</div></aside>`;
 }
 // Un seul ecouteur : les « ? » sont reconstruits a chaque rendu, et deux
@@ -274,8 +282,8 @@ document.addEventListener("keydown", e => {
 function bindRail() {
   const tg = $("#railTog"); if (tg) tg.onclick = () => $("#railBox").classList.toggle("open");
   const q = $("#q");
-  if (q) q.oninput = e => { S.q = e.target.value; const pos = e.target.selectionStart; $("#rail").innerHTML = railHTML(); bindRail(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); };
-  document.querySelectorAll("[data-tog]").forEach(b => b.onclick = () => { S.open[b.dataset.tog] = !S.open[b.dataset.tog]; $("#rail").innerHTML = railHTML(); bindRail(); });
+  if (q) q.oninput = e => { S.q = e.target.value; const pos = e.target.selectionStart; H.render($("#rail"), railHTML()); bindRail(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); };
+  document.querySelectorAll("[data-tog]").forEach(b => b.onclick = () => { S.open[b.dataset.tog] = !S.open[b.dataset.tog]; H.render($("#rail"), railHTML()); bindRail(); });
   document.querySelectorAll("#rail [data-t]").forEach(b => b.onclick = () => openTarget(+b.dataset.t));
 }
 
@@ -385,24 +393,23 @@ function asGraphSVG(g) {
     const a = pos[e.from], b = pos[e.to];
     if (!a || !b) return "";
     const x1 = a.x + BW, y1 = a.y + BH / 2, x2 = b.x, y2 = b.y + BH / 2, mx = (x1 + x2) / 2;
-    return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"
+    return html`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"
       fill="none" stroke="${e.current ? "var(--accent)" : "var(--line-2, #cbd5e1)"}"
-      stroke-width="${e.current ? 2 : 1.2}" ${e.current ? "" : 'stroke-dasharray="4 4"'}
-      marker-end="url(#asarrow)"><title>${esc(e.from)} → ${esc(e.to)} · ${e.seen}×</title></path>`;
-  }).join("");
+      stroke-width="${e.current ? 2 : 1.2}" stroke-dasharray="${e.current ? "none" : "4 4"}"
+      marker-end="url(#asarrow)"><title>${e.from} → ${e.to} · ${e.seen}×</title></path>`;
+  });
   const boxes = g.nodes.map(n => {
     const p = pos[n.asn];
     const cls = n.unknown ? "gnode gunknown" : n.origin ? "gnode gself" : n.dest ? "gnode gdest" : "gnode";
     const name = n.unknown ? t("detail.as_gap") : (n.name || "");
-    const rtt = n.rtt_ms ? `${n2(n.rtt_ms)} ms` : "";
-    return `<g class="${cls}" transform="translate(${p.x},${p.y})">
+    return html`<g class="${cls}" transform="translate(${p.x},${p.y})">
       <rect width="${BW}" height="${BH}" rx="9"></rect>
-      <text x="9" y="17" class="gasn">${esc(n.unknown ? "?" : n.asn)}</text>
-      <text x="9" y="31" class="gname">${esc(name.length > 22 ? name.slice(0, 21) + "…" : name)}</text>
-      ${rtt ? `<text x="${BW - 9}" y="17" class="grtt">${esc(rtt)}</text>` : ""}
-      <title>${esc(n.name || n.asn)}${n.seen ? ` · ${n.seen}/${g.traces} traceroutes` : ""}</title></g>`;
-  }).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" class="asmap" style="width:100%;max-width:${W}px;height:auto">
+      <text x="9" y="17" class="gasn">${n.unknown ? "?" : n.asn}</text>
+      <text x="9" y="31" class="gname">${name.length > 22 ? name.slice(0, 21) + "…" : name}</text>
+      ${n.rtt_ms ? html`<text x="${BW - 9}" y="17" class="grtt">${n2(n.rtt_ms) + " ms"}</text>` : ""}
+      <title>${(n.name || n.asn) + (n.seen ? " · " + n.seen + "/" + g.traces + " traceroutes" : "")}</title></g>`;
+  });
+  return html`<svg viewBox="0 0 ${W} ${H}" class="asmap" style="width:100%;max-width:${W}px;height:auto">
     <defs><marker id="asarrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6"
       orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--ink3)"></path></marker></defs>
     ${edges}${boxes}</svg>`;
@@ -414,9 +421,10 @@ let HINT_N = 0;
 const hint = key => {
   const text = t(key);
   if (!text) return "";
-  return `<span class="hint"><button type="button" class="hintb" aria-expanded="false"
-    aria-controls="hint${++HINT_N}" aria-label="${esc(t("common.explain"))}">?</button>
-    <span class="hintbox" id="hint${HINT_N}" role="note" hidden>${esc(text)}</span></span>`;
+  const id = "hint" + (++HINT_N);
+  return html`<span class="hint"><button type="button" class="hintb" aria-expanded="false"
+    aria-controls="${id}" aria-label="${t("common.explain")}">?</button>
+    <span class="hintbox" id="${id}" role="note" hidden>${text}</span></span>`;
 };
 
 async function renderASPath(tg) {
@@ -429,24 +437,26 @@ async function renderASPath(tg) {
   } catch (e) { /* the graph matters more than this */ }
   if (!v || (!v.origin && !v.dest && !(v.path || []).length)) { box.hidden = true; return; }
   box.hidden = false;
-  const node = (h, cls, sub) => `<span class="asnode ${cls || ""}" title="${esc(h.name || h.asn)}${h.hops > 1 ? ` · ${h.hops} hops` : ""}">
-    <span class="asn">${esc(h.asn)}</span>${h.name ? `<span class="asname">${esc(h.name)}</span>` : ""}
-    ${sub ? `<span class="asrole">${esc(sub)}</span>` : ""}</span>`;
-  const arrow = `<span class="asarrow">→</span>`;
+  const node = (h, cls, sub) => html`<span class="asnode ${cls || ""}" title="${
+    (h.name || h.asn) + (h.hops > 1 ? " · " + h.hops + " hops" : "")}">
+    <span class="asn">${h.asn}</span>${h.name && html`<span class="asname">${h.name}</span>`}
+    ${sub && html`<span class="asrole">${sub}</span>`}</span>`;
+  const arrow = html`<span class="asarrow">→</span>`;
   const parts = [];
   if (v.origin) parts.push(node(v.origin, "self", t("detail.as_here")));
   for (const h of (v.path || [])) parts.push(node(h, "", ""));
   // An unknown segment is said, not hidden: the ends do not touch.
-  if (v.gap || v.empty) parts.push(`<span class="asnode unknown" title="${esc(t("detail.as_gap_hint"))}">
-    <span class="asn">?</span><span class="asname">${esc(t("detail.as_gap"))}</span></span>`);
+  if (v.gap || v.empty) parts.push(html`<span class="asnode unknown" title="${t("detail.as_gap_hint")}">
+    <span class="asn">?</span><span class="asname">${t("detail.as_gap")}</span></span>`);
   if (v.dest) parts.push(node(v.dest, "dest", ""));
-  else if (v.pending) parts.push(`<span class="asnode unknown"><span class="asn">…</span>
-    <span class="asname">${esc(t("common.loading"))}</span></span>`);
+  else if (v.pending) parts.push(html`<span class="asnode unknown"><span class="asn">…</span>
+    <span class="asname">${t("common.loading")}</span></span>`);
   // One observed path: the chain reads better. Several: the map shows the
   // divergence, which the chain cannot.
   const g = v.graph;
   const branching = g && (g.edges || []).length > Math.max(0, (g.nodes || []).length - 1);
-  chain.innerHTML = (branching ? asGraphSVG(g) : parts.join(arrow));
+  H.render(chain, branching ? asGraphSVG(g)
+    : parts.flatMap((n, i) => i ? [arrow, n] : [n]));
   // The global view, in its own block: it answers a different question.
   const rb = document.getElementById("risbox");
   if (rb) {
@@ -455,10 +465,10 @@ async function renderASPath(tg) {
     if (!rb.hidden) {
       document.getElementById("risline").textContent = t("detail.ris_line",
         { prefix: ris.prefix, origin: ris.origin_asn || "?", peers: ris.peers || 0 });
-      document.getElementById("risup").innerHTML = (ris.upstreams || []).length
-        ? `<span class="faint" style="font-size:11.5px;margin-right:4px">${esc(t("detail.ris_up"))} :</span>`
-          + ris.upstreams.map(a => `<span class="asnode ris"><span class="asn">${esc(a)}</span></span>`).join("")
-        : "";
+      H.render(document.getElementById("risup"), (ris.upstreams || []).length
+        ? html`<span class="faint" style="font-size:11.5px;margin-right:4px">${t("detail.ris_up")} :</span>${
+            ris.upstreams.map(a => html`<span class="asnode ris"><span class="asn">${a}</span></span>`)}`
+        : "");
     }
   }
   const meta = document.getElementById("asmeta");
@@ -484,59 +494,80 @@ function renderEvents() {
   const evs = (S.events || []).filter(e => e.ts_start >= S.from && e.ts_start <= S.to)
     .sort((a, b) => a.ts_start - b.ts_start);
   box.hidden = evs.length === 0;
-  list.innerHTML = evs.map(e => {
-    const label = e.kind === "path" ? t("detail.route_changed") : e.title;
-    return `<li><span class="evdate">${esc(new Date(e.ts_start * 1000).toLocaleString())}</span>
-      <span class="evwhat">${esc(label)}</span>
-      ${e.body ? `<span class="evdetail mono">${esc(e.body)}</span>` : ""}</li>`;
-  }).join("");
+  H.render(list, evs.map(e => html`<li>
+      <span class="evdate">${new Date(e.ts_start * 1000).toLocaleString()}</span>
+      <span class="evwhat">${e.kind === "path" ? t("detail.route_changed") : e.title}</span>
+      ${e.body && html`<span class="evdetail mono">${e.body}</span>`}</li>`));
 }
 
 /* --------------------------------------------------------------- accueil */
+function heroSection(all, c, faults, heroK) {
+  const asn = S.net ? "AS" + S.net.asn : (App.site.asn || "");
+  const kpi = (label, value, unit) => html`<div class="kpi"><div class="k">${label}</div>
+    <div class="v">${value}${unit && html`<span class="u">${unit}</span>`}</div></div>`;
+  return html`<section class="hero ${heroK}"><div class="wrap hero-in"><div>
+      <p class="eyebrow"><span class="pulse"></span>${asn && t("home.hosted_by") + " " + asn + " · "}${t("home.refresh")}</p>
+      <h1>${faults.length ? t("home.hero_fault_title", { n: faults.length }) : t("home.hero_ok_title")}</h1>
+      <p class="lead">${faults.length ? t("home.hero_fault_body", { total: c.targets })
+        : t("home.hero_ok_body", { total: c.targets, cats: S.ov.categories.length })}</p></div>
+    <div class="kpis">
+      ${kpi(t("metric.targets"), c.targets, "")}
+      ${kpi(t("metric.median"), n2(avg(all.map(x => x.med_ms))), "ms")}
+      ${kpi(t("metric.loss"), n1(avg(all.map(x => x.loss_pct))), "%")}
+      ${kpi(t("metric.peers"), S.peers, "")}
+    </div></div></section>`;
+}
+
+function howBox(open) {
+  const part = (title, body) => html`<div><h3>${t(title)}</h3><p>${t(body)}</p></div>`;
+  return html`<details class="how" ${open ? raw("open") : ""}><summary>${
+      t("home.ex_measure_t")} · ${t("home.ex_bands_t")} · ${t("home.ex_colours_t")}</summary>
+    <div class="how-b">${part("home.ex_measure_t", "home.ex_measure")}${
+      part("home.ex_bands_t", "home.ex_bands")}${part("home.ex_colours_t", "home.ex_colours")}</div></details>`;
+}
+
 function renderHome() {
   const all = allTargets(), c = S.ov.counts;
   const faults = all.filter(x => x.status === "crit" || x.status === "warn")
     .sort((a, b) => (b.status === "crit") - (a.status === "crit") || (b.loss_pct || 0) - (a.loss_pct || 0));
   const heroK = c.crit ? "crit" : c.warn ? "warn" : "ok";
-  const asn = S.net ? "AS" + S.net.asn : (App.site.asn || "");
-  let h = `<section class="hero ${heroK}"><div class="wrap hero-in"><div>
-      <p class="eyebrow"><span class="pulse"></span>${asn ? esc(t("home.hosted_by")) + " " + esc(asn) + " · " : ""}${esc(t("home.refresh"))}</p>
-      <h1>${esc(faults.length ? t("home.hero_fault_title", { n: faults.length }) : t("home.hero_ok_title"))}</h1>
-      <p class="lead">${esc(faults.length ? t("home.hero_fault_body", { total: c.targets }) : t("home.hero_ok_body", { total: c.targets, cats: S.ov.categories.length }))}</p></div>
-    <div class="kpis">
-      <div class="kpi"><div class="k">${esc(t("metric.targets"))}</div><div class="v">${c.targets}</div></div>
-      <div class="kpi"><div class="k">${esc(t("metric.median"))}</div><div class="v">${n2(avg(all.map(x => x.med_ms)))}<span class="u">ms</span></div></div>
-      <div class="kpi"><div class="k">${esc(t("metric.loss"))}</div><div class="v">${n1(avg(all.map(x => x.loss_pct)))}<span class="u">%</span></div></div>
-      <div class="kpi"><div class="k">${esc(t("metric.peers"))}</div><div class="v">${S.peers}</div></div>
-    </div></div></section>
-  <div class="wrap"><div class="shell">${railBox()}<div style="min-width:0">
-    <div id="mbanner" hidden></div>
-    <details class="how" ${faults.length ? "" : "open"}><summary>${esc(t("home.ex_measure_t"))} · ${esc(t("home.ex_bands_t"))} · ${esc(t("home.ex_colours_t"))}</summary>
-      <div class="how-b"><div><h3>${esc(t("home.ex_measure_t"))}</h3><p>${esc(t("home.ex_measure"))}</p></div>
-      <div><h3>${esc(t("home.ex_bands_t"))}</h3><p>${esc(t("home.ex_bands"))}</p></div>
-      <div><h3>${esc(t("home.ex_colours_t"))}</h3><p>${esc(t("home.ex_colours"))}</p></div></div></details>
-    <section class="section"><div class="section-h"><h2><span class="dot d-${faults.length ? heroK : "ok"}"></span> ${esc(t("home.faults"))}</h2>
-      <span class="badge b-${faults.length ? heroK : "ok"}">${faults.length}</span>
-      <span class="sub">${esc(t("home.faults_sub"))}</span>
-      <span class="right"><label class="faint once-lbl" title="${esc(t("home.once_hint"))}">
-        <input type="checkbox" id="once" ${once() ? "checked" : ""}> ${esc(t("home.once"))}
-        <span class="info" role="img" tabindex="0" aria-label="${esc(t("home.once_hint"))}">i</span></label></span></div>
-      ${faults.length ? `<div class="rows">${faults.map(x => rowHTML(x, true)).join("")}</div>` : `<div class="empty"><span class="dot d-ok"></span>${esc(t("home.no_fault"))}</div>`}</section>`;
   const hide = once() ? new Set(faults.map(x => x.id)) : new Set();
   const feat = all.filter(x => x.featured && !hide.has(x.id));
-  if (feat.length) h += `<section class="section"><div class="section-h"><h2>★ ${esc(t("home.key"))}</h2><span class="sub">${esc(t("home.key_sub"))}</span>
-      <span class="right faint" style="font-size:11.5px">${esc(t("home.last24h"))}</span></div><div class="rows">${feat.map(x => rowHTML(x, true)).join("")}</div></section>`;
-  h += `<section class="section"><div class="section-h"><h2>${esc(t("home.all"))}</h2></div>`;
-  S.ov.categories.forEach((cat, ci) => {
+
+  const catBlock = (cat, ci) => {
     const shown = cat.targets.filter(x => !hide.has(x.id));
-    if (!shown.length) return;
-    const meds = cat.targets.map(x => x.med_ms);
-    h += `<div class="catblock"><div class="cath"><span class="cbar" style="background:${color(ci)};height:18px;width:4px"></span><span class="t">${esc(cname(cat))}</span>
-      <span class="faint" style="font-size:12px">${cat.targets.length} · ${n2(avg(meds))} ms</span><span style="margin-left:auto" class="badge b-${worst(cat.targets)}">${esc(t("status." + worst(cat.targets)))}</span></div>
-      <div class="rows">${shown.map(x => rowHTML(x, false)).join("")}</div></div>`;
-  });
-  h += `</section></div></div></div>`;
-  $("#view").innerHTML = h; bindRail();
+    if (!shown.length) return "";
+    return html`<div class="catblock"><div class="cath">
+      <span class="cbar" style="background:${color(ci)};height:18px;width:4px"></span>
+      <span class="t">${cname(cat)}</span>
+      <span class="faint" style="font-size:12px">${cat.targets.length} · ${n2(avg(cat.targets.map(x => x.med_ms)))} ms</span>
+      <span style="margin-left:auto" class="badge b-${worst(cat.targets)}">${t("status." + worst(cat.targets))}</span></div>
+      <div class="rows">${shown.map(x => rowHTML(x, false))}</div></div>`;
+  };
+
+  H.render($("#view"), html`${heroSection(all, c, faults, heroK)}
+  <div class="wrap"><div class="shell">${railBox()}<div style="min-width:0">
+    <div id="mbanner" hidden></div>
+    ${howBox(!faults.length)}
+    <section class="section"><div class="section-h">
+      <h2><span class="dot d-${faults.length ? heroK : "ok"}"></span> ${t("home.faults")}</h2>
+      <span class="badge b-${faults.length ? heroK : "ok"}">${faults.length}</span>
+      <span class="sub">${t("home.faults_sub")}</span>
+      <span class="right"><label class="faint once-lbl" title="${t("home.once_hint")}">
+        <input type="checkbox" id="once" ${once() ? raw("checked") : ""}> ${t("home.once")}
+        <span class="info" role="img" tabindex="0" aria-label="${t("home.once_hint")}">i</span></label></span></div>
+      ${faults.length
+        ? html`<div class="rows">${faults.map(x => rowHTML(x, true))}</div>`
+        : html`<div class="empty"><span class="dot d-ok"></span>${t("home.no_fault")}</div>`}</section>
+    ${feat.length > 0 && html`<section class="section"><div class="section-h">
+      <h2>★ ${t("home.key")}</h2><span class="sub">${t("home.key_sub")}</span>
+      <span class="right faint" style="font-size:11.5px">${t("home.last24h")}</span></div>
+      <div class="rows">${feat.map(x => rowHTML(x, true))}</div></section>`}
+    <section class="section"><div class="section-h"><h2>${t("home.all")}</h2></div>
+      ${S.ov.categories.map(catBlock)}</section>
+  </div></div></div>`);
+
+  bindRail();
   const onceBox = $("#once");
   if (onceBox) onceBox.onchange = () => {
     try { localStorage.setItem("smokestack.once", onceBox.checked ? "1" : "0"); } catch (e) {}
@@ -579,10 +610,9 @@ function writeHash(push) {
 // parenthesis rather than showing an empty one.
 function pinNote(tg) {
   if (!tg.pin_ip && !tg.pin_family) return "";
-  const txt = tg.pin_ip && tg.pin_family
+  return html`<div class="note-pin">${tg.pin_ip && tg.pin_family
     ? t("detail.pinned", { fam: "IPv" + tg.pin_family, ip: tg.pin_ip })
-    : t("detail.pinned_plain");
-  return `<div class="note-pin">${esc(txt)}</div>`;
+    : t("detail.pinned_plain")}</div>`;
 }
 
 // The maintenance banner. A reader who sees the measurement stop has to be
@@ -594,9 +624,9 @@ function maintNote(tg) {
   const m = tg.maint;
   if (!m) return "";
   const key = m.stop_probe ? "maint.banner_probe" : "maint.banner_alerts";
-  return `<div class="note-maint"><strong>${esc(t("maint.title"))} — ${esc(m.title)}</strong>
-    <span class="when">${esc(t(key, { until: I18N.date(m.ends_at) }))}</span>
-    ${m.note ? `<span class="when">${esc(m.note)}</span>` : ""}</div>`;
+  return html`<div class="note-maint"><strong>${t("maint.title")} — ${m.title}</strong>
+    <span class="when">${t(key, { until: I18N.date(m.ends_at) })}</span>
+    ${m.note && html`<span class="when">${m.note}</span>`}</div>`;
 }
 
 // On the home page, what is happening now and what is announced for the
@@ -615,14 +645,14 @@ async function renderMaintBanner() {
   const now = d.now || Math.floor(Date.now() / 1000);
   const live = list.filter(m => m.starts_at <= now && m.ends_at > now);
   const soon = list.filter(m => m.starts_at > now);
-  const line = m => `<li><strong>${esc(m.target_title || "")}</strong> — ${esc(m.title)}
-    <span class="when">${esc(t(m.starts_at > now ? "maint.from" : "maint.until",
-      { from: I18N.date(m.starts_at), until: I18N.date(m.ends_at) }))}${
-      m.stop_probe ? " · " + esc(t("maint.measure_paused")) : ""}</span></li>`;
+  const line = m => html`<li><strong>${m.target_title || ""}</strong> — ${m.title}
+    <span class="when">${t(m.starts_at > now ? "maint.from" : "maint.until",
+      { from: I18N.date(m.starts_at), until: I18N.date(m.ends_at) })}${
+      m.stop_probe && " · " + t("maint.measure_paused")}</span></li>`;
   box.hidden = false;
-  box.innerHTML = `<div class="note-maint">
-    <strong>${esc(live.length ? t("maint.live_title", { n: live.length }) : t("maint.soon_title", { n: soon.length }))}</strong>
-    <ul>${live.concat(soon).slice(0, 6).map(line).join("")}</ul></div>`;
+  H.render(box, html`<div class="note-maint">
+    <strong>${live.length ? t("maint.live_title", { n: live.length }) : t("maint.soon_title", { n: soon.length })}</strong>
+    <ul>${live.concat(soon).slice(0, 6).map(line)}</ul></div>`);
 }
 
 // Two arrows turning: the same service, measured in the other family.
@@ -631,59 +661,73 @@ const SWAP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
   <path d="M3 10a7 7 0 0 1 11.9-5M21 14a7 7 0 0 1-11.9 5"/>
   <path d="M3 5v5h5M21 19v-5h-5"/></svg>`;
 
+function detailTags(tg) {
+  return html`<div class="tags"><span class="tag mono">${tg.host}</span>
+    <span class="tag">${tg.proto.toUpperCase()} · ${tg.interval_s} s</span>
+    ${tg.family && html`<span class="tag">IPv${tg.family}</span>`}
+    ${tg.twin_slug && html`<a class="tag twin" href="/t/${encodeURIComponent(tg.twin_slug)}"
+      title="${t("detail.twin_hint")}">${raw(SWAP)}${t("detail.twin", { f: tg.family === 4 ? 6 : 4 })}</a>`}
+    ${tg.public === false && html`<span class="tag" style="background:var(--warn-soft);color:var(--warn)">${t("status.private")}</span>`}
+    ${tg.base_ms != null && html`<span class="tag">ref. ${n2(tg.base_ms)} ms</span>`}</div>`;
+}
+
+function chartCard(tg, acc) {
+  const sw = (w, h, bg) => html`<span class="sw" style="width:${w}px;height:${h}px;background:${bg}"></span>`;
+  return html`<div class="card" style="margin-top:12px"><div class="card-b">
+    <div id="cw"><canvas id="ch" height="330"></canvas><div class="tip" id="tip"></div></div>
+    <div class="legend">
+      <span>${sw(16, 3, acc)}${t("metric.median")}</span>
+      <span>${sw(16, 9, rgba(acc, .3))}p25–p75</span>
+      <span>${sw(16, 9, rgba(acc, .15))}p5–p95</span>
+      <span>${sw(10, 9, "var(--crit)")}${t("metric.loss")}</span>
+      <span class="mono faint" id="res" style="margin-left:auto"></span>${hint("detail.hint")}</div></div></div>`;
+}
+
 function renderDetail() {
   const tg = S.target, acc = color(tg._ci), k = tg.status;
-  $("#view").innerHTML = `<div class="wrap"><div class="shell">${railBox()}<div style="min-width:0;padding-top:4px">
-    <div class="crumb"><a href="/" id="bk">← ${esc(t("common.back_home"))}</a><span class="faint">/</span><span style="color:${acc}">${esc(cname(tg._cat))}</span></div>
-    <div class="dh"><h1>${esc(tg.title)}</h1><span class="badge b-${k === "nodata" ? "n" : k}">${esc(t("status." + (k === "nodata" ? "nodata" : k + "_long")))}</span></div>
-    <div class="tags"><span class="tag mono">${esc(tg.host)}</span><span class="tag">${esc(tg.proto.toUpperCase())} · ${tg.interval_s} s</span>
-      ${tg.family ? `<span class="tag">IPv${tg.family}</span>` : ""}
-      ${tg.twin_slug ? `<a class="tag twin" href="/t/${encodeURIComponent(tg.twin_slug)}"
-        title="${esc(t("detail.twin_hint"))}">${SWAP}${esc(t("detail.twin",
-          { f: tg.family === 4 ? 6 : 4 }))}</a>` : ""}
-      ${tg.public === false ? `<span class="tag" style="background:var(--warn-soft);color:var(--warn)">${esc(t("status.private"))}</span>` : ""}
-      ${tg.base_ms != null ? `<span class="tag">ref. ${n2(tg.base_ms)} ms</span>` : ""}</div>
-    ${(SHARE && t("share.banner")) ? `<div class="note-share">${esc(t("share.banner", {
-      org: (App.site.org || App.site.title || ""), loc: (App.site.location || App.site.asn || "—") }))}</div>` : ""}
+  H.render($("#view"), html`<div class="wrap"><div class="shell">${railBox()}<div style="min-width:0;padding-top:4px">
+    <div class="crumb"><a href="/" id="bk">← ${t("common.back_home")}</a><span class="faint">/</span><span style="color:${acc}">${cname(tg._cat)}</span></div>
+    <div class="dh"><h1>${tg.title}</h1><span class="badge b-${k === "nodata" ? "n" : k}">${t("status." + (k === "nodata" ? "nodata" : k + "_long"))}</span></div>
+    ${detailTags(tg)}
+    ${SHARE && t("share.banner") ? html`<div class="note-share">${t("share.banner", {
+      org: (App.site.org || App.site.title || ""), loc: (App.site.location || App.site.asn || "—") })}</div>` : ""}
     ${maintNote(tg)}
     ${pinNote(tg)}
-    <div class="presets" id="pr">${PRESETS.map(([key], i) => `<button class="preset" data-p="${i}" aria-pressed="${S.preset === i}">${esc(t(key))}</button>`).join("")}
-      <button class="preset" id="cp" style="margin-left:auto">🔗 ${esc(t("common.copy_link"))}</button></div>
-    <div class="card" style="margin-top:12px"><div class="card-b"><div id="cw"><canvas id="ch" height="330"></canvas><div class="tip" id="tip"></div></div>
-      <div class="legend"><span><span class="sw" style="width:16px;height:3px;background:${acc}"></span>${esc(t("metric.median"))}</span>
-      <span><span class="sw" style="width:16px;height:9px;background:${rgba(acc, .3)}"></span>p25–p75</span>
-      <span><span class="sw" style="width:16px;height:9px;background:${rgba(acc, .15)}"></span>p5–p95</span>
-      <span><span class="sw" style="width:10px;height:9px;background:var(--crit)"></span>${esc(t("metric.loss"))}</span>
-      <span class="mono faint" id="res" style="margin-left:auto"></span>${hint("detail.hint")}</div></div></div>
+    <div class="presets" id="pr">${PRESETS.map(([key], i) =>
+      html`<button class="preset" data-p="${i}" aria-pressed="${S.preset === i ? "true" : "false"}">${t(key)}</button>`)}
+      <button class="preset" id="cp" style="margin-left:auto">\ud83d\udd17 ${t("common.copy_link")}</button></div>
+    ${chartCard(tg, acc)}
     <div class="card" style="margin-top:10px"><div class="card-b" style="padding-block:10px">
-      <div class="lbl" style="margin-bottom:5px">${esc(t("home.last24h"))}${hint("detail.last24_hint")}</div>${hbarHTML(tg)}
-      <div class="hbar-l"><span>−24 h</span><span>−12 h</span><span>${esc(t("common.updated"))}</span></div>
-      <div class="lbl" style="margin:14px 0 3px">${esc(t("detail.navigator"))}${hint("detail.nav_hint")}</div><canvas id="nv" height="58"></canvas>
+      <div class="lbl" style="margin-bottom:5px">${t("home.last24h")}${hint("detail.last24_hint")}</div>${hbarHTML(tg)}
+      <div class="hbar-l"><span>−24 h</span><span>−12 h</span><span>${t("common.updated")}</span></div>
+      <div class="lbl" style="margin:14px 0 3px">${t("detail.navigator")}${hint("detail.nav_hint")}</div><canvas id="nv" height="58"></canvas>
       </div></div>
     <div class="card" id="asbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:7px">${esc(t("detail.aspath"))}</div>
+      <div class="lbl" style="margin-bottom:7px">${t("detail.aspath")}</div>
       <div class="aschain" id="aschain"></div>
       <div class="mono faint" id="asmeta" style="font-size:11px;margin-top:6px"></div>
       <div id="risbox" hidden style="margin-top:12px;padding-top:11px;border-top:1px solid var(--line)">
-        <div class="lbl" style="margin-bottom:5px">${esc(t("detail.ris"))}${hint("detail.ris_hint")}</div>
+        <div class="lbl" style="margin-bottom:5px">${t("detail.ris")}${hint("detail.ris_hint")}</div>
         <div id="risline" style="font-size:12.5px"></div>
         <div class="aschain" id="risup" style="margin-top:7px"></div>
         </div></div></div>
     <div class="card" id="evbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:6px">${esc(t("detail.events"))}${hint("detail.ev_hint")}</div>
+      <div class="lbl" style="margin-bottom:6px">${t("detail.events")}${hint("detail.ev_hint")}</div>
       <ol class="evlist" id="evlist"></ol>
       </div></div>
     <div class="stats" id="stats"></div>
     <div class="card" id="cobox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:7px">${esc(t("corr.title"))}${hint("corr.hint")}</div>
+      <div class="lbl" style="margin-bottom:7px">${t("corr.title")}${hint("corr.hint")}</div>
       <div id="corr"></div>
       </div></div>
     <div class="card" id="avbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:7px">${esc(t("avail.title"))}${hint("avail.definition")}</div>
+      <div class="lbl" style="margin-bottom:7px">${t("avail.title")}${hint("avail.definition")}</div>
       <div class="avrow" id="avrow"></div>
-      <p class="strip-hint" style="color:var(--warn)">${esc(t("avail.not_sla"))}</p></div></div>
-    <section class="section" id="trsec" hidden style="margin-top:22px"><div class="section-h"><h2>${esc(t("trace.title"))}${hint("trace.sub")}</h2></div><div class="card"><div class="card-b scroll-x" id="trbox"></div></div></section>
-  </div></div></div>`;
+      <p class="strip-hint" style="color:var(--warn)">${t("avail.not_sla")}</p></div></div>
+    <section class="section" id="trsec" hidden style="margin-top:22px"><div class="section-h">
+      <h2>${t("trace.title")}${hint("trace.sub")}</h2></div>
+      <div class="card"><div class="card-b scroll-x" id="trbox"></div></div></section>
+  </div></div></div>`);
   bindRail();
   $("#bk").onclick = e => { e.preventDefault(); S.view = "home"; writeHash(true); renderHome(); };
   document.querySelectorAll("[data-p]").forEach(b => b.onclick = () => { const now = Math.floor(Date.now() / 1000); S.preset = +b.dataset.p; S.to = now; S.from = now - PRESETS[S.preset][1]; writeHash(); paint(); });
@@ -710,14 +754,18 @@ async function paint() {
   renderASPath(tg);
   S.ng = draw($("#nv"), nav, { height: 58, bare: 1, accent: acc, from: now - 365 * 86400, to: now }); sel();
   const jit = cur.p75.map((v, i) => v != null && cur.p25[i] != null ? v - cur.p25[i] : null);
-  const st = (key, v, u) => `<div class="st"><div class="k">${esc(t(key))}</div><div class="v">${v}<span class="u">${u}</span></div></div>`;
+  const st = (key, v, u) => html`<div class="st"><div class="k">${t(key)}</div><div class="v">${v}<span class="u">${u}</span></div></div>`;
   const loss = avg(cur.loss);
   // The fourth tile is the packet loss over the displayed window, named as
   // such. It used to read "uptime", which invited the reading that the
   // availability card below now answers properly: losing one packet in
   // five is not being unavailable one fifth of the time.
-  $("#stats").innerHTML = st("metric.median", n2(avg(cur.med)), "ms") + st("metric.p95", n2(avg(cur.p95)), "ms") +
-    st("metric.jitter", n2(avg(jit)), "ms") + st("metric.loss", loss == null ? "—" : n1(loss), "%");
+  H.render($("#stats"), [
+    st("metric.median", n2(avg(cur.med)), "ms"),
+    st("metric.p95", n2(avg(cur.p95)), "ms"),
+    st("metric.jitter", n2(avg(jit)), "ms"),
+    st("metric.loss", loss == null ? "—" : n1(loss), "%")
+  ]);
   document.querySelectorAll("[data-p]").forEach(b => b.setAttribute("aria-pressed", String(S.preset === +b.dataset.p)));
   renderAvailability(tg);
   renderCorroboration(tg);
@@ -741,10 +789,10 @@ async function renderCorroboration(tg) {
   if (!d || !d.verdict || !d.peer_asn) { box.hidden = true; return; }
   const cls = { path: "crit", target: "crit", both_ok: "ok", intermittent: "warn", pending: "n" }[d.verdict] || "n";
   box.hidden = false;
-  $("#corr").innerHTML = `<div class="corr corr-${cls}">
-    <span class="badge b-${cls}">${esc(t("corr.v_" + d.verdict) || d.verdict)}</span>
-    <span class="corr-m">${esc(t("corr.seen", { asn: d.peer_asn, ok: I18N.num(d.answered), n: I18N.num(d.passes) }))}${
-      d.med_ms ? " · " + esc(t("corr.median", { ms: n2(d.med_ms) })) : ""}</span></div>`;
+  H.render($("#corr"), html`<div class="corr corr-${cls}">
+    <span class="badge b-${cls}">${t("corr.v_" + d.verdict) || d.verdict}</span>
+    <span class="corr-m">${t("corr.seen", { asn: d.peer_asn, ok: I18N.num(d.answered), n: I18N.num(d.passes) })}${
+      d.med_ms && " · " + t("corr.median", { ms: n2(d.med_ms) })}</span></div>`);
 }
 
 /* ---------------------------------------------------------- availability */
@@ -768,16 +816,16 @@ async function renderAvailability(tg) {
   const ws = (d && d.windows) || [];
   if (!ws.some(w => w.pct != null)) { box.hidden = true; return; }
   box.hidden = false;
-  row.innerHTML = ws.map(w => {
+  H.render(row, ws.map(w => {
     const known = w.pct != null;
     const cls = !known ? "n" : w.pct >= 99.9 ? "ok" : w.pct >= 99 ? "warn" : "crit";
-    return `<div class="av av-${cls}">
-      <div class="av-w">${esc(t("avail.window_" + w.label) || w.label)}</div>
+    return html`<div class="av av-${cls}">
+      <div class="av-w">${t("avail.window_" + w.label) || w.label}</div>
       <div class="av-v">${known ? n2(w.pct) : "—"}<span class="u">${known ? "%" : ""}</span></div>
       <div class="av-m">${known
-        ? esc(t("avail.passes", { n: I18N.num(w.passes), down: I18N.num(w.down) }))
-        : esc(t("avail.unknown"))}${w.partial ? ` · ${esc(t("avail.partial"))}` : ""}</div></div>`;
-  }).join("");
+        ? t("avail.passes", { n: I18N.num(w.passes), down: I18N.num(w.down) })
+        : t("avail.unknown")}${w.partial && " · " + t("avail.partial")}</div></div>`;
+  }));
 }
 
 /* ------------------------------------------------------------ traceroutes */
@@ -786,20 +834,23 @@ function hopRTT(h) {
   return n2(h.rtt_ms.reduce((a, b) => a + b, 0) / h.rtt_ms.length) + " ms";
 }
 function hopsHTML(tr, ref) {
-  const n = Math.max(tr.hops.length, ref ? ref.hops.length : 0); let rows = "";
+  const n = Math.max(tr.hops.length, ref ? ref.hops.length : 0);
+  const rows = [];
   for (let i = 0; i < n; i++) {
     const h = tr.hops[i], r = ref ? ref.hops[i] : null;
     const diff = ref && r && r.addr && (!h || (h.addr || "") !== r.addr);
-    rows += `<tr class="${diff ? "diff" : ""}"><td>${i + 1}</td>
-      <td class="mono">${h ? esc(h.addr || "*") : ""}${h && h.note ? `<span class="hopnote">${esc(h.note)}</span>` : ""}</td>
-      <td class="faint">${h ? esc(h.name || "") : ""}</td><td class="mono">${h ? esc(h.asn || "") : ""}</td>
+    rows.push(html`<tr class="${diff ? "diff" : ""}"><td>${i + 1}</td>
+      <td class="mono">${h && (h.addr || "*")}${h && h.note && html`<span class="hopnote">${h.note}</span>`}</td>
+      <td class="faint">${h && (h.name || "")}</td><td class="mono">${h && (h.asn || "")}</td>
       <td>${h ? hopRTT(h) : ""}</td><td class="faint">${h ? (h.rtt_ms || []).length + "/" + h.sent : ""}</td>
-      ${ref ? `<td class="mono faint">${r ? esc(r.addr || "*") : "—"}</td>` : ""}</tr>`;
+      ${ref && html`<td class="mono faint">${r ? r.addr || "*" : "—"}</td>`}</tr>`);
   }
-  return `<table class="trl"><thead><tr><th>${esc(t("trace.hop"))}</th><th>${esc(t("trace.address"))}</th><th>${esc(t("trace.name"))}</th>
-    <th>${esc(t("trace.as"))}</th><th>${esc(t("trace.rtt"))}</th><th>${esc(t("trace.replies"))}</th>
-    ${ref ? `<th>${esc(t("trace.ref_col"))}, ${esc(I18N.date(ref.ts))}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table>
-    ${ref ? `<p class="faint" style="font-size:12px;margin:8px 10px 0">${esc(t("trace.changed"))}</p>` : ""}`;
+  return html`<table class="trl"><thead><tr>
+    <th>${t("trace.hop")}</th><th>${t("trace.address")}</th><th>${t("trace.name")}</th>
+    <th>${t("trace.as")}</th><th>${t("trace.rtt")}</th><th>${t("trace.replies")}</th>
+    ${ref && html`<th>${t("trace.ref_col")}, ${I18N.date(ref.ts)}</th>`}</tr></thead>
+    <tbody>${rows}</tbody></table>
+    ${ref && html`<p class="faint" style="font-size:12px;margin:8px 10px 0">${t("trace.changed")}</p>`}`;
 }
 function renderTraces() {
   const sec = $("#trsec"), box = $("#trbox"), list = S.traces || [];
@@ -808,18 +859,22 @@ function renderTraces() {
   if (S.trOpen === undefined || !list.some(x => x.id === S.trOpen)) {
     const first = list.find(x => x.kind !== "reference"); S.trOpen = first ? first.id : null;
   }
-  box.innerHTML = `<table class="trl"><tbody>` + list.map(tr => {
+  const outcome = tr => {
     const last = tr.hops.length, lh = tr.hops[last - 1] || {};
-    const res = tr.reached ? `<span class="badge b-ok">${esc(t("trace.reached", { n: last }))}</span>`
-      : lh.note ? `<span class="badge b-crit">${esc(t("trace.refused", { n: last }))} ${esc(lh.note)}</span>`
-      : `<span class="badge b-warn">${esc(t("trace.not_reached"))}</span>`;
+    if (tr.reached) return html`<span class="badge b-ok">${t("trace.reached", { n: last })}</span>`;
+    if (lh.note) return html`<span class="badge b-crit">${t("trace.refused", { n: last })} ${lh.note}</span>`;
+    return html`<span class="badge b-warn">${t("trace.not_reached")}</span>`;
+  };
+  H.render(box, html`<table class="trl"><tbody>${list.map(tr => {
     const kind = { anomaly: "b-crit", reference: "b-ok", manual: "b-n" }[tr.kind] || "b-n";
     const ref = tr.kind === "reference" ? null : list.find(x => x.kind === "reference" && x.ts < tr.ts);
-    return `<tr class="tr-row" data-tr="${tr.id}"><td class="faint" style="white-space:nowrap">${esc(I18N.date(tr.ts))}</td>
-      <td><span class="badge ${kind}">${esc(t("trace." + tr.kind))}</span></td><td>${esc(tr.reason)}</td>
-      <td class="mono faint">${esc(tr.dest)}</td><td>${res}</td></tr>` +
-      (S.trOpen === tr.id ? `<tr><td colspan="5" style="background:var(--bg-soft);padding:6px 0 12px">${hopsHTML(tr, ref)}</td></tr>` : "");
-  }).join("") + `</tbody></table>`;
+    return html`<tr class="tr-row" data-tr="${tr.id}">
+        <td class="faint" style="white-space:nowrap">${I18N.date(tr.ts)}</td>
+        <td><span class="badge ${kind}">${t("trace." + tr.kind)}</span></td><td>${tr.reason}</td>
+        <td class="mono faint">${tr.dest}</td><td>${outcome(tr)}</td></tr>
+      ${S.trOpen === tr.id && html`<tr><td colspan="5" style="background:var(--bg-soft);padding:6px 0 12px">${
+        hopsHTML(tr, ref)}</td></tr>`}`;
+  })}</tbody></table>`);
   box.querySelectorAll("[data-tr]").forEach(r => r.onclick = () => { const id = +r.dataset.tr; S.trOpen = S.trOpen === id ? null : id; renderTraces(); });
 }
 
@@ -853,7 +908,8 @@ function bindChart() {
     if (x < PAD.l || x > g.w - PAD.r) { tip.style.display = "none"; return; }
     const ts = g.x0 + (x - PAD.l) / g.pw * (g.x1 - g.x0); let i = 0, best = 1e18;
     for (let k = 0; k < cur.t.length; k++) { const dd = Math.abs(cur.t[k] - ts); if (dd < best) { best = dd; i = k; } }
-    tip.innerHTML = `<b>${esc(I18N.date(cur.t[i]))}</b><br>${esc(t("metric.median"))} ${n2(cur.med[i])} ms<br>p95 ${n2(cur.p95[i])} ms<br>${esc(t("metric.loss"))} ${n1(cur.loss[i])} %`;
+    H.render(tip, html`<b>${I18N.date(cur.t[i])}</b><br>${t("metric.median")} ${n2(cur.med[i])} ms<br>p95 ${
+      n2(cur.p95[i])} ms<br>${t("metric.loss")} ${n1(cur.loss[i])} %`);
     tip.style.display = "block"; tip.style.left = Math.min(g.w - 190, g.X(cur.t[i]) + 14) + "px"; tip.style.top = "20px";
   });
   $("#ch").addEventListener("mouseleave", () => { tip.style.display = "none"; });

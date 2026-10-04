@@ -18,6 +18,12 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ### Changed
 
+- **The overview and the target page are assembled by the template.**
+
+  `index.html` is the last public page to convert: 106 `esc()` calls and twelve `innerHTML` assignments become none of either. The two render functions that ran to sixty and forty lines break into named pieces — `heroSection`, `howBox`, `railGroup`, `netCard`, `detailTags`, `chartCard`, `outcome` — each of which fits on a screen.
+
+  The conversion was checked by comparing what the browser actually built, before and against after, on the overview and on a target page, and again with traceroutes, events and hostile values injected into both: every container came out identical, character for character.
+
 - **The shared header and footer and three more pages are assembled by the template.**
 
   `app.js`, `about.html`, `network.html` and `pairing.html` join `federation.html`: no `esc()` left in any of them, and no string concatenation building markup. The host network page gains named pieces — `routingCard`, `declaredCard`, `upstreams`, `presence` — in place of one function appending to a string across sixty lines.
