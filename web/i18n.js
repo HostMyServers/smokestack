@@ -99,7 +99,11 @@
     const meta = await fetch("/api/v1/i18n").then(r => r.json());
     S.base = meta.base; S.def = meta.default; S.langs = meta.languages || [];
     S.lang = pick(S.langs);
-    S.dict = await fetch("/api/v1/i18n/" + encodeURIComponent(S.lang)).then(r => r.json());
+    // L'adresse nomme la revision des dictionnaires : le serveur peut
+    // alors la garder un an au lieu de renvoyer sept kilo-octets a chaque
+    // page. La liste qui porte la revision, elle, n'est jamais en cache.
+    const rev = meta.rev ? "?v=" + encodeURIComponent(meta.rev) : "";
+    S.dict = await fetch("/api/v1/i18n/" + encodeURIComponent(S.lang) + rev).then(r => r.json());
     document.documentElement.lang = S.lang;
     document.documentElement.dir = S.dict["_meta.dir"] === "rtl" ? "rtl" : "ltr";
     apply();
