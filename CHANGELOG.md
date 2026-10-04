@@ -70,6 +70,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
   `federation.html` is migrated as the first case, deliberately: everything that page shows was sent by another instance.
 
+- **The shared header and footer and three more pages are assembled by the template.**
+
+  `app.js`, `about.html`, `network.html` and `pairing.html` join `federation.html`: no `esc()` left in any of them, and no string concatenation building markup. The host network page gains named pieces — `routingCard`, `declaredCard`, `upstreams`, `presence` — in place of one function appending to a string across sixty lines.
+
+  Everything the host network page shows comes from RIPEstat and PeeringDB, and `H.url` now drops a `javascript:` address before it can reach an `href` — which the old code escaped but still rendered.
+
+  `App.escURL` is gone, having lost its last caller. `App.esc` stays until the back-office follows.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**
@@ -109,6 +117,10 @@ Versions are published as signed releases; servers with automatic updates instal
   The address now names a revision, a short hash of everything loaded. It changes when a translation changes — including a file dropped into `/var/lib/smokestack/i18n/` and reloaded from the back-office — and does not change when the same content is loaded again, so a restart does not throw away every visitor's cache.
 
   Under that address a dictionary cannot go stale, so it is kept for a year. The kilobyte that carries the revision is the one thing never cached. Measured in a browser: 7.3 kB on the first page, 0 on the next. An address without a revision, or with an older one, is revalidated exactly as before.
+
+- **An internet exchange never showed its link speed.**
+
+  The host network page read `speed` where the API publishes `speed_mbps`, so the column had printed an em dash followed by `M` for every exchange since it existed.
 
 ## 0.6.2
 
