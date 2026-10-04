@@ -248,7 +248,7 @@ func TestBuildASGraph(t *testing.T) {
 	save(now-3600, true, hopAS("198.51.100.1", "AS174"), hopAS("203.0.113.5", "AS29222"))
 	save(now-60, true, hopAS("198.51.100.9", "AS3356"), hopAS("203.0.113.5", "AS29222"))
 
-	g := store.BuildASGraph(id, "AS64500", "AS29222", 25)
+	g := store.BuildASGraph(id, "AS64500", "AS29222", 25, nil)
 	if g == nil {
 		t.Fatal("a graph was expected")
 	}
@@ -284,7 +284,7 @@ func TestBuildASGraph(t *testing.T) {
 	}
 	// A traceroute that stops answering keeps an explicit break.
 	save(now-30, false, hopAS("198.51.100.9", "AS3356"), Hop{Addr: "*", Sent: 3})
-	g = store.BuildASGraph(id, "AS64500", "AS29222", 25)
+	g = store.BuildASGraph(id, "AS64500", "AS29222", 25, nil)
 	if !g.Incomplete {
 		t.Error("an unmeasured stretch must be reported")
 	}
@@ -463,7 +463,7 @@ func TestRotatingTargetIsNotARouteChange(t *testing.T) {
 		t.Error("a genuine change on the same address must still be seen")
 	}
 	// The map keeps one address and says how many traceroutes it left out.
-	g := store.BuildASGraph(id, "AS64500", "AS1234", 25)
+	g := store.BuildASGraph(id, "AS64500", "AS1234", 25, nil)
 	if g == nil {
 		t.Fatal("a graph was expected")
 	}

@@ -279,6 +279,7 @@
     "address": "Endereço",
     "name": "Nome",
     "as": "AS",
+    "ix_hint": "LAN de peering de {ix}",
     "rtt": "RTT",
     "replies": "Respostas",
     "ref_col": "Caminho saudável",

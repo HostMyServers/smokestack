@@ -279,6 +279,7 @@
     "address": "Adres",
     "name": "Naam",
     "as": "AS",
+    "ix_hint": "Peering-LAN van {ix}",
     "rtt": "RTT",
     "replies": "Antwoorden",
     "ref_col": "Gezond pad",

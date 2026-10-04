@@ -279,6 +279,7 @@
     "address": "Adresse",
     "name": "Navn",
     "as": "AS",
+    "ix_hint": "Peering-LAN hos {ix}",
     "rtt": "RTT",
     "replies": "Svar",
     "ref_col": "Sund sti",

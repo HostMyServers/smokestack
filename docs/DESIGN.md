@@ -207,6 +207,16 @@ and the round, so a late reply can never be mistaken for a current one.
   destination: the hop is marked `!N`, `!H` or `!A` and the path ends there.
 - Hops are enriched with reverse DNS and the origin AS, using the Team Cymru
   DNS service (no extra dependency).
+- A hop sitting on an **internet exchange** is named from PeeringDB instead: a
+  peering LAN is deliberately kept out of the global routing table, so the
+  Cymru lookup returns nothing for the one hop where two networks meet. The
+  prefixes of every exchange are fetched weekly and kept in `config.db`; the
+  member holding an address is asked for in the background. The hop then
+  carries the member's AS and the name of the exchange, which the route and
+  its map draw on the link that crossed it.
+- Hops are named again when a traceroute is **read**, from those caches: a
+  lookup that failed the day the trace ran would otherwise leave a hole in the
+  path for as long as the trace is kept.
 - Safeguards: at most one anomaly traceroute every 15 minutes per target (one
   per hour while the anomaly lasts), 30 per hour overall, one at a time. An
   incident hitting 200 targets does not trigger 200 traceroutes.
@@ -589,6 +599,10 @@ The `/network` page describes the AS hosting the instance:
   prefixes, number of upstream and downstream neighbours, main upstreams;
 - **PeeringDB** (declared): network type, peering policy, traffic, ratio, IRR
   as-set, presence at internet exchanges, facilities.
+
+PeeringDB also answers two questions that have nothing to do with this page
+and no other source: which prefixes belong to which internet exchange, and
+which member holds a given address on one (§ 7).
 
 Answers are cached for 24 h and refreshed in the background. The service only
 answers for **our AS and our approved peers**, so the instance is not an open
