@@ -157,8 +157,11 @@ async function viewDC(m) {
     const rows = (list, dir) => !list.length
       ? html`<div class="empty">${dir === "out" ? "No second opinion asked for in the last seven days."
           : "No peer has asked this instance to measure anything in the last seven days."}</div>`
-      : html`<table><thead><tr>${dir === "out" ? "<th>Target</th><th>Peer</th>" : "<th>Asked by</th><th>Address</th>"}
-          <th>Window</th><th>Result</th>${dir === "out" ? "<th>Verdict</th>" : ""}<th>State</th></tr></thead><tbody>${list.map(c => {
+      : html`<table><thead><tr>${dir === "out"
+            ? html`<th>Target</th><th>Peer</th>`
+            : html`<th>Asked by</th><th>Address</th>`}
+          <th>Window</th><th>Result</th>${dir === "out" ? html`<th>Verdict</th>` : ""}
+          <th>State</th></tr></thead><tbody>${list.map(c => {
           const v = VERDICT[c.verdict] || ["b-n", c.verdict || ""];
           return html`<tr>
             ${dir === "out"

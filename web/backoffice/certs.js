@@ -37,8 +37,8 @@ async function viewCerts(m){
         <td>${c&&c.not_after?new Date(c.not_after*1000).toLocaleDateString():"—"}</td>
         <td>${c?c.issuer||"—":"—"}</td>
         <td class="mono" style="font-size:11.5px">${c&&c.dns_names&&c.dns_names.length?c.dns_names.slice(0,3).join(", ")+(c.dns_names.length>3?" +"+(c.dns_names.length-3):""):"—"}</td>
-        <td><button class="btn s" data-off="${r.target_id}" data-now="${r.off?1:0}">${r.off?"Watch":"Stop watching"}</button></td></tr>`
-        +(c&&c.problem?html`<tr><td colspan="6" style="background:var(--bg2);color:var(--crit);font-size:12.5px">${c.problem}</td></tr>`:"");
+        <td><button class="btn s" data-off="${r.target_id}" data-now="${r.off?1:0}">${r.off?"Watch":"Stop watching"}</button></td></tr>${
+        c&&c.problem?html`<tr><td colspan="6" style="background:var(--bg2);color:var(--crit);font-size:12.5px">${c.problem}</td></tr>`:""}`;
     })}</tbody></table>
     <div class="note">Alert thresholds: ${stages.join(", ")} days before expiry, plus one the day it
       expires and one when the certificate is refused outright — a wrong name, an unverifiable chain,

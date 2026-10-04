@@ -38,8 +38,8 @@ async function viewBreak(m) {
           <td class="mono">${ms(b.tls_us)}</td><td class="mono"><strong>${ms(tot)}</strong></td>
           <td class="mono" style="font-size:11.5px">${b.ip || "—"}</td>
           <td class="faint" style="font-size:11.5px">${b.ts ? new Date(b.ts * 1000).toLocaleString() : "never"}</td>
-          <td><button class="btn s" data-run="${b.target_id}">Measure</button></td></tr>`
-          + (b.err ? html`<tr><td colspan="8" style="background:var(--bg2);color:var(--crit);font-size:12.5px">${b.err}</td></tr>` : "");
+          <td><button class="btn s" data-run="${b.target_id}">Measure</button></td></tr>${
+          b.err ? html`<tr><td colspan="8" style="background:var(--bg2);color:var(--crit);font-size:12.5px">${b.err}</td></tr>` : ""}`;
       })}</tbody></table>
       <div class="note">Milliseconds. <strong>DNS</strong> is a fresh lookup, not a cached one: measuring a
       cache tells you nothing. <strong>Connect</strong> is the SYN → SYN/ACK, taken from the kernel where it
