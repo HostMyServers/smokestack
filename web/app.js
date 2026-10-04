@@ -92,7 +92,7 @@
           V.version ? `<span class="faint">${esc(t("footer.version", { v: V.version }))}</span>` : ""])}
       </div>
       <div class="fbottom">
-        <span>© ${new Date().getFullYear()} ${esc(SITE.org || "")} — ${esc(t("footer.rights"))}</span>
+        <span>© ${new Date().getFullYear()}${SITE.org ? " " + esc(SITE.org) : ""}</span>
         <span class="spacer"></span>
         ${official ? `<a href="${esc(official)}" rel="noopener" target="_blank">${esc(t("footer.powered"))}</a>`
                    : `<span>${esc(t("footer.powered"))}</span>`}

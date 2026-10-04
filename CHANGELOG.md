@@ -2,6 +2,16 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Changed
+
+- **The footer no longer disclaims the measurements it publishes.**
+
+  The bottom line of every public page read `© 2026 <operator> — All measurements are published as-is, without warranty.`. The second half was shipped as a translated string, so it spoke for operators who had never written it: instances whose terms live on their own website, and instances that publish figures they stand behind.
+
+  What remains is the copyright line and the link to the project. A disclaimer belongs on the About page, which is the operator's own text and can say exactly what that instance means. The `footer.rights` key leaves the ten language files with it.
+
 ## 0.6.1
 
 Two things 0.6.0 got wrong or got late: the availability figure it shipped never worked, and the federated double-check landed a few minutes after the tag went out.
