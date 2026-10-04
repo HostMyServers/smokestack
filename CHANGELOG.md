@@ -54,6 +54,24 @@ Nothing an operator configures. What changed is what the build is allowed to let
 
   Turning it on found eight things. Four were functions no caller had, in `sketch.go`, `instance.go`, `maintenance.go` and `doublecheck.go`, and they are removed. The other four are error strings that one style check dislikes, and that check is turned off in `staticcheck.conf` with the reason recorded beside it: ST1005 refuses `"Telegram needs a bot token"` while accepting `"SMTP needs a server"` three lines away in the same switch, so the difference it is pointing at is the case of a brand name, not the style of a message. Rewording two of seven would have made that file less consistent, not more.
 
+### Changed
+
+- **The footer is one line again: the copyright and the link to the project.**
+
+  It had grown into five columns repeated at the bottom of every public page, and nothing in them was published only there:
+
+  | Column | Where it already is |
+  |---|---|
+  | Brand, organisation, location | the header, and `/about` |
+  | Pages | the header navigation |
+  | Operator | `/about` — organisation, ASN, owner, location, PeeringDB, NOC, website |
+  | Open data | `/api/v1/overview`, `/healthz`, `/api/v1/version` |
+  | Software | the project link, which stays in the bottom line |
+
+  The cost is honest and small: no public page links the three open-data endpoints any more. They are documented, unauthenticated and unchanged, and `/about` is where a pointer to them would belong if one is wanted.
+
+  Nineteen keys leave the ten language files, and `.fgrid`, `.fbrand` and `.fcol` leave the stylesheet. No endpoint, stored value or published surface changes.
+
 ## 0.6.1
 
 Two things 0.6.0 got wrong or got late: the availability figure it shipped never worked, and the federated double-check landed a few minutes after the tag went out.

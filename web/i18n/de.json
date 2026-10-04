@@ -260,26 +260,7 @@
     "tech_body": "Ed25519-Signaturen auf Nachrichtenebene, 5 Minuten Uhrentoleranz, Replay-Schutz per Nonce-Cache."
   },
   "footer": {
-    "graphs": "Diagramme",
-    "about": "Impressum & Kontakt",
-    "federation": "Föderation",
-    "network": "Host-Netz",
-    "pairing": "Kopplung",
     "powered": "Betrieben mit smokestack",
-    "pages": "Seiten",
-    "operator": "Betreiber",
-    "data": "Offene Daten",
-    "software": "Software",
-    "official_site": "Offizielle smokestack-Website",
-    "source": "Quellcode",
-    "version": "Version {v}",
-    "api": "JSON-API",
-    "health": "Dienststatus",
-    "noc": "NOC kontaktieren",
-    "website": "Website des Betreibers",
-    "ripe": "RIPEstat",
-    "peeringdb": "PeeringDB",
-    "bgptools": "bgp.tools",
     "rights": "Alle Messwerte werden ohne Gewähr veröffentlicht."
   },
   "trace": {
