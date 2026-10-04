@@ -2,6 +2,26 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Changed
+
+- **HTML is assembled by a template that escapes by default.**
+
+  Pages are built in the browser by concatenating strings, which puts an escaping decision at every interpolation — there are over nine hundred of them. A scan found no defect among them today, which is a credit to whoever wrote them and not a property of the method: getting nine hundred right once is possible, keeping them right as the code changes is a promise nobody keeps by attention alone.
+
+  `html.js` adds a tagged template where the default is safe:
+
+  ```js
+  H.html`<td>${t.title}</td>`         // escaped
+  H.html`<tr>${rows.map(row)}</tr>`   // nested templates are not
+  H.html`<div>${H.raw(svg)}</div>`    // saying so is the only way
+  ```
+
+  A reviewer now looks for `H.raw` instead of reading every interpolation to decide whether the value behind it could have come from a person. `null`, `undefined` and `false` render as nothing, so a conditional fragment needs no empty branch, and `H.url` drops anything that is not plainly `http(s)` before it reaches an `href`.
+
+  `federation.html` is migrated as the first case, deliberately: everything that page shows was sent by another instance.
+
 ## 0.6.2
 
 Two batches in one version. The build was tightened: the binaries were compiled by a Go that no longer receives security fixes, the container image was running on a distribution that had stopped publishing security advisories, and a dispatched release could carry a shell command inside its version number. And the public pages lost what they were repeating — the footer is one line again, and the language is chosen from a flag rather than a list of ten names.
