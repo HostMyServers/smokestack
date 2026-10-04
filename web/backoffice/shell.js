@@ -60,7 +60,7 @@ function shell(){
   // as a screen is chosen, so the content is never hidden behind it.
   const side=$("#side"), scrim=$("#scrim"), nb=$("#nav-burger");
   const closeNav=()=>{side.classList.remove("open");scrim.hidden=true;nb.setAttribute("aria-expanded","false");};
-  document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{closeNav();VIEW=b.dataset.v;shell();});
+  document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{closeNav();go(b.dataset.v);});
   nb.onclick=e=>{e.stopPropagation();const open=!side.classList.contains("open");
     side.classList.toggle("open",open);scrim.hidden=!open;nb.setAttribute("aria-expanded",String(open));};
   scrim.onclick=closeNav;
@@ -68,7 +68,41 @@ function shell(){
   addEventListener("resize",()=>{if(innerWidth>=900)closeNav();});
   render();
 }
-function go(view){VIEW=view;if(view!=="targets") EDIT=null;shell();}
+/* ------------------------------------------------------------ routes */
+// Le serveur sert cette page pour tout /admin/… : une vue peut donc
+// avoir sa propre adresse sans rien changer cote serveur. Rafraichir
+// reste sur place, le bouton precedent fonctionne, et une adresse se
+// colle dans un message a un collegue.
+const VIEWS = NAV.filter(n => n.id);
+const pathOf = view => view === "dash" ? "/admin" : "/admin/" + view;
+
+// La vue que l'adresse demande, si elle existe et si le role la permet.
+// Une adresse perimee ou interdite ne doit pas donner une coquille vide :
+// on retombe sur le tableau de bord, et l'adresse suit.
+function viewFromPath() {
+  const seg = (location.pathname.match(/^\/admin\/([a-z]+)\/?$/) || [])[1] || "dash";
+  const n = VIEWS.find(v => v.id === seg);
+  if (!n) return "dash";
+  if (ME && LVL[ME.role] < n.min) return "dash";
+  return seg;
+}
+
+function go(view, push) {
+  VIEW = view;
+  if (view !== "targets") EDIT = null;
+  const url = pathOf(view) + location.search;
+  if (push === false || location.pathname === pathOf(view)) history.replaceState(null, "", url);
+  else history.pushState(null, "", url);
+  shell();
+}
+
+// Le navigateur a change d'adresse sans recharger : on suit, sans
+// re-empiler l'historique.
+addEventListener("popstate", () => {
+  if (!ME) return;
+  VIEW = viewFromPath();
+  shell();
+});
 
 async function changePassword(){
   const cur=prompt("Current password");if(!cur) return;

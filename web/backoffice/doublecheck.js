@@ -100,7 +100,7 @@ async function viewDC(m) {
               <select id="dc_newasn">${ungranted.map(p => html`<option value="${p.asn}">${p.asn} — ${p.org || ""}</option>`)}</select></div>
             <button class="btn" id="dc_grant">Grant</button></div>`
         : (P.length ? "" : html`<div class="note" style="margin-top:12px">No approved peer yet. Pair with one in
-            <a href="#" data-goto="fed">Peers and pairing</a> first: an AS number is declared, never proved,
+            <a href="${pathOf("fed")}" data-goto="fed">Peers and pairing</a> first: an AS number is declared, never proved,
             so granting a stranger would grant whoever turns up with that number.</div>`))]);
 
     document.querySelectorAll("[data-save]").forEach(b => b.onclick = async () => {
@@ -189,7 +189,7 @@ async function viewMessages(m){
   H.render(m,html`<h2>Messages</h2>
     <p class="lead">Messages sent from the contact form of the public “About” page. Your address is
       never published there. Reply from your own mail client: the instance never writes on your behalf.
-      Enable or disable the form in <a href="#" data-goto="site">Publisher page</a>.</p>
+      Enable or disable the form in <a href="${pathOf("site")}" data-goto="site">Publisher page</a>.</p>
     <div class="card"><div class="body" id="mlist">Loading…</div></div>`);
   document.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
   try{

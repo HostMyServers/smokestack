@@ -10,6 +10,10 @@
       try{const p=await api("GET","/api/v1/admin/fed/pairing");
         PENDING=(p||[]).filter(x=>x.direction==="in"&&x.state==="pending").length;}catch(e){}
   try{const d=await api("GET","/api/v1/admin/messages");UNREAD=d.unread||0;}catch(e){}
+      // L'adresse decide de la vue : rafraichir /admin/traces reste sur
+      // les traceroutes, et se connecter depuis cette adresse y mene.
+      VIEW = viewFromPath();
+      history.replaceState(null, "", pathOf(VIEW) + location.search);
       return shell();}
     gateLogin();
   }catch(e){
