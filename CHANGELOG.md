@@ -4,9 +4,13 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ## 0.6.7
 
-Five back-office tables printed their own markup instead of drawing it — the breakdown, the certificates, the peers, the updates and the host network. 0.6.5 introduced it and 0.6.6 carried it; upgrade if you have seen a page full of `<tr><td>`.
+Two things that drew the wrong thing on the page.
 
-Nothing else changes. The check that was supposed to catch it now hands every view rows to draw rather than looking at the empty tables it happened to find.
+Five back-office tables printed their own markup instead of drawing it — the breakdown, the certificates, the peers, the updates and the host network. 0.6.5 introduced that one and 0.6.6 carried it; upgrade if you have seen a page full of `<tr><td>`.
+
+The map of the route to a target stacked every network in the corner whenever the path had no intermediate AS. That one is older, and was in 0.6.4 as well.
+
+The check that was supposed to catch the first now hands every view rows to draw, rather than looking at the empty tables it happened to find.
 
 ### Fixed
 
