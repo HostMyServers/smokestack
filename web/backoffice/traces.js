@@ -94,7 +94,8 @@ function hopsTable(tr,ref){
       <td class="mono">${h?h.addr||"*":""}${h&&h.note?html`<span class="hopnote" title="the router refused to forward">${h.note}</span>`:""}</td>
       <td style="font-size:12px">${h?h.name||"":""}</td>
       <td class="mono" style="font-size:12px">${h&&h.asn?html`${h.asn}
-        <button class="btn s asnoc" data-noc="${h.asn}" title="How to reach this network's NOC, as it declares it in PeeringDB">NOC</button>`:""}</td>
+        <button class="btn s asnoc" data-noc="${h.asn}" title="How to reach this network's NOC, as it declares it in PeeringDB">NOC</button>`:""}${
+        h&&h.ix?html`<span class="ixb" title="Peering LAN of ${h.ix}">${h.ix}</span>`:""}</td>
       <td style="font-size:12px">${h?hopRTT(h):""}</td>
       <td style="font-size:12px">${h?`${(h.rtt_ms||[]).length}/${h.sent}`:""}</td>
       ${ref?html`<td class="mono" style="font-size:12px;color:var(--ink2)">${r?r.addr||"*":"—"}</td>`:""}</tr>`);

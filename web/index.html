@@ -397,14 +397,20 @@ function asGraphSVG(g) {
     const colH = l.length * BH + (l.length - 1) * GY;
     pos[n.asn] = { x: P + li * (BW + GX), y: P + 14 + (H - 14 - P * 2 - colH) / 2 + ni * (BH + GY) };
   }));
+  const labels = []; // drawn last: a name is of no use under a box
   const edges = (g.edges || []).map(e => {
     const a = pos[e.from], b = pos[e.to];
     if (!a || !b) return "";
     const x1 = a.x + BW, y1 = a.y + BH / 2, x2 = b.x, y2 = b.y + BH / 2, mx = (x1 + x2) / 2;
+    // Two networks meet somewhere, and the exchange is the one thing a
+    // bare arrow between them never says.
+    const tip = `${e.from} → ${e.to} · ${e.seen}×` + (e.ix ? " · " + t("trace.ix_hint", { ix: e.ix }) : "");
+    if (e.ix) labels.push(html`<text x="${mx}" y="${(y1 + y2) / 2 - 5}" class="gix">${
+      e.ix.length > 12 ? e.ix.slice(0, 11) + "…" : e.ix}<title>${tip}</title></text>`);
     return html`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"
       fill="none" stroke="${e.current ? "var(--accent)" : "var(--line-2, #cbd5e1)"}"
       stroke-width="${e.current ? 2 : 1.2}" stroke-dasharray="${e.current ? "none" : "4 4"}"
-      marker-end="url(#asarrow)"><title>${e.from} → ${e.to} · ${e.seen}×</title></path>`;
+      marker-end="url(#asarrow)"><title>${tip}</title></path>`;
   });
   const boxes = g.nodes.map(n => {
     const p = pos[n.asn];
@@ -420,7 +426,7 @@ function asGraphSVG(g) {
   return html`<svg viewBox="0 0 ${W} ${H}" class="asmap" style="width:100%;max-width:${W}px;height:auto">
     <defs><marker id="asarrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6"
       orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--ink3)"></path></marker></defs>
-    ${edges}${boxes}</svg>`;
+    ${edges}${boxes}${labels}</svg>`;
 }
 
 // Les explications servent une fois, pas a chaque visite : elles passent
@@ -449,22 +455,26 @@ async function renderASPath(tg) {
     (h.name || h.asn) + (h.hops > 1 ? " · " + h.hops + " hops" : "")}">
     <span class="asn">${h.asn}</span>${h.name && html`<span class="asname">${h.name}</span>`}
     ${sub && html`<span class="asrole">${sub}</span>`}</span>`;
-  const arrow = html`<span class="asarrow">→</span>`;
-  const parts = [];
-  if (v.origin) parts.push(node(v.origin, "self", t("detail.as_here")));
-  for (const h of (v.path || [])) parts.push(node(h, "", ""));
+  // The arrow carries the exchange the path crossed to enter the network it
+  // points at, when it crossed one.
+  const arrow = via => html`<span class="asarrow" title="${via ? t("trace.ix_hint", { ix: via }) : ""}">${
+    via && html`<span class="asvia">${via}</span>`}<span>→</span></span>`;
+  const parts = [], vias = [];
+  const push = (el, via) => { parts.push(el); vias.push(via || ""); };
+  if (v.origin) push(node(v.origin, "self", t("detail.as_here")));
+  for (const h of (v.path || [])) push(node(h, "", ""), h.via);
   // An unknown segment is said, not hidden: the ends do not touch.
-  if (v.gap || v.empty) parts.push(html`<span class="asnode unknown" title="${t("detail.as_gap_hint")}">
+  if (v.gap || v.empty) push(html`<span class="asnode unknown" title="${t("detail.as_gap_hint")}">
     <span class="asn">?</span><span class="asname">${t("detail.as_gap")}</span></span>`);
-  if (v.dest) parts.push(node(v.dest, "dest", ""));
-  else if (v.pending) parts.push(html`<span class="asnode unknown"><span class="asn">…</span>
+  if (v.dest) push(node(v.dest, "dest", ""), v.dest.via);
+  else if (v.pending) push(html`<span class="asnode unknown"><span class="asn">…</span>
     <span class="asname">${t("common.loading")}</span></span>`);
   // One observed path: the chain reads better. Several: the map shows the
   // divergence, which the chain cannot.
   const g = v.graph;
   const branching = g && (g.edges || []).length > Math.max(0, (g.nodes || []).length - 1);
   H.render(chain, branching ? asGraphSVG(g)
-    : parts.flatMap((n, i) => i ? [arrow, n] : [n]));
+    : parts.flatMap((n, i) => i ? [arrow(vias[i]), n] : [n]));
   // The global view, in its own block: it answers a different question.
   const rb = document.getElementById("risbox");
   if (rb) {
@@ -849,7 +859,9 @@ function hopsHTML(tr, ref) {
     const diff = ref && r && r.addr && (!h || (h.addr || "") !== r.addr);
     rows.push(html`<tr class="${diff ? "diff" : ""}"><td>${i + 1}</td>
       <td class="mono">${h && (h.addr || "*")}${h && h.note && html`<span class="hopnote">${h.note}</span>`}</td>
-      <td class="faint">${h && (h.name || "")}</td><td class="mono">${h && (h.asn || "")}</td>
+      <td class="faint">${h && (h.name || "")}</td>
+      <td class="mono">${h && (h.asn || "")}${h && h.ix && html`<span class="ixb"
+        title="${t("trace.ix_hint", { ix: h.ix })}">${h.ix}</span>`}</td>
       <td>${h ? hopRTT(h) : ""}</td><td class="faint">${h ? (h.rtt_ms || []).length + "/" + h.sent : ""}</td>
       ${ref && html`<td class="mono faint">${r ? r.addr || "*" : "—"}</td>`}</tr>`);
   }

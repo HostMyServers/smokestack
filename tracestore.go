@@ -40,6 +40,7 @@ type Hop struct {
 	Addr  string    `json:"addr,omitempty"`
 	Name  string    `json:"name,omitempty"`
 	ASN   string    `json:"asn,omitempty"`
+	IX    string    `json:"ix,omitempty"`   // peering LAN this address sits on
 	Note  string    `json:"note,omitempty"` // !N, !H, !A: the router refused to forward
 	RTTms []float64 `json:"rtt_ms"`
 	Sent  int       `json:"sent"`
@@ -317,7 +318,8 @@ func (a *API) hopSeries(w http.ResponseWriter, r *http.Request) {
 type ASPathHop struct {
 	ASN  string `json:"asn"`
 	Name string `json:"name,omitempty"`
-	Hops int    `json:"hops"` // combien de sauts dans cet AS
+	Hops int    `json:"hops"`          // combien de sauts dans cet AS
+	Via  string `json:"via,omitempty"` // l'IX traverse pour entrer dans cet AS
 }
 
 type ASPathView struct {
@@ -369,7 +371,7 @@ func asRouteFrom(tr *Traceroute, originASN, destASN string) ([]ASPathHop, bool) 
 			mid[n-1].Hops++
 			continue
 		}
-		mid = append(mid, ASPathHop{ASN: as, Hops: 1})
+		mid = append(mid, ASPathHop{ASN: as, Hops: 1, Via: h.IX})
 	}
 	// A gap when the traceroute never reached the destination, or when its
 	// last hops answered nothing: the segment before the destination is
@@ -390,6 +392,25 @@ func asRouteFrom(tr *Traceroute, originASN, destASN string) ([]ASPathHop, bool) 
 		}
 	}
 	return mid, gap
+}
+
+// ixEntering names the exchange the path crossed to enter a network: the
+// first hop answering for that AS is the member's own interface on the
+// peering LAN. A peering is where a route changes hands, and the chain says
+// so rather than drawing a bare arrow.
+func ixEntering(tr *Traceroute, asn string) string {
+	prev := ""
+	for _, h := range tr.Hops {
+		as := strings.TrimSpace(h.ASN)
+		if as == "" {
+			continue
+		}
+		if as == asn && prev != asn {
+			return h.IX
+		}
+		prev = as
+	}
+	return ""
 }
 
 // asPathView serves the route from this instance's network to the target's,
@@ -417,6 +438,14 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 
 	site := a.store.Site()
 	out := ASRoute{Path: []ASPathHop{}}
+	// A hop on a peering LAN is in no routing table, and a lookup that
+	// failed the day the traceroute ran left its AS blank for good. Both are
+	// named here, from the caches, so the drawing follows what is known now
+	// rather than what was known then.
+	fill := func([]Hop) {}
+	if a.asn != nil {
+		fill = a.asn.HopFiller()
+	}
 
 	// One end is us, always, whatever the traceroute shows.
 	originASN := ""
@@ -486,7 +515,7 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The graph of the recent traceroutes, for the map drawn on the page.
-	if g := a.store.BuildASGraph(id, originASN, destASN, 25); g != nil {
+	if g := a.store.BuildASGraph(id, originASN, destASN, 25, fill); g != nil {
 		g.DestIP = out.DestIP
 		g.Pending = out.Pending
 		for i := range g.Nodes {
@@ -531,8 +560,12 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(trs) > 0 {
 		tr := trs[0]
+		fill(tr.Hops)
 		out.TS, out.Kind, out.Reached = tr.TS, tr.Kind, tr.Reached
 		out.Path, out.Gap = asRouteFrom(tr, originASN, destASN)
+		if out.Dest != nil {
+			out.Dest.Via = ixEntering(tr, destASN)
+		}
 		if len(out.Path) == 0 {
 			// The traceroute ran but no hop could be attributed to an AS:
 			// the lookups have not answered yet, or the routers in between
@@ -604,6 +637,12 @@ func (a *API) listTraceroutes(w http.ResponseWriter, r *http.Request, public boo
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
+	}
+	if a.asn != nil {
+		fill := a.asn.HopFiller()
+		for _, tr := range list {
+			fill(tr.Hops)
+		}
 	}
 	w.Header().Set("Vary", "Cookie, Authorization")
 	if public {
@@ -679,6 +718,7 @@ type ASGraphEdge struct {
 	To      string `json:"to"`
 	Seen    int    `json:"seen"`
 	Current bool   `json:"current,omitempty"`
+	IX      string `json:"ix,omitempty"` // the exchange this link crossed
 }
 
 type ASGraph struct {
@@ -701,9 +741,10 @@ type ASGraph struct {
 // median RTT on entering each, our own AS first and the destination's last.
 // An unmeasured stretch becomes the pseudo-AS "?", so the drawing shows a
 // break instead of implying adjacency.
-func asSeq(tr *Traceroute, originASN, destASN string) ([]string, map[string]float64) {
+func asSeq(tr *Traceroute, originASN, destASN string) ([]string, map[string]float64, map[string]string) {
 	seq := []string{}
 	rtt := map[string]float64{}
+	ix := map[string]string{} // "from>to" : the exchange that link crossed
 	if originASN != "" {
 		seq = append(seq, originASN)
 	}
@@ -723,6 +764,9 @@ func asSeq(tr *Traceroute, originASN, destASN string) ([]string, map[string]floa
 		if len(seq) > 0 && seq[len(seq)-1] == as {
 			continue
 		}
+		if h.IX != "" && len(seq) > 0 {
+			ix[seq[len(seq)-1]+">"+as] = h.IX
+		}
 		seq = append(seq, as)
 		if _, ok := rtt[as]; !ok && len(h.RTTms) > 0 {
 			rtt[as] = medianOf(h.RTTms)
@@ -735,10 +779,13 @@ func asSeq(tr *Traceroute, originASN, destASN string) ([]string, map[string]floa
 			}
 		}
 		if len(seq) == 0 || seq[len(seq)-1] != destASN {
+			if v := ixEntering(tr, destASN); v != "" && len(seq) > 0 {
+				ix[seq[len(seq)-1]+">"+destASN] = v
+			}
 			seq = append(seq, destASN)
 		}
 	}
-	return seq, rtt
+	return seq, rtt, ix
 }
 
 func medianOf(v []float64) float64 {
@@ -751,7 +798,8 @@ func medianOf(v []float64) float64 {
 }
 
 // BuildASGraph assembles the graph from the recent traceroutes of a target.
-func (s *Store) BuildASGraph(targetID int64, originASN, destASN string, limit int) *ASGraph {
+// fill, when given, names the hops the probe left bare before they are read.
+func (s *Store) BuildASGraph(targetID int64, originASN, destASN string, limit int, fill func([]Hop)) *ASGraph {
 	trs, err := s.Traceroutes(targetID, nil, limit)
 	if err != nil {
 		return nil
@@ -787,7 +835,10 @@ func (s *Store) BuildASGraph(targetID int64, originASN, destASN string, limit in
 	trs = kept
 
 	for i, tr := range trs {
-		seq, rtt := asSeq(tr, originASN, destASN)
+		if fill != nil {
+			fill(tr.Hops)
+		}
+		seq, rtt, ix := asSeq(tr, originASN, destASN)
 		if len(seq) == 0 {
 			continue
 		}
@@ -819,6 +870,9 @@ func (s *Store) BuildASGraph(targetID int64, originASN, destASN string, limit in
 					edges[key] = e
 				}
 				e.Seen++
+				if e.IX == "" {
+					e.IX = ix[key]
+				}
 				if i == 0 {
 					e.Current = true
 					current[key] = true
