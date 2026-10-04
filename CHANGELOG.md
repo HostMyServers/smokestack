@@ -24,6 +24,20 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The back-office is not covered: it carries its own light-only stylesheet and needs a palette of its own.
 
+- **Every back-office screen has its own address.**
+
+  `/admin/targets`, `/admin/traces`, `/admin/site` — one segment per screen, named after the screen. Refreshing stays where you were instead of dropping you back on the dashboard, the browser's back button works, and an address can be pasted to a colleague who lands on the right page.
+
+  Nothing changed on the server: `GET /admin/` was already registered for its whole subtree, which is why the back-office scripts live under `/backoffice/`.
+
+  Three cases that would otherwise make it worse than no routing at all:
+
+  - **signing in from a deep address** lands you there, not on the dashboard — which is the case that makes a refresh worth having;
+  - **an address your role may not open** falls back to the dashboard, and the address follows rather than lying about what is shown;
+  - **an address that no longer exists** does the same, without an error.
+
+  The screens keep what they had in memory, so the selected target of the traceroutes page and the target being edited are not in the address. They can be, later, without moving anything that is there now.
+
 ### Changed
 
 - **Less rounded, and rounded in one place.**

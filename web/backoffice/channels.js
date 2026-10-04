@@ -83,7 +83,7 @@ async function viewAlerts(m){
       <label class="chk"><input type="checkbox" id="al_en" ${c.enabled?"checked":""}>
         <span>Alert me when a target stays in incident<small>Off by default. This is the global switch;
           each target can also be left out, with the <em>Alerts</em> button in
-          <a href="#" data-goto="targets">Targets and categories</a>.</small></span></label>
+          <a href="${pathOf("targets")}" data-goto="targets">Targets and categories</a>.</small></span></label>
       <div class="row2">
         <div class="field"><label>After how long (minutes)</label>
           <input id="al_min" type="number" min="1" max="1440" value="${c.after_minutes||5}"></div>
@@ -97,7 +97,7 @@ async function viewAlerts(m){
       <label class="chk"><input type="checkbox" id="al_rec" ${c.recovery!==false?"checked":""}>
         <span>Also tell me when it is over</span></label>
       <div class="note">Alerts leave through the channels configured in
-        <a href="#" data-goto="channels">Notification channels</a> (SMTP, chat, SMS), plus the
+        <a href="${pathOf("channels")}" data-goto="channels">Notification channels</a> (SMTP, chat, SMS), plus the
         addresses and webhook below if you set them.</div>
       <button class="btn p" id="al_save">Save</button>`);
     document.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
