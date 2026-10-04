@@ -2,6 +2,18 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Changed
+
+- **There is one way markup reaches the DOM, with no exception left.**
+
+  One line of the back-office still assigned `outerHTML` directly. It worked, and what it wrote was a constant with nothing interpolated into it, so no escaping decision was being skipped — but it was the one place where the engine's output reached the page without going through it, and a rule with one exception is a rule nobody can check.
+
+  `H.replace(el, tpl)` replaces an element the way `H.render(el, tpl)` fills one. It parses through a `<template>`, so a `<tr>` survives the trip where a bare container would have had it dropped by the parser, and it does nothing on an element that is null or already detached.
+
+  `innerHTML`, `outerHTML`, `insertAdjacentHTML` and `document.write` now appear nowhere in `web/` outside `html.js` itself.
+
 ## 0.6.5
 
 Nothing an operator configures, and nothing a visitor sees differently. What changed is how the pages are built: every piece of markup in the browser now goes through a template that escapes by default, instead of nine hundred places where somebody had to remember. The back-office, which was one file of 2 374 lines, is twenty files of one concern each.
