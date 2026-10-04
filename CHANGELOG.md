@@ -20,6 +20,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Both now send `Vary: Cookie, Authorization`, and `no-store` when the caller is authenticated. The list of traceroutes, which set no header at all on that path, says `no-store` too. A test fails on the old headers.
 
+- **The map of the route drew every network on top of the others.**
+
+  A target reached without a single intermediate AS — your own network, then theirs — produced a map with one box in the corner and a wide empty space, under a line saying no intermediate system was found.
+
+  The server numbers the columns by distance and may skip one: that path gives 0, 2 and 3. Indexing an array by that number leaves a hole at 1, and spreading an array with a hole yields `undefined` where it is missing, so `Math.max(...)` returned `NaN`. Every box was placed at `translate(x, NaN)`, the `viewBox` became `0 0 782 NaN`, and the browser stacked them all in the corner — only the last one drawn was visible.
+
+  Columns that hold nothing are dropped before anything is measured. The map draws the three networks again, each in its place.
+
 ## 0.6.2
 
 A bug that made the long views lie by omission, and a public interface with less in it.
