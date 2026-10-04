@@ -34,6 +34,20 @@ Versions are published as signed releases; servers with automatic updates instal
 
   How round the interface looks is now four values rather than sixty. The back-office does not load `app.css`, so it carries the same four in its own `:root` instead of a scale it would never see.
 
+- **The explanations on a target page fold away.**
+
+  Eight grey paragraphs sat under the blocks of a target page, explaining what a band is, what dragging the navigator does, what an event list contains. They are read once and then re-read forever by someone who already knows. Each now sits behind a small `?` next to its section title, closed by default, one open at a time, `Escape` to close.
+
+  Two are gone rather than folded. The route block explained in two sentences what the chain above it already shows, and the traceroute subtitle is shorter: *taken on an anomaly, and once a day for comparison*.
+
+  The one paragraph still shown is the one that says the availability figure is not an SLA. It is there precisely so nobody has to go looking for it.
+
+- **The route to a target takes the width of the page.**
+
+  The AS chain was packed into the left of its block, each hop as wide as its name. It now spreads across the full width with the hops grown to equal size, which is the shape the thing actually is: a path read left to right.
+
+  The *target* label under the last hop is gone with it. The frame is already green where the others are grey, and the origin's is blue — a word under each one said what the colour said first.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**
