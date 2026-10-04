@@ -14,9 +14,12 @@
  * looks for H.raw, instead of reading every interpolation to decide
  * whether the value behind it could have come from a person.
  *
- * Values: null, undefined and false render as nothing, so a conditional
- * fragment is `cond && H.html`...`` with no empty-string branch. Numbers
- * and arrays do what they look like. Everything else is escaped.
+ * Values: null, undefined and both booleans render as nothing, so a
+ * conditional fragment is `cond && H.html`...`` with no empty-string
+ * branch. A boolean *attribute* therefore spells its value out —
+ * aria-checked="${a === b ? "true" : "false"}" — rather than relying on
+ * a bare boolean, which would print nothing at either end. Numbers and
+ * arrays do what they look like. Everything else is escaped.
  */
 (function () {
   const CHARS = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -30,7 +33,7 @@
   }
 
   const flatten = v => {
-    if (v == null || v === false || v === true) return "";
+    if (v == null || typeof v === "boolean") return "";
     if (v instanceof Html) return v.s;
     if (Array.isArray(v)) return v.map(flatten).join("");
     return esc(v);
@@ -56,10 +59,13 @@
     // answering one question: where did this string come from?
     raw: s => new Html(String(s == null ? "" : s)),
     // Assigning a template rather than a string keeps innerHTML from
-    // accepting anything that merely looks like markup.
+    // accepting anything that merely looks like markup. A list of
+    // templates goes through the same path as one nested in a template,
+    // because a caller that builds rows with .map() should not have to
+    // know it is handing over an array.
     render(el, tpl) {
       if (!el) return;
-      el.innerHTML = tpl instanceof Html ? tpl.s : esc(tpl);
+      el.innerHTML = flatten(tpl);
     },
     Html
   };

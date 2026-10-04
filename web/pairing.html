@@ -32,31 +32,38 @@
   </section>
 </main>
 <footer class="ftr" id="ftr"></footer>
+<script src="/html.js"></script>
 <script src="/i18n.js"></script>
 <script src="/app.js"></script>
 <script>
+const { html } = H;
 let D = null;
+
+// Tout ce qui est affiche ici decrit cette instance, mais passe par
+// l'API comme le reste : le gabarit l'echappe sans qu'on ait a y penser.
 function render() {
-  const t = I18N.t, esc = App.esc;
+  const t = I18N.t;
   if (!D) return;
   document.getElementById("lead").textContent = t(D.open ? "pairing.lead_open" : "pairing.lead_closed");
   const rows = [
-    ["pairing.org", esc(D.org)],
-    ["pairing.asn", `<a class="mono" href="/network">${esc(D.asn)}</a>`],
-    ["pairing.url", `<span class="mono">${esc(D.url)}</span>`],
-    ["pairing.fingerprint", `<span class="fp">${esc(D.fingerprint)}</span>`],
-    ["pairing.anchors", `<div class="pill-list" style="justify-content:flex-end">${(D.anchors||[]).map(a=>`<span>${esc(a)}</span>`).join("")}</div>`],
-    ["pairing.noc", D.noc_email ? `<a href="mailto:${esc(D.noc_email)}">${esc(D.noc_email)}</a>` : ""],
-    ["pairing.version", esc(D.software)],
+    ["pairing.org", D.org],
+    ["pairing.asn", html`<a class="mono" href="/network">${D.asn}</a>`],
+    ["pairing.url", html`<span class="mono">${D.url}</span>`],
+    ["pairing.fingerprint", html`<span class="fp">${D.fingerprint}</span>`],
+    ["pairing.anchors", html`<div class="pill-list" style="justify-content:flex-end">${
+      (D.anchors || []).map(a => html`<span>${a}</span>`)}</div>`],
+    ["pairing.noc", D.noc_email && html`<a href="mailto:${D.noc_email}">${D.noc_email}</a>`],
+    ["pairing.version", D.software],
     ["pairing.pending", String(D.pending_requests || 0)]
   ].filter(r => r[1]);
-  document.getElementById("id").innerHTML = `<div class="kv">` +
-    rows.map(r => `<div class="k">${esc(t(r[0]))}</div><div class="v">${r[1]}</div>`).join("") + `</div>`;
+  H.render(document.getElementById("id"), html`<div class="kv">${rows.map(r =>
+    html`<div class="k">${t(r[0])}</div><div class="v">${r[1]}</div>`)}</div>`);
   const n = D.min_justification || 20;
-  document.getElementById("steps").innerHTML = [1,2,3,4].map(i =>
-    `<div class="step"><h3>${esc(t("pairing.step"+i+"_t"))}</h3><p>${esc(t("pairing.step"+i, {n}))}</p></div>`).join("");
+  H.render(document.getElementById("steps"), [1, 2, 3, 4].map(i =>
+    html`<div class="step"><h3>${t("pairing.step" + i + "_t")}</h3><p>${t("pairing.step" + i, { n })}</p></div>`));
   document.getElementById("ep").textContent = (D.url || "") + "/api/v1/fed/profile";
 }
+
 fetch("/api/v1/fed/pairing/info").then(r => r.json()).then(d => { D = d; })
   .finally(() => App.boot("pairing", render));
 </script>
