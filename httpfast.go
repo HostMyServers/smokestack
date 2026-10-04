@@ -147,7 +147,7 @@ func versionedAssets(b []byte) []byte {
 	if v == "" {
 		return b
 	}
-	for _, name := range [...]string{"/app.css", "/app.js", "/i18n.js"} {
+	for _, name := range [...]string{"/app.css", "/app.js", "/i18n.js", "/theme.js", "/html.js"} {
 		b = bytes.ReplaceAll(b, []byte(`"`+name+`"`), []byte(`"`+name+`?v=`+v+`"`))
 	}
 	return b

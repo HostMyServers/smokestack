@@ -104,8 +104,6 @@
     const t = I18N.t, official = (VERSION || {}).official_url || "";
     return `<div class="wrap">
       <div class="fbottom">
-        <span>© ${new Date().getFullYear()}${SITE.org ? " " + esc(SITE.org) : ""}</span>
-        <span class="spacer"></span>
         ${official ? `<a href="${esc(official)}" rel="noopener" target="_blank">${esc(t("footer.powered"))}</a>`
                    : `<span>${esc(t("footer.powered"))}</span>`}
       </div>
