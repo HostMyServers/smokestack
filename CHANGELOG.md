@@ -14,6 +14,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ### Fixed
 
+- **A translation was downloaded in full on every page view.**
+
+  `/api/v1/i18n/<lang>` was served `no-cache` and carried no validator, so a browser had nothing to revalidate against and fetched the whole dictionary again on each page — about 7 kB compressed, before the first sentence could be shown. The header was deliberate: a dictionary gains keys with every version and can be reloaded while the instance runs, and a stale copy means a page showing `detail.navigator` where a sentence belongs.
+
+  The address now names a revision, a short hash of everything loaded. It changes when a translation changes — including a file dropped into `/var/lib/smokestack/i18n/` and reloaded from the back-office — and does not change when the same content is loaded again, so a restart does not throw away every visitor's cache.
+
+  Under that address a dictionary cannot go stale, so it is kept for a year. The kilobyte that carries the revision is the one thing never cached. Measured in a browser: 7.3 kB on the first page, 0 on the next. An address without a revision, or with an older one, is revalidated exactly as before.
+
 - **The theme button appeared to do nothing on the first press.**
 
   It cycled *Automatic → Light → Dark* in that fixed order. On a machine set to light — which is most of them — leaving *Automatic* for *Light* changed nothing on screen, so the first press looked broken and the page only turned dark on the second.

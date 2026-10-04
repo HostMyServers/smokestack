@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -53,8 +55,35 @@ type I18n struct {
 	mu    sync.RWMutex
 	dicts map[string]map[string]string
 	infos map[string]*LangInfo
+	rev   string
 	dirs  []string
 	embed fs.FS
+}
+
+// rev summarises what is loaded. It changes when a translation changes —
+// including through a file dropped into <data_dir>/i18n/ and a reload from
+// the back-office — and does not change when the same content is loaded
+// again, so an address that names it stays valid across a restart.
+func dictsRev(dicts map[string]map[string]string) string {
+	h := sha256.New()
+	codes := make([]string, 0, len(dicts))
+	for c := range dicts {
+		codes = append(codes, c)
+	}
+	sort.Strings(codes)
+	for _, c := range codes {
+		d := dicts[c]
+		keys := make([]string, 0, len(d))
+		for k := range d {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		fmt.Fprintf(h, "%s\x00", c)
+		for _, k := range keys {
+			fmt.Fprintf(h, "%s\x00%s\x00", k, d[k])
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)[:6])
 }
 
 func flatten(prefix string, in map[string]any, out map[string]string) {
@@ -194,7 +223,7 @@ func (i *I18n) Reload() error {
 	}
 
 	i.mu.Lock()
-	i.dicts, i.infos = dicts, infos
+	i.dicts, i.infos, i.rev = dicts, infos, dictsRev(dicts)
 	i.mu.Unlock()
 	log.Printf("i18n: %d language(s) loaded, reference %s (%d keys)",
 		len(dicts), baseLang, total)
@@ -265,6 +294,14 @@ func (i *I18n) MissingKeys(code string) []string {
 	return out
 }
 
+// Rev nomme le contenu charge, pour l'adresse sous laquelle les pages
+// demandent un dictionnaire.
+func (i *I18n) Rev() string {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.rev
+}
+
 func (i *I18n) Has(code string) bool {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -286,9 +323,14 @@ func (a *API) i18nList(w http.ResponseWriter, r *http.Request) {
 	if def == "" || !a.i18n.Has(def) {
 		def = baseLang
 	}
-	w.Header().Set("Cache-Control", "public, max-age=300")
+	// A kilobyte that carries the revision of the dictionaries. It must
+	// never be stale: a page holding an old revision would ask for an
+	// address that no longer names the current content, and lose the long
+	// cache on the ten times larger payload behind it.
+	w.Header().Set("Cache-Control", "no-cache")
 	writeJSON(w, map[string]any{
-		"base": baseLang, "default": def, "languages": a.i18n.Languages(),
+		"base": baseLang, "default": def, "rev": a.i18n.Rev(),
+		"languages": a.i18n.Languages(),
 	})
 }
 
@@ -299,10 +341,19 @@ func (a *API) i18nDict(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "unknown language")
 		return
 	}
-	// A dictionary gains keys with every version. Cached for an hour, a
-	// proxy or a browser would serve an old copy to a new page, which then
-	// shows raw keys such as "detail.navigator" instead of a sentence.
-	w.Header().Set("Cache-Control", "no-cache")
+	// A dictionary gains keys with every version and can be reloaded while
+	// the instance runs, so a cached copy used to be a page showing raw
+	// keys such as "detail.navigator" instead of sentences. Asked for
+	// under an address that names its revision it cannot go stale, and is
+	// kept for a year rather than fetched again on every page.
+	//
+	// Without the revision, or with one that is no longer current, the
+	// answer is revalidated as before: an older page keeps working.
+	if r.URL.Query().Get("v") == a.i18n.Rev() {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
 	writeJSON(w, d)
 }
 
