@@ -6,6 +6,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ### Fixed
 
+- **The map of the route drew every network on top of the others.**
+
+  A target reached without a single intermediate AS — your own network, then theirs — produced a map with one box in the corner and a wide empty space, under a line saying no intermediate system was found.
+
+  The server numbers the columns by distance and may skip one: that path gives 0, 2 and 3. Indexing an array by that number leaves a hole at 1, and spreading an array with a hole yields `undefined` where it is missing, so `Math.max(...)` returned `NaN`. Every box was placed at `translate(x, NaN)`, the `viewBox` became `0 0 782 NaN`, and the browser stacked them all in the corner — only the last one drawn was visible.
+
+  Columns that hold nothing are dropped before anything is measured. The map draws the three networks again, each in its place. This is older than the template work: the same line is in 0.6.4.
+
 - **Five back-office tables printed their own markup instead of drawing it.**
 
   *Response-time breakdown*, *TLS certificates*, *Peers*, *Updates* and *Host network* showed rows as raw text — `<tr><td>Cloudflare…` written out on the page. 0.6.5 introduced it, and 0.6.6 carried it.

@@ -378,10 +378,18 @@ function draw(cv, s, o) {
 // observed. The current path is solid, the ones seen earlier are dashed, so a
 // target reached through two transits shows both.
 function asGraphSVG(g) {
-  const layers = [];
-  for (const n of g.nodes) (layers[n.layer] = layers[n.layer] || []).push(n);
+  // Le serveur numerote les couches par distance et peut en sauter une :
+  // un chemin sans AS intermediaire donne 0, 2, 3. Indexer par ce numero
+  // laissait un trou dans le tableau, et etaler un tableau a trous rend
+  // undefined la ou il manque -- Math.max valait NaN, chaque boite
+  // recevait translate(x, NaN) et le viewBox devenait invalide, si bien
+  // que toutes se superposaient en haut a gauche. On ne garde que les
+  // colonnes qui portent quelque chose.
+  const byLayer = [];
+  for (const n of g.nodes) (byLayer[n.layer] = byLayer[n.layer] || []).push(n);
+  const layers = byLayer.filter(l => l && l.length);
   const BW = 150, BH = 44, GX = 54, GY = 16, P = 10;
-  const rows = Math.max(...layers.map(l => l.length));
+  const rows = Math.max(1, ...layers.map(l => l.length));
   const W = layers.length * BW + (layers.length - 1) * GX + P * 2;
   const H = rows * BH + (rows - 1) * GY + P * 2 + 14;
   const pos = {};
