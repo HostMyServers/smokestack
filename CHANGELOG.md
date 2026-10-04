@@ -14,6 +14,16 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Nothing stops being measured or counted. The passes are recorded as before, and switching the setting back on shows the same history, including the period it was hidden.
 
+### Changed
+
+- **Less rounded, and rounded in one place.**
+
+  Sixty `border-radius` declarations carried thirteen different values for the same handful of roles: 6, 7, 8, 9 and 10 px on controls that are the same kind of control, 12 and 14 px on panels that are the same kind of panel. Nothing distinguished them but the order they were written in.
+
+  They become four variables — `--radius` for panels and cards, `--radius-s` for controls and small surfaces, `--radius-xs` for hairline bars, `--radius-pill` for the badges and chips that stay pills — and the scale is halved: 12 px becomes 6, 8 px becomes 4. True circles (status dots, the step numbers) keep `50%`, because they are circles rather than rounded corners.
+
+  How round the interface looks is now four values rather than sixty. The back-office does not load `app.css`, so it carries the same four in its own `:root` instead of a scale it would never see.
+
 ### Fixed
 
 - **No container image was published for 0.6.2.**
