@@ -2,6 +2,20 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### New
+
+- **Light or dark is now a choice, not only what the system says.**
+
+  The public pages already followed `prefers-color-scheme`. A visitor whose system is dark but who wants this page light — or the other way round — had no say. A button in the header cycles through three states: *Automatic*, *Light*, *Dark*. The choice is remembered by the browser, on that machine only, like the language.
+
+  *Automatic* stays the default and keeps following the system, including when the system changes while the page is open.
+
+  The dark palette moves from the `prefers-color-scheme` media query to a `data-theme` attribute, which `theme.js` resolves from `<head>` before the first paint — so there is no light flash to swap away, and the palette is written once instead of once per condition. The chart colours read the same attribute, so a graph drawn after a switch is drawn in the right palette.
+
+  The back-office is not covered: it carries its own light-only stylesheet and needs a palette of its own.
+
 ## 0.6.2
 
 Two batches in one version. The build was tightened: the binaries were compiled by a Go that no longer receives security fixes, the container image was running on a distribution that had stopped publishing security advisories, and a dispatched release could carry a shell command inside its version number. And the public pages lost what they were repeating — the footer is one line again, and the language is chosen from a flag rather than a list of ten names.
