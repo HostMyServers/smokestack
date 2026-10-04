@@ -2,6 +2,26 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Changed
+
+- **The footer is one line again: the copyright and the link to the project.**
+
+  It had grown into five columns repeated at the bottom of every public page, and nothing in them was published only there:
+
+  | Column | Where it already is |
+  |---|---|
+  | Brand, organisation, location | the header, and `/about` |
+  | Pages | the header navigation |
+  | Operator | `/about` — organisation, ASN, owner, location, PeeringDB, NOC, website |
+  | Open data | `/api/v1/overview`, `/healthz`, `/api/v1/version` |
+  | Software | the project link, which stays in the bottom line |
+
+  The cost is honest and small: no public page links the three open-data endpoints any more. They are documented, unauthenticated and unchanged, and `/about` is where a pointer to them would belong if one is wanted.
+
+  Nineteen keys leave the ten language files, and `.fgrid`, `.fbrand` and `.fcol` leave the stylesheet. No endpoint, stored value or published surface changes.
+
 ## 0.6.1
 
 Two things 0.6.0 got wrong or got late: the availability figure it shipped never worked, and the federated double-check landed a few minutes after the tag went out.
