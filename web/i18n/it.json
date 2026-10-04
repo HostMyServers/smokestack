@@ -260,26 +260,8 @@
     "tech_body": "Firme Ed25519 a livello di messaggio, tolleranza dell'orologio di 5 minuti, protezione dal replay tramite cache dei nonce."
   },
   "footer": {
-    "graphs": "Grafici",
-    "about": "Informazioni e contatti",
-    "federation": "Federazione",
-    "network": "Rete ospitante",
-    "pairing": "Abbinamento",
     "powered": "Realizzato con smokestack",
-    "pages": "Pagine",
-    "operator": "Operatore",
-    "data": "Dati aperti",
-    "software": "Software",
-    "official_site": "Sito ufficiale di smokestack",
-    "source": "Codice sorgente",
-    "version": "Versione {v}",
-    "api": "API JSON",
-    "health": "Stato del servizio",
-    "noc": "Contatta il NOC",
-    "website": "Sito dell'operatore",
-    "ripe": "RIPEstat",
-    "peeringdb": "PeeringDB",
-    "bgptools": "bgp.tools"
+    "rights": "Tutte le misure sono pubblicate così come sono, senza garanzia."
   },
   "trace": {
     "title": "Traceroute",

@@ -56,11 +56,21 @@ Nothing an operator configures. What changed is what the build is allowed to let
 
 ### Changed
 
-- **The footer no longer disclaims the measurements it publishes.**
+- **The footer is one line again: the copyright and the link to the project.**
 
-  The bottom line of every public page read `© 2026 <operator> — All measurements are published as-is, without warranty.`. The second half was shipped as a translated string, so it spoke for operators who had never written it: instances whose terms live on their own website, and instances that publish figures they stand behind.
+  It had grown into five columns repeated at the bottom of every public page, and nothing in them was published only there:
 
-  What remains is the copyright line and the link to the project. A disclaimer belongs on the About page, which is the operator's own text and can say exactly what that instance means. The `footer.rights` key leaves the ten language files with it.
+  | Column | Where it already is |
+  |---|---|
+  | Brand, organisation, location | the header, and `/about` |
+  | Pages | the header navigation |
+  | Operator | `/about` — organisation, ASN, owner, location, PeeringDB, NOC, website |
+  | Open data | `/api/v1/overview`, `/healthz`, `/api/v1/version` |
+  | Software | the project link, which stays in the bottom line |
+
+  The cost is honest and small: no public page links the three open-data endpoints any more. They are documented, unauthenticated and unchanged, and `/about` is where a pointer to them would belong if one is wanted.
+
+  Nineteen keys leave the ten language files, and `.fgrid`, `.fbrand` and `.fcol` leave the stylesheet. No endpoint, stored value or published surface changes.
 
 ## 0.6.1
 

@@ -260,26 +260,8 @@
     "tech_body": "Ed25519-signaturer på meddelelsesniveau, 5 minutters urtolerance, beskyttelse mod genafspilning via nonce-cache."
   },
   "footer": {
-    "graphs": "Grafer",
-    "about": "Om og kontakt",
-    "federation": "Føderation",
-    "network": "Værtsnet",
-    "pairing": "Parring",
     "powered": "Drevet af smokestack",
-    "pages": "Sider",
-    "operator": "Operatør",
-    "data": "Åbne data",
-    "software": "Software",
-    "official_site": "Officielt websted for smokestack",
-    "source": "Kildekode",
-    "version": "Version {v}",
-    "api": "JSON-API",
-    "health": "Tjenestestatus",
-    "noc": "Kontakt NOC'en",
-    "website": "Operatørens websted",
-    "ripe": "RIPEstat",
-    "peeringdb": "PeeringDB",
-    "bgptools": "bgp.tools"
+    "rights": "Alle målinger offentliggøres, som de er, uden garanti."
   },
   "trace": {
     "title": "Traceroutes",
