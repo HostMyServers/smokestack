@@ -247,6 +247,20 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 /* --- légendes sous les bandes de la page de détail --- */
 .strip-hint { font-size: 11.5px; line-height: 1.45; color: var(--ink3); margin: 6px 0 0; }
 
+/* --- aide repliee : un « ? » a cote d'un intitule, sa bulle en dessous ---
+   Une explication se lit une fois. Laissee sous chaque bloc, elle ajoute
+   trois lignes grises a chaque visite pour un lecteur qui sait deja. */
+.hint { position: relative; display: inline-flex; vertical-align: middle; margin-left: 6px; }
+.hintb { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
+         border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink);
+         font-size: 10.5px; font-weight: 700; line-height: 1; }
+.hintb:hover, .hintb[aria-expanded="true"] { background: var(--accent); color: #fff; }
+.hintbox { position: absolute; left: 0; top: calc(100% + 7px); z-index: 30; width: max-content;
+           max-width: min(360px, 72vw); padding: 10px 12px; background: var(--bg);
+           border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+           font-size: 11.5px; line-height: 1.5; font-weight: 400; color: var(--ink-2);
+           text-transform: none; letter-spacing: normal; white-space: normal; }
+
 /* --- liste des événements sous le graphe --- */
 .evlist { margin: 0; padding-left: 22px; font-size: 12.5px; line-height: 1.6; }
 .evlist li { margin-bottom: 3px; }
@@ -256,8 +270,11 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 .evdetail { color: var(--ink2); margin-left: 8px; font-size: 11.5px; }
 
 /* --- chaîne des AS traversés --- */
-.aschain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.asnode { display: inline-flex; flex-direction: column; line-height: 1.25;
+/* La chaine occupe la largeur et respire : les maillons grandissent a
+   parts egales au lieu d'etre tasses a gauche. */
+.aschain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px 4px; width: 100%; }
+.asnode { display: inline-flex; flex: 1 1 0; min-width: 104px; align-items: center; text-align: center;
+          flex-direction: column; justify-content: center; line-height: 1.25;
   border: 1px solid var(--line); border-radius: var(--radius-s); padding: 5px 9px; background: var(--bg-soft); }
 .asnode.self { border-color: var(--accent); }
 .asnode.dest { border-color: var(--ok); }
@@ -265,9 +282,9 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 .asnode.ris { padding: 3px 8px; background: transparent; }
 .asnode .asrole { font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink3); }
 .asnode .asn { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 600; }
-.asnode .asname { font-size: 10.5px; color: var(--ink3); max-width: 160px; overflow: hidden;
+.asnode .asname { font-size: 10.5px; color: var(--ink3); max-width: 100%; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
-.asarrow { color: var(--ink3); font-size: 12px; }
+.asarrow { flex: 0 0 auto; color: var(--ink3); font-size: 12px; padding: 0 2px; }
 
 /* --- carte des AS traversés --- */
 .asmap .gnode rect { fill: var(--bg-soft); stroke: var(--line); }

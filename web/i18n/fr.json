@@ -21,6 +21,7 @@
   },
   "common": {
     "loading": "Chargement…",
+    "explain": "Explication",
     "back_home": "Retour à l'accueil",
     "probe": "Sonde",
     "updated": "Mis à jour",
@@ -103,9 +104,7 @@
     "route_changed": "route changée",
     "ev_hint": "Un repère pointillé signale un changement de route sur le chemin aller, de cette sonde vers cette cible : le traceroute a traversé d'autres réseaux qu'auparavant. Cela ne concerne que cette cible, pas l'instance, et ne dit rien du chemin retour, invisible depuis ici. Aucune alerte n'est déclenchée : rien n'est cassé, le chemin n'est simplement plus le même. Les cibles dont le chemin n'a jamais changé ne portent aucun repère.",
     "aspath": "Route vers cette cible",
-    "aspath_hint": "Du réseau de cette instance jusqu'au réseau qui annonce l'adresse de la cible, d'après le dernier traceroute. Le chemin retour peut être différent.",
     "as_here": "depuis ici",
-    "as_target": "cible",
     "as_gap": "inconnu",
     "as_gap_hint": "Le traceroute n'a pas révélé cette portion du chemin : ces routeurs n'ont rien répondu, ou la destination n'a pas été atteinte.",
     "as_map_note": "{n} traceroutes · trait plein : chemin actuel, pointillés : vus précédemment",
@@ -270,7 +269,7 @@
   },
   "trace": {
     "title": "Traceroutes",
-    "sub": "Pris automatiquement quand la cible sort de sa référence, et une fois par jour sur un chemin sain pour comparaison.",
+    "sub": "Pris lors d'une anomalie, et une fois par jour pour comparaison.",
     "anomaly": "anomalie",
     "reference": "chemin de référence",
     "manual": "manuel",
