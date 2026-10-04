@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"compress/gzip"
 	"container/list"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -140,6 +140,12 @@ func assetVersion() string {
 	return Version + "-" + BuildDate
 }
 
+// localAsset matches a page's reference to a stylesheet or a script it
+// serves itself. Spelling them out was fine for four files; the
+// back-office alone loads twenty, and a file left off the list is a file
+// still cached under a bare address.
+var localAsset = regexp.MustCompile(`(src|href)="(/[A-Za-z0-9/._-]+\.(?:js|css))"`)
+
 // versionedAssets rewrites the references of a page on the way out, so the
 // files on disk stay plain and openable.
 func versionedAssets(b []byte) []byte {
@@ -147,10 +153,7 @@ func versionedAssets(b []byte) []byte {
 	if v == "" {
 		return b
 	}
-	for _, name := range [...]string{"/app.css", "/app.js", "/i18n.js", "/theme.js", "/html.js"} {
-		b = bytes.ReplaceAll(b, []byte(`"`+name+`"`), []byte(`"`+name+`?v=`+v+`"`))
-	}
-	return b
+	return localAsset.ReplaceAll(b, []byte(`$1="$2?v=`+v+`"`))
 }
 
 func withAssetCache(next http.Handler, maxAge int) http.Handler {

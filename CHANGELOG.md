@@ -84,6 +84,18 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The conversion was checked by comparing what the browser actually built, before and against after, on the overview and on a target page, and again with traceroutes, events and hostile values injected into both: every container came out identical, character for character.
 
+- **The back-office is twenty files instead of one.**
+
+  `admin.html` was 2 392 lines carrying a single 2 245-line `<script>`. Nothing in it could be opened on its own, and `go test` never saw it: the CI extracted the block and ran `node --check` over the whole thing.
+
+  It becomes a 167-line page that loads `/backoffice/*.js`, one file per concern, in the order it already depended on: `core`, `gate`, `shell`, then a file per view. The largest is `targets.js` at 473 lines, the smallest `startup.js` at 19.
+
+  They are plain scripts sharing a global scope rather than ES modules, which is what `app.js`, `i18n.js` and `theme.js` already are: splitting the file was the point, and rewriting a hundred references to shared state to buy module scope was not. Nothing moved between files.
+
+  Checked by driving all twenty-one views in a browser before and after and comparing the markup produced: seventeen identical, and the four that differ do so by a clock — a login line in the audit log, the service log of a different process, two date fields defaulting to *now*, one *last seen*.
+
+  `find web -name "*.js"` in the CI replaces `web/*.js`, which would have stopped checking the back-office the moment it was split, and a page's references to its own scripts and stylesheets are now versioned by pattern rather than from a list of five names that the twenty new files would have silently fallen off.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**
