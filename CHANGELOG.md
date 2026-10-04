@@ -104,6 +104,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Checked by driving all twenty-one views before and after and comparing the markup produced, then again with the API client substituted so that every view has rows to draw, each carrying `<img src=x onerror=…>` in every text field: no tag appears escaped anywhere, nothing executes, and the name shows as the text it is. The second pass matters — a view whose table is empty on the instance used for the check compares equal to itself whatever its row path does.
 
+- **There is one way markup reaches the DOM, with no exception left.**
+
+  One line of the back-office still assigned `outerHTML` directly. It worked, and what it wrote was a constant with nothing interpolated into it, so no escaping decision was being skipped — but it was the one place where the engine's output reached the page without going through it, and a rule with one exception is a rule nobody can check.
+
+  `H.replace(el, tpl)` replaces an element the way `H.render(el, tpl)` fills one. It parses through a `<template>`, so a `<tr>` survives the trip where a bare container would have had it dropped by the parser, and it does nothing on an element that is null or already detached.
+
+  `innerHTML`, `outerHTML`, `insertAdjacentHTML` and `document.write` now appear nowhere in `web/` outside `html.js` itself.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**

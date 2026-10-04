@@ -76,8 +76,8 @@ async function nocPanel(asn, ctx){
         const a=box.querySelector("a.btn.p");
         if(a) a.href="mailto:"+encodeURIComponent(mail.email).replace(/%40/,"@")
           +"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(text);
-        sb.outerHTML=html`<span class="faint" style="font-size:11.5px">share link added to the message ·
-          revoke it in Share links</span>`;
+        H.replace(sb,html`<span class="faint" style="font-size:11.5px">share link added to the message ·
+          revoke it in Share links</span>`);
         toast("Share link created and added to the message");
       }catch(e){ toast(e.message,true); sb.disabled=false; sb.textContent="Attach a share link"; }
     };

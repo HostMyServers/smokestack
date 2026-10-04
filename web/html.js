@@ -67,6 +67,17 @@
       if (!el) return;
       el.innerHTML = flatten(tpl);
     },
+    // Replacing an element rather than filling one. Without it a caller
+    // reaches for outerHTML, which takes a string and so takes anything:
+    // the point of this file is that there is one way in, not two.
+    // <template> parses the fragment in a context of its own, so a <tr>
+    // survives the trip where a bare <div> would have dropped it.
+    replace(el, tpl) {
+      if (!el || !el.parentNode) return;
+      const slot = document.createElement("template");
+      slot.innerHTML = flatten(tpl);
+      el.replaceWith(slot.content);
+    },
     Html
   };
 })();
