@@ -78,6 +78,12 @@ Versions are published as signed releases; servers with automatic updates instal
 
   `App.escURL` is gone, having lost its last caller. `App.esc` stays until the back-office follows.
 
+- **The overview and the target page are assembled by the template.**
+
+  `index.html` is the last public page to convert: 106 `esc()` calls and twelve `innerHTML` assignments become none of either. The two render functions that ran to sixty and forty lines break into named pieces — `heroSection`, `howBox`, `railGroup`, `netCard`, `detailTags`, `chartCard`, `outcome` — each of which fits on a screen.
+
+  The conversion was checked by comparing what the browser actually built, before and against after, on the overview and on a target page, and again with traceroutes, events and hostile values injected into both: every container came out identical, character for character.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**
