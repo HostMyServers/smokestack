@@ -134,6 +134,12 @@ Versions are published as signed releases; servers with automatic updates instal
 
   `innerHTML`, `outerHTML`, `insertAdjacentHTML` and `document.write` now appear nowhere in `web/` outside `html.js` itself.
 
+- **The footer is the link to the project and nothing else.**
+
+  The copyright line was the last thing standing next to it. It asserted a reserved right over figures the instance publishes openly, next to a page that says those figures come with no warranty and are not an SLA — a claim nobody had asked for and nothing relied on.
+
+  What is left is one line: *Powered by smokestack*, pointing at the project, from the address compiled into the binary.
+
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**

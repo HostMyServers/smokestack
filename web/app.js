@@ -96,8 +96,6 @@
     const t = I18N.t, official = url((VERSION || {}).official_url);
     return html`<div class="wrap">
       <div class="fbottom">
-        <span>© ${new Date().getFullYear()}${SITE.org ? " " + SITE.org : ""}</span>
-        <span class="spacer"></span>
         ${official ? html`<a href="${official}" rel="noopener" target="_blank">${t("footer.powered")}</a>`
                    : html`<span>${t("footer.powered")}</span>`}
       </div>
