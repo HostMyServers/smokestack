@@ -280,8 +280,7 @@
     "website": "Sito dell'operatore",
     "ripe": "RIPEstat",
     "peeringdb": "PeeringDB",
-    "bgptools": "bgp.tools",
-    "rights": "Tutte le misure sono pubblicate così come sono, senza garanzia."
+    "bgptools": "bgp.tools"
   },
   "trace": {
     "title": "Traceroute",

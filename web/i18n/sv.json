@@ -280,8 +280,7 @@
     "website": "Operatörens webbplats",
     "ripe": "RIPEstat",
     "peeringdb": "PeeringDB",
-    "bgptools": "bgp.tools",
-    "rights": "Alla mätningar publiceras i befintligt skick, utan garanti."
+    "bgptools": "bgp.tools"
   },
   "trace": {
     "title": "Traceroutes",
