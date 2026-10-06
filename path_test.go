@@ -299,6 +299,34 @@ func TestBuildASGraph(t *testing.T) {
 	}
 }
 
+// Silent routers in the middle of a network are not a break in the path: the
+// packet never left it. Treating them as one drew the target's own network
+// twice, with a detour through the unknown in between — which is what the
+// map showed for every target whose last hops do not answer.
+func TestSilentHopsInsideOneASAreNotAGap(t *testing.T) {
+	tr := &Traceroute{Reached: true, Hops: []Hop{
+		hopAS("192.0.2.1", "AS64500"),
+		{Addr: "198.51.100.7", ASN: "AS64502", IX: "TEST-IX", RTTms: []float64{6}, Sent: 3},
+		{Addr: "*", Sent: 3},
+		{Addr: "*", Sent: 3},
+		hopAS("203.0.113.5", "AS64502"),
+	}}
+	seq, _, ix := asSeq(tr, "AS64500", "AS64502")
+	if got := strings.Join(seq, " "); got != "AS64500 AS64502" {
+		t.Errorf("one exchange crossed, two networks on the path: %q", got)
+	}
+	if ix["AS64500>AS64502"] != "TEST-IX" {
+		t.Errorf("the exchange must survive the silent hops: %v", ix)
+	}
+	// Same thing at the very end: a traceroute that stops answering inside
+	// the target's network has reached it, not left it.
+	tr.Reached = false
+	tr.Hops = append(tr.Hops, Hop{Addr: "*", Sent: 3})
+	if seq, _, _ = asSeq(tr, "AS64500", "AS64502"); strings.Join(seq, " ") != "AS64500 AS64502" {
+		t.Errorf("no detour at the end of an unfinished traceroute: %v", seq)
+	}
+}
+
 // The RIS view is parsed from what RIPEstat returns: the prefix, its origin,
 // and the upstreams the collectors see in front of it — ranked by how many
 // peers saw each, with prepended AS ignored.
