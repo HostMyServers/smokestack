@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.10
+
+The map of the route reads again. Its text asked for colours that only the back-office palette defines, so the names of the networks came out black in both themes — in dark mode, black on near-black — and a path too long for the column was shrunk until nothing on it could be read.
+
+The exchange where two networks hand traffic over is a badge in its own colour now, in the hop table as on the map, and a traceroute going silent inside the target's network no longer draws a detour through the unknown.
 
 ### Fixed
 
