@@ -745,8 +745,10 @@ func asSeq(tr *Traceroute, originASN, destASN string) ([]string, map[string]floa
 	seq := []string{}
 	rtt := map[string]float64{}
 	ix := map[string]string{} // "from>to" : the exchange that link crossed
+	last := ""                // the network we are in, silent hops included
 	if originASN != "" {
 		seq = append(seq, originASN)
+		last = originASN
 	}
 	gapPending := false
 	for _, h := range tr.Hops {
@@ -757,33 +759,37 @@ func asSeq(tr *Traceroute, originASN, destASN string) ([]string, map[string]floa
 			}
 			continue
 		}
+		// Routers staying silent between two hops of the same network are
+		// internal to it: the path never left, so there is no hole to draw.
+		// Counting them as a gap drew the network twice, with a detour
+		// through the unknown in between.
+		if as == last {
+			gapPending = false
+			continue
+		}
 		if gapPending && len(seq) > 0 && seq[len(seq)-1] != "?" {
 			seq = append(seq, "?")
 		}
 		gapPending = false
-		if len(seq) > 0 && seq[len(seq)-1] == as {
-			continue
-		}
 		if h.IX != "" && len(seq) > 0 {
 			ix[seq[len(seq)-1]+">"+as] = h.IX
 		}
 		seq = append(seq, as)
+		last = as
 		if _, ok := rtt[as]; !ok && len(h.RTTms) > 0 {
 			rtt[as] = medianOf(h.RTTms)
 		}
 	}
-	if destASN != "" {
+	if destASN != "" && last != destASN {
 		if !tr.Reached || gapPending {
 			if len(seq) > 0 && seq[len(seq)-1] != "?" {
 				seq = append(seq, "?")
 			}
 		}
-		if len(seq) == 0 || seq[len(seq)-1] != destASN {
-			if v := ixEntering(tr, destASN); v != "" && len(seq) > 0 {
-				ix[seq[len(seq)-1]+">"+destASN] = v
-			}
-			seq = append(seq, destASN)
+		if v := ixEntering(tr, destASN); v != "" && len(seq) > 0 {
+			ix[seq[len(seq)-1]+">"+destASN] = v
 		}
+		seq = append(seq, destASN)
 	}
 	return seq, rtt, ix
 }

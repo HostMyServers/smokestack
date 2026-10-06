@@ -2,6 +2,28 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **The route map was unreadable in dark mode.**
+
+  Its text asked for colour variables that only the back-office palette defines, and the public pages do not load it. A property whose value cannot be resolved falls back to the initial one, so the names and the round-trip times came out black whatever the theme, and the box around an unmeasured stretch had no outline at all — in dark mode, black on near-black. The arrow heads were in the same case.
+
+- **A route too long for the column was shrunk until nothing could be read.**
+
+  The whole map was drawn on one line and scaled down to fit, names included. It now folds onto as many rows as the width allows: the boxes keep their size, and a link crossing to the next row runs back along a lane under the one it leaves.
+
+- **A traceroute going silent inside the target's network drew a detour through the unknown.**
+
+  Routers answering nothing between two hops of the same network are internal to it: the packet never left. They were counted as a hole in the AS path, so the map stepped out of the network, drew an unknown box and came back in with an arrow pointing backwards. Those hops now stay inside the network they belong to.
+
+### Changed
+
+- **The exchange where two networks meet is read at a glance.**
+
+  It was footnote-sized grey text, next to the AS in the hop table and on the arrows of the route. It is now a badge in the colour the interface reserves for exchanges, announced by `IX`, and the hop that crosses one is marked in the table. It is the one hop the global routing table cannot name, and usually the first an operator looks for.
+
 ## 0.6.9
 
 The hop where two networks hand traffic over is named. A peering LAN is announced in no routing table, so the lookup that names every other hop of a traceroute left exactly that line blank — the one an operator reads first. PeeringDB fills it in: the exchange, and the member holding the address.
