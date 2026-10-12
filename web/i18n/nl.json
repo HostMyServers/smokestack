@@ -35,7 +35,8 @@
     "copy_link": "Link kopiëren",
     "minutes_ago": "{n} min geleden",
     "hours_ago": "{n} u geleden",
-    "days_ago": "{n} d geleden"
+    "days_ago": "{n} d geleden",
+    "load_failed": "De gegevens konden niet worden geladen. Nieuwe poging…"
   },
   "status": {
     "ok": "normaal",

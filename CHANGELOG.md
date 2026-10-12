@@ -14,6 +14,12 @@ Versions are published as signed releases; servers with automatic updates instal
 
   On its first start this version rebuilds every level from the one below it, a few hours at a time, so measurements keep being written meanwhile. The last 48 hours come back in full from the raw passes, along with whatever the 1-minute table still held; older history it had already lost stays lost, although the hourly raw archive keeps every pass.
 
+- **A page whose first request failed stayed blank until it was reloaded.**
+
+  The public pages are built in the browser, and the home page drew nothing, header and footer included, until the overview arrived. One failed request was enough: a 502 from the reverse proxy while the service restarts for an update, a 429 from the rate limit, a dropped connection.
+
+  A failed request is now retried after 1, 2 and 4 seconds, following `Retry-After` on a 429. If the overview still cannot be loaded, the page says so and keeps trying, then draws itself as soon as it gets through. A chart whose series cannot be loaded says so in its legend and tries again ten seconds later.
+
 ## 0.6.11
 
 A security release. Go 1.26.9 fixes ten vulnerabilities in the standard library, eight of them in the HTTP server and client every instance runs, and the standard library is linked into the binary: 0.6.10 carries all ten, whatever Go the server has installed. The release build also stops taking whatever Go the CI runner has cached, which is how the next one would have shipped with the same flaws.

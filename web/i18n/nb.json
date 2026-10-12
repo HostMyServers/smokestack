@@ -35,7 +35,8 @@
     "copy_link": "Kopier lenke",
     "minutes_ago": "for {n} min siden",
     "hours_ago": "for {n} t siden",
-    "days_ago": "for {n} d siden"
+    "days_ago": "for {n} d siden",
+    "load_failed": "Dataene kunne ikke lastes inn. Prøver igjen…"
   },
   "status": {
     "ok": "normal",

@@ -166,6 +166,26 @@
     };
   }
 
+  const pause = ms => new Promise(done => setTimeout(done, ms));
+
+  // getJSON tries again when the failure is one that passes — the network,
+  // a 429, a 5xx while the service restarts — and throws once it persists.
+  async function getJSON(url, tries = 4) {
+    for (let i = 1; ; i++) {
+      let r;
+      try {
+        r = await fetch(url);
+      } catch (e) {
+        if (i >= tries) throw e;
+        await pause(1000 * 2 ** (i - 1));
+        continue;
+      }
+      if (r.ok) return r.json();
+      if (i >= tries || (r.status !== 429 && r.status < 500)) throw new Error(`${url}: HTTP ${r.status}`);
+      await pause(1000 * (+r.headers.get("Retry-After") || 2 ** (i - 1)));
+    }
+  }
+
   async function boot(active, render) {
     const [site, ver] = await Promise.all([
       fetch("/api/v1/site").then(r => r.json()).catch(() => ({})),
@@ -181,5 +201,5 @@
 
   // esc reste exporte tant qu'une page assemble encore ses chaines a la
   // main ; escURL n'avait plus d'appelant.
-  window.App = { boot, esc: H.esc, get site() { return SITE; } };
+  window.App = { boot, getJSON, esc: H.esc, get site() { return SITE; } };
 })();

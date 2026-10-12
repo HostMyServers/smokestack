@@ -35,7 +35,8 @@
     "copy_link": "Kopiera länk",
     "minutes_ago": "för {n} min sedan",
     "hours_ago": "för {n} h sedan",
-    "days_ago": "för {n} d sedan"
+    "days_ago": "för {n} d sedan",
+    "load_failed": "Det gick inte att läsa in data. Försöker igen…"
   },
   "status": {
     "ok": "normal",

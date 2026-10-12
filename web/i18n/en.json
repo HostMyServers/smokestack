@@ -35,7 +35,8 @@
     "copy_link": "Copy link",
     "minutes_ago": "{n} min ago",
     "hours_ago": "{n} h ago",
-    "days_ago": "{n} d ago"
+    "days_ago": "{n} d ago",
+    "load_failed": "The data could not be loaded. Trying again…"
   },
   "status": {
     "ok": "nominal",

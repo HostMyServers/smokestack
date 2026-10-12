@@ -188,8 +188,8 @@ const worst = list => list.some(x => x.status === "crit") ? "crit" : list.some(x
 async function loadOverview() {
   // "all=1" is only honoured for authenticated callers; visitors get the
   // public targets either way.
-  S.ov = await fetch(SHARE ? "/api/v1/overview?share=" + encodeURIComponent(SHARE)
-    : "/api/v1/overview?all=1").then(r => r.json());
+  S.ov = await App.getJSON(SHARE ? "/api/v1/overview?share=" + encodeURIComponent(SHARE)
+    : "/api/v1/overview?all=1");
   S.ov.categories.forEach(c => { if (S.open[c.id] === undefined) S.open[c.id] = true; });
 }
 async function loadSide() {
@@ -813,13 +813,19 @@ function renderDetail() {
 async function paint() {
   const tg = S.target, acc = color(tg._ci), now = Math.floor(Date.now() / 1000);
   const q = `/api/v1/series?target=${tg.id}&from=${S.from}&to=${S.to}&points=1500`;
-  const [cur, ev, nav, traces] = await Promise.all([
-    fetch(q + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")).then(r => r.json()),
+  const got = await Promise.all([
+    App.getJSON(q + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")),
     fetch(`/api/v1/events?target=${tg.id}&from=${S.from}&to=${S.to}`).then(r => r.ok ? r.json() : []).catch(() => []),
-    S.nav ? Promise.resolve(S.nav) : fetch(`/api/v1/series?target=${tg.id}&from=${now - 365 * 86400}&to=${now}&points=600` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")).then(r => r.json()),
+    S.nav ? Promise.resolve(S.nav) : App.getJSON(`/api/v1/series?target=${tg.id}&from=${now - 365 * 86400}&to=${now}&points=600` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")),
     fetch(`/api/v1/traceroutes?target=${tg.id}&limit=40` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")).then(r => r.ok ? r.json() : []).catch(() => [])
-  ]);
+  ]).catch(() => null);
   if (S.view !== "detail" || S.target !== tg) return;
+  if (!got) {
+    $("#res").textContent = t("common.load_failed");
+    setTimeout(() => { if (S.view === "detail" && S.target === tg) paint(); }, 10000);
+    return;
+  }
+  const [cur, ev, nav, traces] = got;
   S.cur = cur; S.nav = nav; S.traces = traces || [];
   // Anomaly traceroutes are marked on the chart next to the annotated events.
   S.events = (ev || []).concat(S.traces.filter(x => x.kind === "anomaly").map(x => ({ ts_start: x.ts, title: "traceroute" })));
@@ -1021,16 +1027,35 @@ function fromHash() {
   return false;
 }
 (async () => {
-  await Promise.all([loadOverview(), loadSide()]);
-  let first = true;
+  let first = true, shown = false, failed = false, booted = false;
   // A shared link has one target and no overview to come back to: it opens
   // straight on that target.
-  App.boot("home", () => {
+  const show = () => {
+    if (!S.ov) {
+      H.render($("#view"), html`<p class="wrap muted" style="padding:40px 0">${t(failed ? "common.load_failed" : "common.loading")}</p>`);
+      return;
+    }
+    shown = true;
     if (first) { first = false; if (SHARE ? openShared() : fromHash()) return; }
     if (SHARE) { openShared(); return; }
     render();
-  });
-  setInterval(async () => { await loadOverview(); if (S.view === "home") renderHome(); else if (S.target) { S.target = byId(S.target.id) || S.target; } }, 30000);
+  };
+  // The overview is the whole page. One failed request used to leave it
+  // blank until a reload; it now says so and keeps trying.
+  const loaded = (async () => {
+    for (let wait = 5000; ; wait = Math.min(2 * wait, 60000)) {
+      try { await Promise.all([loadOverview(), loadSide()]); return; } catch (e) { failed = true; if (booted) show(); }
+      await new Promise(done => setTimeout(done, wait));
+    }
+  })();
+  await App.boot("home", show);
+  booted = true;
+  await loaded;
+  if (!shown) show();
+  setInterval(async () => {
+    try { await loadOverview(); } catch (e) { return; }
+    if (S.view === "home") renderHome(); else if (S.target) { S.target = byId(S.target.id) || S.target; }
+  }, 30000);
   let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 160); });
   const route = () => {
     if (SHARE) return openShared();

@@ -35,7 +35,8 @@
     "copy_link": "Copiar ligação",
     "minutes_ago": "há {n} min",
     "hours_ago": "há {n} h",
-    "days_ago": "há {n} d"
+    "days_ago": "há {n} d",
+    "load_failed": "Não foi possível carregar os dados. A tentar novamente…"
   },
   "status": {
     "ok": "nominal",
