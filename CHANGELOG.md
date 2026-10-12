@@ -2,7 +2,13 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.12
+
+The history comes back. Every instance has been erasing its own aggregates as the rollup window slid past them: a chart longer than four days showed the last six hours, and the 1-minute history of some targets stopped two hours back. This version stops it, and on its first start rebuilds every level from what is left, the raw passes of the last 48 hours in full. Install it soon: what it can recover shrinks by the hour.
+
+A page no longer stays blank when one request fails, and TCP targets stop counting a slow name lookup as packet loss.
+
+An instance on automatic updates installs this by itself. Nothing to reconfigure, unless a TCP target on the legacy automatic family should keep measuring IPv6: see below.
 
 ### Fixed
 
