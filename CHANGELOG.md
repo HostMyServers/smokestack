@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.11
+
+A security release. Go 1.26.9 fixes ten vulnerabilities in the standard library, eight of them in the HTTP server and client every instance runs, and the standard library is linked into the binary: 0.6.10 carries all ten, whatever Go the server has installed. The release build also stops taking whatever Go the CI runner has cached, which is how the next one would have shipped with the same flaws.
+
+An instance on automatic updates installs this by itself. Nothing to reconfigure.
 
 ### Fixed
 
