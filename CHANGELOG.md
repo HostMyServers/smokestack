@@ -20,6 +20,14 @@ Versions are published as signed releases; servers with automatic updates instal
 
   A failed request is now retried after 1, 2 and 4 seconds, following `Retry-After` on a 429. If the overview still cannot be loaded, the page says so and keeps trying, then draws itself as soon as it gets through. A chart whose series cannot be loaded says so in its legend and tries again ten seconds later.
 
+- **A slow name lookup counted as lost packets on TCP targets, on every named target at once.**
+
+  A TCP target was dialled by name, so each connection of a pass looked the name up again, inside its timeout, while ICMP targets resolve once and keep the answer five minutes. When the server's resolver hesitated, connections failed before the handshake, and every TCP target given by name lost them in the same minutes while the ICMP targets stayed at zero.
+
+  TCP targets now resolve once per pass through the same cache and connect to the address. A pinned address, which they ignored, now applies to them, and the address recorded for a pass is the one measured. A name that cannot be resolved fails the pass with that reason.
+
+  A TCP target left on the legacy automatic family is now measured over IPv4 when the name has both, as the setting says. Go used to prefer IPv6 on a dual-stack server, so the graph of such a target may shift; set its family to IPv6 to keep measuring IPv6.
+
 ## 0.6.11
 
 A security release. Go 1.26.9 fixes ten vulnerabilities in the standard library, eight of them in the HTTP server and client every instance runs, and the standard library is linked into the binary: 0.6.10 carries all ten, whatever Go the server has installed. The release build also stops taking whatever Go the CI runner has cached, which is how the next one would have shipped with the same flaws.
