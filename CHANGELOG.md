@@ -2,6 +2,18 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **The binaries are built with Go 1.26.9, which fixes ten vulnerabilities in the standard library.**
+
+  Eight are in `net/http` — HTTP/2 server crashes, CPU and memory exhaustion, connection desynchronisation after a `CONNECT` — and the other two in `net/textproto` and `crypto/tls`. The standard library is linked into the binary, so 0.6.10, built with 1.26.8 two days before the fix was published, carries all ten whatever Go is installed on the server. The Monday audit is what reported them.
+
+- **A release could have been built with an outdated Go while the audit passed.**
+
+  The workflows asked `setup-go` for "1.26", which resolves to whatever the runner image has cached: four days after 1.26.9, the runners still handed out 1.26.8. Raising the audit's toolchain alone would have turned the CI green and published a binary just as vulnerable. Both workflows now ask for the latest patch.
+
 ## 0.6.10
 
 The map of the route reads again. Its text asked for colours that only the back-office palette defines, so the names of the networks came out black in both themes — in dark mode, black on near-black — and a path too long for the column was shrunk until nothing on it could be read.
