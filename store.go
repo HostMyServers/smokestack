@@ -1611,6 +1611,13 @@ type agg struct {
 // idempotent, il rattrape une sonde en retard qui envoie des donnees
 // anciennes, et il coute quelques millisecondes.
 func (s *Store) RollupRange(src, dst string, secs, from, to int64) error {
+	// Whole buckets only. RollupTick slides the window by the second: a
+	// bucket rebuilt from the part of its sources after from loses the
+	// rest, and the last pass before the window leaves it deletes it.
+	from -= mod(from, secs)
+	if r := mod(to, secs); r != 0 {
+		to += secs - r
+	}
 	rows, err := s.mx.Query(fmt.Sprintf(
 		`SELECT target_id,probe_id,bucket,sent,lost,cnt,min_us,max_us,
 		        sum_us,sumsq_us,sketch,passes,down
@@ -1666,7 +1673,7 @@ func (s *Store) RollupRange(src, dst string, secs, from, to int64) error {
 
 	if _, err := tx.Exec(fmt.Sprintf(
 		`DELETE FROM %s WHERE bucket>=? AND bucket<?`, dst),
-		from-mod(from, secs), to); err != nil {
+		from, to); err != nil {
 		return err
 	}
 	stmt, err := tx.Prepare(fmt.Sprintf(
@@ -1711,6 +1718,37 @@ func (s *Store) RollupTick(now int64) error {
 		from := now - windows[i]
 		if err := s.RollupRange(src.table, dst.table, dst.secs, from, now+dst.secs); err != nil {
 			return fmt.Errorf("rollup %s->%s: %w", src.table, dst.table, err)
+		}
+	}
+	return nil
+}
+
+// RebuildRollups recomputes each aggregate level from the one below it,
+// over everything that level still holds, a few hours at a time so the
+// measurements waiting for the write connection are not held up.
+func (s *Store) RebuildRollups(now int64) error {
+	for i := 0; i+1 < len(cascade); i++ {
+		src, dst := cascade[i], cascade[i+1]
+		var lo, hi sql.NullInt64
+		if err := s.mx.QueryRow(fmt.Sprintf(
+			`SELECT MIN(bucket), MAX(bucket) FROM %s`, src.table)).Scan(&lo, &hi); err != nil {
+			return err
+		}
+		if !lo.Valid {
+			continue
+		}
+		from := lo.Int64
+		// The purge cuts a table mid-bucket: one whose oldest row sits near
+		// its retention limit may open on an incomplete bucket, which the
+		// level above still holds whole.
+		if src.keep > 0 && from < now-src.keep+dst.secs {
+			from += (dst.secs - mod(from, dst.secs)) % dst.secs
+		}
+		step := max(6*3600, dst.secs)
+		for at := from - mod(from, step); at <= hi.Int64; at += step {
+			if err := s.RollupRange(src.table, dst.table, dst.secs, max(from, at), at+step); err != nil {
+				return fmt.Errorf("rebuild %s->%s: %w", src.table, dst.table, err)
+			}
 		}
 	}
 	return nil

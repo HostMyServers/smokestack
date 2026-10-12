@@ -484,6 +484,17 @@ func execBinary(path string) {
 }
 
 func backgroundLoop(store *Store, stop <-chan struct{}) {
+	// Up to 0.6.11 the sliding window erased the aggregates behind it:
+	// rebuild them once from what the lower levels still hold.
+	if store.Setting("rollups_rebuilt", "") == "" {
+		start := time.Now()
+		if err := store.RebuildRollups(start.Unix()); err != nil {
+			log.Printf("rebuilding the aggregates: %v", err)
+		} else {
+			store.SetSetting("rollups_rebuilt", Version)
+			log.Printf("aggregates rebuilt in %v", time.Since(start).Round(time.Millisecond))
+		}
+	}
 	rollup := time.NewTicker(30 * time.Second)
 	purge := time.NewTicker(6 * time.Hour)
 	defer rollup.Stop()

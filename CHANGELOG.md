@@ -2,6 +2,18 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **Graphs over more than four days showed only the last six hours: the aggregation erased the history behind it.**
+
+  Every 30 seconds the cascade recomputes each level of aggregates over a window ending at the current second. It deleted the destination from the start of the bucket holding the window's first second, but read the sources only from that second on. The oldest bucket of each window was rebuilt from part of its passes, then from none: the 5-minute, hourly and daily tables kept only the last six hours, and the 1-minute table lost everything older than two hours for targets measured early in their minute.
+
+  Charts longer than four days, the overview's 24-hour bar and latency baseline, and long-period availability all read those tables. The raw passes were never touched. The cascade now rebuilds whole buckets only.
+
+  On its first start this version rebuilds every level from the one below it, a few hours at a time, so measurements keep being written meanwhile. The last 48 hours come back in full from the raw passes, along with whatever the 1-minute table still held; older history it had already lost stays lost, although the hourly raw archive keeps every pass.
+
 ## 0.6.11
 
 A security release. Go 1.26.9 fixes ten vulnerabilities in the standard library, eight of them in the HTTP server and client every instance runs, and the standard library is linked into the binary: 0.6.10 carries all ten, whatever Go the server has installed. The release build also stops taking whatever Go the CI runner has cached, which is how the next one would have shipped with the same flaws.
