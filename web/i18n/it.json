@@ -35,7 +35,8 @@
     "copy_link": "Copia link",
     "minutes_ago": "{n} min fa",
     "hours_ago": "{n} h fa",
-    "days_ago": "{n} g fa"
+    "days_ago": "{n} g fa",
+    "load_failed": "Impossibile caricare i dati. Nuovo tentativo in corso…"
   },
   "status": {
     "ok": "nominale",

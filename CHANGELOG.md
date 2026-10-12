@@ -134,7 +134,6 @@ Versions are published as signed releases; servers with automatic updates instal
 
   `innerHTML`, `outerHTML`, `insertAdjacentHTML` and `document.write` now appear nowhere in `web/` outside `html.js` itself.
 
-
 ### Fixed
 
 - **The publisher page said *Saved* and showed the old values back.**
@@ -196,6 +195,12 @@ Versions are published as signed releases; servers with automatic updates instal
 - **A traceroute going silent inside the target's network drew a detour through the unknown.**
 
   Routers answering nothing between two hops of the same network are internal to it: the packet never left. They were counted as a hole in the AS path, so the map stepped out of the network, drew an unknown box and came back in with an arrow pointing backwards. Those hops now stay inside the network they belong to.
+
+- **A page whose first request failed stayed blank until it was reloaded.**
+
+  The public pages are built in the browser, and the home page drew nothing, header and footer included, until the overview arrived. One failed request was enough: a 502 from the reverse proxy while the service restarts for an update, a 429 from the rate limit, a dropped connection.
+
+  A failed request is now retried after 1, 2 and 4 seconds, following `Retry-After` on a 429. If the overview still cannot be loaded, the page says so and keeps trying, then draws itself as soon as it gets through. A chart whose series cannot be loaded says so in its legend and tries again ten seconds later.
 
 ## 0.6.2
 
