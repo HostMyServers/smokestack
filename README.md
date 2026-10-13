@@ -310,7 +310,7 @@ Rate limit: 20 requests/s per client IP, bursts of 80.
 
 ## Building from source
 
-Requires Go 1.22 or later. On Debian or Ubuntu:
+Requires Go 1.26 or later, which is also the oldest release still receiving security fixes. On Debian or Ubuntu:
 
 ```sh
 apt install -y git make golang-go
@@ -319,6 +319,33 @@ make test
 make build                              # ./dist/smokestack
 sudo sh install.sh --package dist/smokestack --admin-email noc@example.net
 ```
+
+### Auditing
+
+```sh
+make audit-tools                        # once: the two pinned analysers
+make audit                              # gofmt, vet, staticcheck, govulncheck
+```
+
+The CI runs that as one of five parallel jobs, alongside the tests,
+ShellCheck on `install.sh`, actionlint and zizmor on the workflows, and
+Trivy on the container image. It also runs every Monday rather than only on
+a push: a vulnerability published the day after a merge concerns a version
+that is already installed somewhere, and nothing triggered by a commit would
+ever mention it.
+
+Everything the audit judges is judged for `linux`, which is what ships:
+`ts_other.go` is a stub, so analysing a Mac's own target reports a comparison
+in `tracer.go` that is only ever true there.
+
+It is also judged by one named Go toolchain, `AUDIT_TOOLCHAIN` in the
+Makefile, on a developer's machine as well as in the CI. govulncheck reports
+standard library vulnerabilities for the Go it runs under, so an audit that
+used whatever `go` happened to be on the machine would report on a standard
+library no release is built with — in either direction, and without saying
+so. The CI matches `go.mod` by construction; naming the version is what makes
+a local run say the same thing, at the cost of one toolchain download on a
+machine with a different Go.
 
 ### Releasing
 
@@ -350,6 +377,10 @@ See [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 - The web service has no raw-socket privilege; the probe has nothing else.
 - Hardened systemd units: read-only system, private `/tmp`, no new privileges.
 - Updates must be signed by a trusted Ed25519 key.
+- Dependencies, the standard library and the container base are scanned for
+  published vulnerabilities on every commit and again every week; the scan
+  fails if the base image has stopped receiving security updates, since a
+  clean report from an unmaintained distribution means nothing.
 
 ---
 

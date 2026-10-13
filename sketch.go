@@ -49,21 +49,6 @@ func (s *Sketch) Add(us float64) {
 	}
 }
 
-func (s *Sketch) addRaw(idx int32, n uint32) {
-	if n == 0 {
-		return
-	}
-	s.buckets[idx] += n
-	s.count += uint64(n)
-	v := sketchValue(idx)
-	if v < s.min {
-		s.min = v
-	}
-	if v > s.max {
-		s.max = v
-	}
-}
-
 // Merge additionne un autre sketch dans celui-ci.
 func (s *Sketch) Merge(o *Sketch) {
 	if o == nil {

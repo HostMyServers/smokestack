@@ -2,6 +2,56 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### New
+
+- **The CI audits the code now, and not only on the days somebody pushes.**
+
+  `make test` proves the tree builds and passes its tests. It says nothing about a published CVE in a dependency, and the formatting rule the project documents as mandatory was enforced nowhere. The CI now runs five jobs in parallel, one per surface so that a red mark says which, and a sixth that reports their verdict — one box to tick in branch protection instead of five:
+
+  - **Go** — `gofmt`, `go vet`, staticcheck and govulncheck, all through `make audit`, so a contributor can run locally exactly what the CI runs. The two analysers and the toolchain they judge are pinned in the Makefile: a new release of either turns the build red on a branch that changed nothing.
+  - **Shell** — ShellCheck on `install.sh` and `scripts/`. Seventeen kilobytes of shell that runs as root on a stranger's machine, previously checked only for whether it parses.
+  - **Workflows** — actionlint, and zizmor reading them as an attack surface rather than as YAML. It is what found the release hole below.
+  - **Image** — Trivy on the image the Dockerfile produces, failing both on a fixable HIGH and on a base whose distribution has stopped answering. It scans the image that job has just built and self-tested, rather than a second build of it.
+  - **Tests** — unchanged, and `sh -n install.sh` drops out of it: ShellCheck parses the script too, and then reads it.
+
+  **It also runs every Monday**, which is the part that is not decoration: a vulnerability published the day after a merge concerns a version that is already installed on somebody's machine, and nothing triggered by a commit would ever mention it.
+
+  Turning it on found eight things. Four were functions no caller had, in `sketch.go`, `instance.go`, `maintenance.go` and `doublecheck.go`, and they are removed. The other four are error strings that one style check dislikes, and that check is turned off in `staticcheck.conf` with the reason recorded beside it: ST1005 refuses `"Telegram needs a bot token"` while accepting `"SMTP needs a server"` three lines away in the same switch, so the difference it is pointing at is the case of a brand name, not the style of a message.
+
+### Fixed
+
+- **A version number could carry a shell command into the release build.**
+
+  The release workflow checked a dispatched version against `[0-9]*.[0-9]*.[0-9]*` before using it. That pattern also accepts `1.2.3; rm -rf /`, because `*` matches any string, and the value went on to be interpolated into the scripts that run `make dist` and `gh release create`. A tag push skipped the check entirely, and a git ref name may contain a semicolon.
+
+  Three changes, each of which alone would have been enough:
+
+  | | |
+  |---|---|
+  | The version is validated against the shell | rejected unless it is digits, dots and the `-rc1` suffix — and on both doors, not just the dispatched one |
+  | Nothing is interpolated into a script | every computed value reaches its `run:` block through the environment |
+  | The workflow no longer grants write | `contents: write` sits on the one job that tags and publishes, instead of on every job in the file |
+
+  Reaching this needed permission to start a workflow, which [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases) already notes is a much lower bar than a shell with push rights. The approval gate stopped a release from being *published*; it did nothing about what the build did on its way there. `inputs.tag` in the image workflow had the same shape and gets the same treatment.
+
+- **The container base had stopped receiving security updates, and the scan said it was clean.**
+
+  The image was built `FROM alpine:3.20`, whose support window closed. A vulnerability scanner reports zero findings for it — not because there are none, but because nobody publishes advisories for that release any more. An unmaintained base is the one case where a clean report is itself the symptom.
+
+  The base moves to `alpine:3.23`. The two releases in between were considered and skipped: 3.21 arrives with four fixable HIGH findings, 3.22 is clean but closer to its own end of life. Instances on the native install are unaffected — the binary is static and carries no distribution with it.
+
+- **A release could have been built with an outdated Go while the audit passed.**
+
+  The workflows asked `setup-go` for "1.26", which resolves to whatever the runner image has cached: four days after 1.26.9, which fixes ten vulnerabilities in the standard library, the runners still handed out 1.26.8. The standard library is linked into the binary, so a release built that week would have carried all ten whatever Go the server has installed — and raising the audit's toolchain alone would have turned the CI green over it. Both workflows now ask for the latest patch.
+
+- **A fork whose owner name has an upper-case letter published no container image.**
+
+  The image job builds `ghcr.io/<owner>/<repo>`, taking the owner as GitHub spells it. A registry refuses an upper-case letter in an image path, so the job failed at the last step of the release — after both packages, `latest.json` and `install.sh` were already published. The native install was unaffected; the image simply did not exist for that tag.
+
+  The owner is lower-cased before the tags are built. This repository's owner is lower-case already, which is why it never showed here, and why a fork meets it only once it publishes its own release. Repairing it burns no version: *Actions → image → Run workflow* with the tag rebuilds and pushes the image for a tag that already exists.
+
 ## 0.6.2
 
 A bug that made the long views lie by omission, and a public interface with less in it.

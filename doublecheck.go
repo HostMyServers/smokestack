@@ -588,12 +588,6 @@ func (d *dcSet) set(m map[int64]string) {
 	d.mu.Unlock()
 }
 
-func (d *dcSet) len() int {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return len(d.m)
-}
-
 func (s *Store) refreshDCTargets() {
 	m := map[int64]string{}
 	rows, err := s.cfg.Query(
