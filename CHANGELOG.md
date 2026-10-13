@@ -4,13 +4,7 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ## Unreleased
 
-### New
-
-- **The About page carries the three open endpoints.** Removing the footer took away the only link from any public page to `/api/v1/overview`, `/api/v1/version` and `/healthz`, leaving them documented in the README and nowhere a visitor would look. They now sit on the About page, next to what the operator already publishes about himself, which is where somebody wondering whether the figures are machine-readable actually goes.
-
 ### Changed
-
-### New
 
 - **The footer no longer disclaims the measurements it publishes.**
   The bottom line of every public page read `© 2026 <operator> — All measurements are published as-is, without warranty.`. The second half was shipped as a translated string, so it spoke for operators who had never written it: instances whose terms live on their own website, and instances that publish figures they stand behind.
@@ -27,6 +21,8 @@ Versions are published as signed releases; servers with automatic updates instal
   | Software | the project link, which stays in the bottom line |
   The cost is honest and small: no public page links the three open-data endpoints any more. They are documented, unauthenticated and unchanged, and `/about` is where a pointer to them would belong if one is wanted.
   Nineteen keys leave the ten language files, and `.fgrid`, `.fbrand` and `.fcol` leave the stylesheet. No endpoint, stored value or published surface changes.
+
+- **The About page carries the three open endpoints.** Removing the footer took away the only link from any public page to `/api/v1/overview`, `/api/v1/version` and `/healthz`, leaving them documented in the README and nowhere a visitor would look. They now sit on the About page, next to what the operator already publishes about himself, which is where somebody wondering whether the figures are machine-readable actually goes.
 
 - **The language is chosen from a flag, not from a list of ten names.**
   The header carried a `<select>` spelling out every shipped language — *English, Dansk, Deutsch, Español, Français, Italiano, Nederlands, Norsk bokmål, Português, Svenska*. It took a quarter of the bar on a laptop and a third of the width on a phone, for a control a visitor uses once.
