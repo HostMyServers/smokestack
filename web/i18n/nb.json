@@ -1,7 +1,8 @@
 {
   "_meta": {
     "name": "Norsk bokmål",
-    "dir": "ltr"
+    "dir": "ltr",
+    "flag": "NO"
   },
   "nav": {
     "home": "Oversikt",

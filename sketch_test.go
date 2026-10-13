@@ -140,6 +140,9 @@ func TestI18nFiles(t *testing.T) {
 		if len(l.Warnings) > 0 {
 			t.Errorf("%s: %v", l.Code, l.Warnings)
 		}
+		if l.Flag == "" {
+			t.Errorf("%s: aucun pays declare dans _meta.flag", l.Code)
+		}
 	}
 	d, ok := i.Dict("fr")
 	if !ok || d["home.faults"] != "Défauts constatés" {

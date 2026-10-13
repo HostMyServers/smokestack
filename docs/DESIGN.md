@@ -603,7 +603,11 @@ smokestack refuses to start, and any key missing from another language is
 shown in English. Shipped, all complete: English (reference), Danish, Dutch, French, German, Italian, Norwegian (Bokmål), Portuguese, Spanish and Swedish.
 
 Files accept nested objects (`{"home":{"faults":"…"}}` becomes `home.faults`)
-and placeholders (`{n}`, `{total}`). At load time each language is compared
+and placeholders (`{n}`, `{total}`). Metadata lives under `_meta`: `name` is
+the native name, `dir` is `ltr` or `rtl`, and `flag` is the two-letter country
+code the header turns into a flag emoji — the pair of regional indicator
+symbols — so the language menu has no image to serve and no list of its own
+to keep in step. At load time each language is compared
 with English: missing keys, unknown keys and **mismatched placeholders** are
 reported in the back-office. The `TestI18nFiles` test fails if a shipped
 language is incomplete.

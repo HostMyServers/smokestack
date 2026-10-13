@@ -1,7 +1,8 @@
 {
   "_meta": {
     "name": "Svenska",
-    "dir": "ltr"
+    "dir": "ltr",
+    "flag": "SE"
   },
   "nav": {
     "home": "Översikt",

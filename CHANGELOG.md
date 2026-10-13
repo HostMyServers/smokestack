@@ -24,6 +24,12 @@ Versions are published as signed releases; servers with automatic updates instal
   The cost is honest and small: no public page links the three open-data endpoints any more. They are documented, unauthenticated and unchanged, and `/about` is where a pointer to them would belong if one is wanted.
   Nineteen keys leave the ten language files, and `.fgrid`, `.fbrand` and `.fcol` leave the stylesheet. No endpoint, stored value or published surface changes.
 
+- **The language is chosen from a flag, not from a list of ten names.**
+  The header carried a `<select>` spelling out every shipped language — *English, Dansk, Deutsch, Español, Français, Italiano, Nederlands, Norsk bokmål, Português, Svenska*. It took a quarter of the bar on a laptop and a third of the width on a phone, for a control a visitor uses once.
+  It is now the flag of the current language, and a menu where each flag keeps its native name: a flag alone names no language, and several of them stand for more than one. It behaves as a menu button — `aria-haspopup`, `aria-checked` on the current language, arrow keys, Escape — and the listeners it needs on the document are removed when it closes rather than piling up one set per language change.
+  The country comes from the language file itself: `_meta.flag` (`"FR"`, `"SE"`) sits next to `name` and `dir`, is published by `/api/v1/i18n`, and is required of every shipped language by `TestI18nFiles`. A language dropped into `/var/lib/smokestack/i18n/` therefore arrives with its flag, and the interface has no table of countries to keep in step. A value that is not a two-letter country code is ignored, and that language falls back to its code.
+  English flies the British flag and Norwegian Bokmål the Norwegian one — both are one edit away in the files, with no rebuild. Where a platform has no flag glyphs, the pair of regional indicators renders as the two letters of the country, which is why the button shows the flag alone.
+
 ### Fixed
 
 - **The 10-day, 3-month and 1-year views were empty, and the year navigator with them** (#68).
