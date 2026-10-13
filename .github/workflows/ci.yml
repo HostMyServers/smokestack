@@ -40,9 +40,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      # The same patch the release is built with — see release.yml.
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
+          check-latest: true
       - name: Resolve dependencies
         run: test -f go.sum || go mod tidy
       - name: Vet and test

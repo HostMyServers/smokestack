@@ -42,6 +42,10 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The base moves to `alpine:3.23`. The two releases in between were considered and skipped: 3.21 arrives with four fixable HIGH findings, 3.22 is clean but closer to its own end of life. Instances on the native install are unaffected — the binary is static and carries no distribution with it.
 
+- **A release could have been built with an outdated Go while the audit passed.**
+
+  The workflows asked `setup-go` for "1.26", which resolves to whatever the runner image has cached: four days after 1.26.9, which fixes ten vulnerabilities in the standard library, the runners still handed out 1.26.8. The standard library is linked into the binary, so a release built that week would have carried all ten whatever Go the server has installed — and raising the audit's toolchain alone would have turned the CI green over it. Both workflows now ask for the latest patch.
+
 ## 0.6.2
 
 A bug that made the long views lie by omission, and a public interface with less in it.

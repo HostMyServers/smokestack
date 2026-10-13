@@ -111,9 +111,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $V"
           git push origin "$TAG"
+      # The standard library is linked into what ships, so its patch level is
+      # the release's. Without check-latest, "1.26" resolves to whatever the
+      # runner image has cached, which trails a security release by days: on
+      # the Monday after 1.26.9, the runners still handed out 1.26.8.
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
+          check-latest: true
       - name: Resolve dependencies
         run: test -f go.sum || go mod tidy
       - name: Build and sign packages
