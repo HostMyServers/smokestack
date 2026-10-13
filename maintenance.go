@@ -61,10 +61,6 @@ type Maintenance struct {
 	TargetSlug  string `json:"target_slug,omitempty"`
 }
 
-func (m *Maintenance) active(now int64) bool {
-	return now >= m.StartsAt && now < m.EndsAt
-}
-
 func (m *Maintenance) check() error {
 	if strings.TrimSpace(m.Title) == "" {
 		return fmt.Errorf("a maintenance window needs a title: it is what the public banner shows")

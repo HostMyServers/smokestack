@@ -1,0 +1,12 @@
+# Hash-pinning is required of everything except the two publishers whose
+# actions this repository already relies on for the release itself. Pinning
+# actions/checkout to a commit would not make that trust smaller, and it
+# would make four workflows meant to be read harder to read; a third-party
+# action added later is a new trust decision, and that one is held to a hash.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        actions/*: ref-pin
+        docker/*: ref-pin
+        "*": hash-pin

@@ -4,6 +4,22 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ## Unreleased
 
+### New
+
+- **The CI audits the code now, and not only on the days somebody pushes.**
+
+  `make test` proves the tree builds and passes its tests. It says nothing about a published CVE in a dependency, and the formatting rule the project documents as mandatory was enforced nowhere. The CI now runs five jobs in parallel, one per surface so that a red mark says which, and a sixth that reports their verdict — one box to tick in branch protection instead of five:
+
+  - **Go** — `gofmt`, `go vet`, staticcheck and govulncheck, all through `make audit`, so a contributor can run locally exactly what the CI runs. The two analysers and the toolchain they judge are pinned in the Makefile: a new release of either turns the build red on a branch that changed nothing.
+  - **Shell** — ShellCheck on `install.sh` and `scripts/`. Seventeen kilobytes of shell that runs as root on a stranger's machine, previously checked only for whether it parses.
+  - **Workflows** — actionlint, and zizmor reading them as an attack surface rather than as YAML. It is what found the release hole below.
+  - **Image** — Trivy on the image the Dockerfile produces, failing both on a fixable HIGH and on a base whose distribution has stopped answering. It scans the image that job has just built and self-tested, rather than a second build of it.
+  - **Tests** — unchanged, and `sh -n install.sh` drops out of it: ShellCheck parses the script too, and then reads it.
+
+  **It also runs every Monday**, which is the part that is not decoration: a vulnerability published the day after a merge concerns a version that is already installed on somebody's machine, and nothing triggered by a commit would ever mention it.
+
+  Turning it on found eight things. Four were functions no caller had, in `sketch.go`, `instance.go`, `maintenance.go` and `doublecheck.go`, and they are removed. The other four are error strings that one style check dislikes, and that check is turned off in `staticcheck.conf` with the reason recorded beside it: ST1005 refuses `"Telegram needs a bot token"` while accepting `"SMTP needs a server"` three lines away in the same switch, so the difference it is pointing at is the case of a brand name, not the style of a message.
+
 ### Fixed
 
 - **A version number could carry a shell command into the release build.**
@@ -19,6 +35,12 @@ Versions are published as signed releases; servers with automatic updates instal
   | The workflow no longer grants write | `contents: write` sits on the one job that tags and publishes, instead of on every job in the file |
 
   Reaching this needed permission to start a workflow, which [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases) already notes is a much lower bar than a shell with push rights. The approval gate stopped a release from being *published*; it did nothing about what the build did on its way there. `inputs.tag` in the image workflow had the same shape and gets the same treatment.
+
+- **The container base had stopped receiving security updates, and the scan said it was clean.**
+
+  The image was built `FROM alpine:3.20`, whose support window closed. A vulnerability scanner reports zero findings for it — not because there are none, but because nobody publishes advisories for that release any more. An unmaintained base is the one case where a clean report is itself the symptom.
+
+  The base moves to `alpine:3.23`. The two releases in between were considered and skipped: 3.21 arrives with four fixable HIGH findings, 3.22 is clean but closer to its own end of life. Instances on the native install are unaffected — the binary is static and carries no distribution with it.
 
 ## 0.6.2
 
