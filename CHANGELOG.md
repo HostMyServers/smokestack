@@ -46,6 +46,12 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The workflows asked `setup-go` for "1.26", which resolves to whatever the runner image has cached: four days after 1.26.9, which fixes ten vulnerabilities in the standard library, the runners still handed out 1.26.8. The standard library is linked into the binary, so a release built that week would have carried all ten whatever Go the server has installed — and raising the audit's toolchain alone would have turned the CI green over it. Both workflows now ask for the latest patch.
 
+- **A fork whose owner name has an upper-case letter published no container image.**
+
+  The image job builds `ghcr.io/<owner>/<repo>`, taking the owner as GitHub spells it. A registry refuses an upper-case letter in an image path, so the job failed at the last step of the release — after both packages, `latest.json` and `install.sh` were already published. The native install was unaffected; the image simply did not exist for that tag.
+
+  The owner is lower-cased before the tags are built. This repository's owner is lower-case already, which is why it never showed here, and why a fork meets it only once it publishes its own release. Repairing it burns no version: *Actions → image → Run workflow* with the tag rebuilds and pushes the image for a tag that already exists.
+
 ## 0.6.2
 
 A bug that made the long views lie by omission, and a public interface with less in it.

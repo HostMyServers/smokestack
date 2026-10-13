@@ -64,6 +64,12 @@ jobs:
           TAG: ${{ inputs.tag }}
           REPO: ${{ github.repository }}
         run: |
+          # A registry refuses an image path carrying an upper-case letter,
+          # and github.repository spells the owner as GitHub does. The
+          # upstream owner happens to be lower-case, so this only ever fails
+          # in a fork — at the last step of a release, after the packages
+          # are already published.
+          REPO=$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')
           # A multi-line output needs a delimiter; a bare "k=a\nb" would set
           # the first line and drop the rest.
           {
