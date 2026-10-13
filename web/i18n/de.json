@@ -232,7 +232,12 @@
     "cores": "Kerne",
     "ram": "Arbeitsspeicher",
     "uptime": "Läuft seit",
-    "platform_k": "System"
+    "platform_k": "System",
+    "api": "Offene Daten",
+    "api_lead": "Alles auf dieser Seite wird auch als JSON ausgeliefert, ohne Schlüssel und ohne Ratenbegrenzung. Private Ziele fehlen, sofern der Aufrufer nicht angemeldet ist.",
+    "api_overview": "Status jedes öffentlichen Ziels",
+    "api_version": "Version, Build-Datum und Plattform",
+    "api_health": "Zustandsprüfung"
   },
   "pairing": {
     "title": "Föderationskopplung",

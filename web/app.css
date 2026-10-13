@@ -218,6 +218,13 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
   .note-rot { color: #fcd34d; background: rgba(120, 53, 15, .25); border-color: rgba(252, 211, 77, .35); }
 }
 
+/* --- les trois adresses publiques, sur la page about --- */
+/* Le pied de page ne les porte plus : elles vivent ici, à côté de ce que
+   l'exploitant publie déjà sur lui-même. */
+.apilist { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; line-height: 1.9; }
+.apilist a { font-weight: 550; }
+.apilist .faint { margin-left: 8px; }
+
 /* --- bandeau de maintenance programmée --- */
 /* Sur la page publique : un lecteur qui voit la mesure s'arrêter doit
    comprendre pourquoi sans écrire à personne. */

@@ -232,7 +232,12 @@
     "cores": "kjerner",
     "ram": "Minne",
     "uptime": "I drift siden",
-    "platform_k": "System"
+    "platform_k": "System",
+    "api": "Åpne data",
+    "api_lead": "Alt denne siden viser leveres også som JSON, uten nøkkel og uten hastighetsgrense. Private mål mangler, med mindre den som spør er innlogget.",
+    "api_overview": "status for hvert offentlig mål",
+    "api_version": "versjon, byggedato og plattform",
+    "api_health": "helsesjekk"
   },
   "pairing": {
     "title": "Føderasjonssammenkobling",

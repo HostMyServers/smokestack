@@ -232,7 +232,12 @@
     "cores": "core",
     "ram": "Memoria",
     "uptime": "In servizio da",
-    "platform_k": "Sistema"
+    "platform_k": "Sistema",
+    "api": "Dati aperti",
+    "api_lead": "Tutto ciò che questa pagina mostra è servito anche in JSON, senza chiave e senza limite di richieste. I bersagli privati non compaiono, salvo per un chiamante autenticato.",
+    "api_overview": "stato di ogni bersaglio pubblico",
+    "api_version": "versione, data di build e piattaforma",
+    "api_health": "controllo di salute"
   },
   "pairing": {
     "title": "Abbinamento di federazione",

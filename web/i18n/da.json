@@ -232,7 +232,12 @@
     "cores": "kerner",
     "ram": "Hukommelse",
     "uptime": "I drift siden",
-    "platform_k": "System"
+    "platform_k": "System",
+    "api": "Åbne data",
+    "api_lead": "Alt hvad denne side viser leveres også som JSON, uden nøgle og uden hastighedsgrænse. Private mål mangler, medmindre den, der spørger, er logget ind.",
+    "api_overview": "status for hvert offentligt mål",
+    "api_version": "version, byggedato og platform",
+    "api_health": "helbredstjek"
   },
   "pairing": {
     "title": "Føderationsparring",

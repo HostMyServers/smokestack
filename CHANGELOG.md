@@ -4,6 +4,10 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ## Unreleased
 
+### New
+
+- **The About page carries the three open endpoints.** Removing the footer took away the only link from any public page to `/api/v1/overview`, `/api/v1/version` and `/healthz`, leaving them documented in the README and nowhere a visitor would look. They now sit on the About page, next to what the operator already publishes about himself, which is where somebody wondering whether the figures are machine-readable actually goes.
+
 ### Changed
 
 ### New

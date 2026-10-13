@@ -232,7 +232,12 @@
     "cores": "cœurs",
     "ram": "Mémoire",
     "uptime": "En service depuis",
-    "platform_k": "Système"
+    "platform_k": "Système",
+    "api": "Données ouvertes",
+    "api_lead": "Tout ce que montre cette page est aussi servi en JSON, sans clé et sans limite de débit. Les cibles privées en sont absentes, sauf pour un appelant authentifié.",
+    "api_overview": "état de chaque cible publique",
+    "api_version": "version, date de construction et plateforme",
+    "api_health": "contrôle de santé"
   },
   "pairing": {
     "title": "Appairage de fédération",

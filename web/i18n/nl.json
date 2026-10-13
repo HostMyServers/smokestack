@@ -232,7 +232,12 @@
     "cores": "kernen",
     "ram": "Geheugen",
     "uptime": "Draait sinds",
-    "platform_k": "Systeem"
+    "platform_k": "Systeem",
+    "api": "Open data",
+    "api_lead": "Alles wat deze pagina toont wordt ook als JSON aangeboden, zonder sleutel en zonder verzoeklimiet. Privédoelen ontbreken, tenzij de aanvrager is aangemeld.",
+    "api_overview": "status van elk openbaar doel",
+    "api_version": "versie, bouwdatum en platform",
+    "api_health": "gezondheidscontrole"
   },
   "pairing": {
     "title": "Federatiekoppeling",

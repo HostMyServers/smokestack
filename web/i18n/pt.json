@@ -232,7 +232,12 @@
     "cores": "núcleos",
     "ram": "Memória",
     "uptime": "Em serviço há",
-    "platform_k": "Sistema"
+    "platform_k": "Sistema",
+    "api": "Dados abertos",
+    "api_lead": "Tudo o que esta página mostra é também servido em JSON, sem chave e sem limite de pedidos. Os alvos privados não aparecem, exceto para quem tenha sessão iniciada.",
+    "api_overview": "estado de cada alvo público",
+    "api_version": "versão, data de compilação e plataforma",
+    "api_health": "verificação de saúde"
   },
   "pairing": {
     "title": "Emparelhamento de federação",
