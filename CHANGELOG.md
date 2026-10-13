@@ -2,7 +2,15 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.2
+
+A bug that made the long views lie by omission, and a public interface with less in it.
+
+The 10-day, 3-month and 1-year views were empty on any instance measuring for more than three days — over data it was holding the whole time. That is the one to upgrade for, and it repairs itself: the tiers are rebuilt backwards from what the instance still has, a chunk at a time, with no command to run.
+
+The rest is the interface saying less. The footer was five columns repeating the header and the About page; it is one line again. The disclaimer that spoke for every operator is gone, and the three open endpoints it carried moved to the About page. The language picker is a flag rather than ten spelled-out names.
+
+Nothing to reconfigure. Three of these came from [TitinDev](https://github.com/TitinDev), with the reasoning in #63, #64 and #65.
 
 ### Changed
 
