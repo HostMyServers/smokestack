@@ -2,7 +2,13 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.7.0
+
+Every page of an instance, public and authenticated, now assembles its markup through one engine that escapes by default — and the back-office, which was a single file of two thousand four hundred lines, is twenty.
+
+Around that: the hop where a route crosses a peering is named at last, a visitor chooses light or dark instead of inheriting it, the availability figure can be left unpublished, every back-office screen has its own address, and a page whose first request fails no longer sits blank. The CI gained an audit of the code, the shell, the workflows and the container image, which runs every Monday and not only on the days somebody pushes — and which found a way for a version number to carry a shell command into the release build.
+
+**Two things to read before upgrading.** A TCP target left on the legacy *automatic* address family is now measured over IPv4 when its name has both, as that setting says it should be: the graph of such a target may shift, and setting its family to IPv6 keeps it where it was. Everything else is additive — an instance already publishing its availability figure keeps publishing it, the theme still follows the system until a visitor says otherwise, and there is nothing to reconfigure and no migration to run.
 
 ### New
 
