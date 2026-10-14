@@ -703,7 +703,7 @@ func (a *API) traceroutesRequest(w http.ResponseWriter, r *http.Request, u *User
 // the current path is highlighted among the others.
 
 type ASGraphNode struct {
-	ASN     string  `json:"asn"`
+	ASN     string  `json:"asn"` // "?" and the AS before it for an unmeasured stretch
 	Name    string  `json:"name,omitempty"`
 	Layer   int     `json:"layer"` // distance from us, in AS crossed
 	Origin  bool    `json:"origin,omitempty"`
@@ -855,11 +855,22 @@ func (s *Store) BuildASGraph(targetID int64, originASN, destASN string, limit in
 		if i == 0 {
 			g.CurrentTS, g.Reached = tr.TS, tr.Reached
 		}
+		// Each unmeasured stretch is a node of its own, named after the
+		// network it follows. One "?" shared by all of them joined stretches
+		// that have nothing in common and drew loops no packet ever took.
+		ids := make([]string, len(seq))
 		for j, as := range seq {
-			n := nodes[as]
+			ids[j] = as
+			if as == "?" && j > 0 {
+				ids[j] = "?" + seq[j-1]
+			}
+		}
+		for j, as := range seq {
+			id := ids[j]
+			n := nodes[id]
 			if n == nil {
-				n = &ASGraphNode{ASN: as, Layer: j, Unknown: as == "?"}
-				nodes[as] = n
+				n = &ASGraphNode{ASN: id, Layer: j, Unknown: as == "?"}
+				nodes[id] = n
 			}
 			if j > n.Layer {
 				n.Layer = j // keep it to the right of everything it follows
@@ -869,15 +880,15 @@ func (s *Store) BuildASGraph(targetID int64, originASN, destASN string, limit in
 				n.RTTms = v
 			}
 			if j > 0 {
-				key := seq[j-1] + ">" + as
+				key := ids[j-1] + ">" + id
 				e := edges[key]
 				if e == nil {
-					e = &ASGraphEdge{From: seq[j-1], To: as}
+					e = &ASGraphEdge{From: ids[j-1], To: id}
 					edges[key] = e
 				}
 				e.Seen++
 				if e.IX == "" {
-					e.IX = ix[key]
+					e.IX = ix[seq[j-1]+">"+as]
 				}
 				if i == 0 {
 					e.Current = true

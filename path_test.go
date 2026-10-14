@@ -299,6 +299,51 @@ func TestBuildASGraph(t *testing.T) {
 	}
 }
 
+// Two stretches of silent routers are two breaks, not one. A single "?"
+// shared by both closed a loop through the network between them, and the
+// map drew an arrow running backwards out of its own frame.
+func TestUnknownStretchesStayApart(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cat, _ := store.CreateCategory("c", "C", "C", true)
+	id, err := store.CreateTarget(&Target{CategoryID: cat, Slug: "t", Title: "T", Host: "192.0.2.9",
+		Proto: "icmp", IntervalS: 60, Packets: 10, SpacingMs: 100, TimeoutMs: 1000,
+		Public: true, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	silent := Hop{Addr: "*", Sent: 3}
+	if err := store.SaveTraceroute(&Traceroute{TargetID: id, ProbeID: 1, TS: time.Now().Unix(),
+		Kind: "reference", Family: 4, Dest: "192.0.2.9", Reached: true, Hops: []Hop{
+			silent, hopAS("198.51.100.1", "AS64501"), silent, hopAS("192.0.2.9", "AS64502"),
+		}}); err != nil {
+		t.Fatal(err)
+	}
+	g := store.BuildASGraph(id, "AS64500", "AS64502", 25, nil)
+	if g == nil {
+		t.Fatal("a graph was expected")
+	}
+	layer := map[string]int{}
+	unknown := 0
+	for _, n := range g.Nodes {
+		layer[n.ASN] = n.Layer
+		if n.Unknown {
+			unknown++
+		}
+	}
+	if unknown != 2 {
+		t.Errorf("two silent stretches, %d unknown nodes", unknown)
+	}
+	for _, e := range g.Edges {
+		if layer[e.From] >= layer[e.To] {
+			t.Errorf("%s → %s runs backwards: layers %d and %d", e.From, e.To, layer[e.From], layer[e.To])
+		}
+	}
+}
+
 // Silent routers in the middle of a network are not a break in the path: the
 // packet never left it. Treating them as one drew the target's own network
 // twice, with a detour through the unknown in between — which is what the
