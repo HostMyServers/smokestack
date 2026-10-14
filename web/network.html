@@ -66,7 +66,12 @@ function declaredCard(t, p) {
     <div class="section-h"><h2>${t("net.declared")}</h2><span class="sub">PeeringDB</span></div>
     ${kv([
       [t("net.types"), (p.types || []).join(", ")],
-      [t("net.policy"), html`${p.policy}${p.policy_url && html` \u00b7 ${link(p.policy_url, "\u2197")}`}`],
+      // (p.policy || p.policy_url) rather than the template alone: kv drops a
+      // row whose value is "" or null, and a template instance is neither, so
+      // a record declaring no routing policy would keep the row and show it
+      // empty. Every sibling row below already guards this way.
+      [t("net.policy"), (p.policy || p.policy_url) &&
+        html`${p.policy}${p.policy_url && html` \u00b7 ${link(p.policy_url, "\u2197")}`}`],
       [t("net.traffic"), p.traffic],
       [t("net.ratio"), p.ratio],
       [t("net.scope"), p.scope],
