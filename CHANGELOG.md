@@ -256,6 +256,16 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The owner is lower-cased before the tags are built. This repository's owner is lower-case already, which is why it never showed here, and why a fork meets it only once it publishes its own release. Repairing it burns no version: *Actions → image → Run workflow* with the tag rebuilds and pushes the image for a tag that already exists.
 
+- **A slow name lookup counted as lost packets on TCP targets, on every named target at once.**
+
+  A TCP target was dialled by name, so each connection of a pass looked the name up again, inside its timeout, while ICMP targets resolve once and keep the answer five minutes. When the server's resolver hesitated, connections failed before the handshake, and every TCP target given by name lost them in the same minutes while the ICMP targets stayed at zero.
+
+  TCP targets now resolve once per pass through the same cache and connect to the address. A pinned address, which they ignored, now applies to them, and the address recorded for a pass is the one measured. A name that cannot be resolved fails the pass with that reason.
+
+  A TCP target left on the legacy automatic family is now measured over IPv4 when the name has both, as the setting says. Go used to prefer IPv6 on a dual-stack server, so the graph of such a target may shift; set its family to IPv6 to keep measuring IPv6.
+
+  Because the pass connects to an address rather than to the name, a name with several addresses is measured at one of them — the pinned one, or the first the resolver returns — rather than wherever the dialler happened to succeed. That is the intent: a graph is worth less if it cannot say which address it measured.
+
 ## 0.6.2
 
 A bug that made the long views lie by omission, and a public interface with less in it.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"strings"
 	"testing"
 )
@@ -63,5 +64,31 @@ func TestTargetErrorStored(t *testing.T) {
 	}
 	if _, still := store.TargetErrors()[id]; still {
 		t.Error("the reason must disappear once the target answers again")
+	}
+}
+
+// A TCP target connects to the address resolved for the pass, its pinned one
+// first. It used to dial the name, so every connection looked it up again
+// and the pin was ignored: this one would never have connected.
+func TestTCPConnectsToThePinnedAddress(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	p := &Prober{res: newResolver()}
+	tg := &Target{Host: "probe.invalid", PinIP: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port,
+		Proto: "tcp", Packets: 3, TimeoutMs: 1000}
+	if rtts, msg := p.runTCP(tg); len(rtts) != 3 || msg != "" {
+		t.Errorf("%d connections out of 3 (%q)", len(rtts), msg)
 	}
 }
