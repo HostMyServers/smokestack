@@ -45,7 +45,7 @@
     let s = S.dict[key];
     // An unknown key means a dictionary older than the page (a proxy
     // holding an old copy, a hand-written language file). Showing
-    // "detail.rotating" to a visitor is worse than showing nothing, so
+    // "detail.navigator" to a visitor is worse than showing nothing, so
     // short keys degrade to a readable last segment and long texts vanish.
     if (s == null) {
       if (typeof console !== "undefined") console.warn("i18n: missing key", key);
@@ -99,7 +99,11 @@
     const meta = await fetch("/api/v1/i18n").then(r => r.json());
     S.base = meta.base; S.def = meta.default; S.langs = meta.languages || [];
     S.lang = pick(S.langs);
-    S.dict = await fetch("/api/v1/i18n/" + encodeURIComponent(S.lang)).then(r => r.json());
+    // L'adresse nomme la revision des dictionnaires : le serveur peut
+    // alors la garder un an au lieu de renvoyer sept kilo-octets a chaque
+    // page. La liste qui porte la revision, elle, n'est jamais en cache.
+    const rev = meta.rev ? "?v=" + encodeURIComponent(meta.rev) : "";
+    S.dict = await fetch("/api/v1/i18n/" + encodeURIComponent(S.lang) + rev).then(r => r.json());
     document.documentElement.lang = S.lang;
     document.documentElement.dir = S.dict["_meta.dir"] === "rtl" ? "rtl" : "ltr";
     apply();

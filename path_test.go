@@ -248,7 +248,7 @@ func TestBuildASGraph(t *testing.T) {
 	save(now-3600, true, hopAS("198.51.100.1", "AS174"), hopAS("203.0.113.5", "AS29222"))
 	save(now-60, true, hopAS("198.51.100.9", "AS3356"), hopAS("203.0.113.5", "AS29222"))
 
-	g := store.BuildASGraph(id, "AS64500", "AS29222", 25)
+	g := store.BuildASGraph(id, "AS64500", "AS29222", 25, nil)
 	if g == nil {
 		t.Fatal("a graph was expected")
 	}
@@ -284,7 +284,7 @@ func TestBuildASGraph(t *testing.T) {
 	}
 	// A traceroute that stops answering keeps an explicit break.
 	save(now-30, false, hopAS("198.51.100.9", "AS3356"), Hop{Addr: "*", Sent: 3})
-	g = store.BuildASGraph(id, "AS64500", "AS29222", 25)
+	g = store.BuildASGraph(id, "AS64500", "AS29222", 25, nil)
 	if !g.Incomplete {
 		t.Error("an unmeasured stretch must be reported")
 	}
@@ -296,6 +296,34 @@ func TestBuildASGraph(t *testing.T) {
 	}
 	if !found {
 		t.Error("the break must appear as a node in the graph")
+	}
+}
+
+// Silent routers in the middle of a network are not a break in the path: the
+// packet never left it. Treating them as one drew the target's own network
+// twice, with a detour through the unknown in between — which is what the
+// map showed for every target whose last hops do not answer.
+func TestSilentHopsInsideOneASAreNotAGap(t *testing.T) {
+	tr := &Traceroute{Reached: true, Hops: []Hop{
+		hopAS("192.0.2.1", "AS64500"),
+		{Addr: "198.51.100.7", ASN: "AS64502", IX: "TEST-IX", RTTms: []float64{6}, Sent: 3},
+		{Addr: "*", Sent: 3},
+		{Addr: "*", Sent: 3},
+		hopAS("203.0.113.5", "AS64502"),
+	}}
+	seq, _, ix := asSeq(tr, "AS64500", "AS64502")
+	if got := strings.Join(seq, " "); got != "AS64500 AS64502" {
+		t.Errorf("one exchange crossed, two networks on the path: %q", got)
+	}
+	if ix["AS64500>AS64502"] != "TEST-IX" {
+		t.Errorf("the exchange must survive the silent hops: %v", ix)
+	}
+	// Same thing at the very end: a traceroute that stops answering inside
+	// the target's network has reached it, not left it.
+	tr.Reached = false
+	tr.Hops = append(tr.Hops, Hop{Addr: "*", Sent: 3})
+	if seq, _, _ = asSeq(tr, "AS64500", "AS64502"); strings.Join(seq, " ") != "AS64500 AS64502" {
+		t.Errorf("no detour at the end of an unfinished traceroute: %v", seq)
 	}
 }
 
@@ -463,7 +491,7 @@ func TestRotatingTargetIsNotARouteChange(t *testing.T) {
 		t.Error("a genuine change on the same address must still be seen")
 	}
 	// The map keeps one address and says how many traceroutes it left out.
-	g := store.BuildASGraph(id, "AS64500", "AS1234", 25)
+	g := store.BuildASGraph(id, "AS64500", "AS1234", 25, nil)
 	if g == nil {
 		t.Fatal("a graph was expected")
 	}

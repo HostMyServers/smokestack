@@ -13,10 +13,15 @@
     "pairing": "Appairage",
     "admin": "Administration",
     "language": "Langue",
-    "menu": "Menu"
+    "menu": "Menu",
+    "theme": "Thème",
+    "theme_auto": "Automatique",
+    "theme_light": "Clair",
+    "theme_dark": "Sombre"
   },
   "common": {
     "loading": "Chargement…",
+    "explain": "Explication",
     "back_home": "Retour à l'accueil",
     "probe": "Sonde",
     "updated": "Mis à jour",
@@ -30,7 +35,8 @@
     "copy_link": "Copier le lien",
     "minutes_ago": "il y a {n} min",
     "hours_ago": "il y a {n} h",
-    "days_ago": "il y a {n} j"
+    "days_ago": "il y a {n} j",
+    "load_failed": "Impossible de charger les données. Nouvel essai en cours…"
   },
   "status": {
     "ok": "nominal",
@@ -90,7 +96,6 @@
     "preset_10d": "10 j",
     "preset_3m": "3 mois",
     "preset_1y": "1 an",
-    "rotating": "Ce nom répond depuis {n} adresses différentes : c'est un service en répartition de charge. Chaque passe mesure le serveur que le DNS a renvoyé, donc les chiffres ci-dessous mélangent des machines qui peuvent se trouver à des endroits différents et subir des charges différentes. Un serveur qui ignore l'ICMP apparaît comme de la perte.",
     "pinned": "Mesuré sur une adresse {fam} figée ({ip}) : le nom peut désigner autre chose, les chiffres ci-dessous décrivent toujours la même machine.",
     "pinned_plain": "Mesuré sur une adresse figée : le nom peut désigner autre chose, les chiffres ci-dessous décrivent toujours la même machine.",
     "last24_hint": "Un bloc par tranche de 30 minutes : vert si la cible était conforme à sa référence, ambre si la latence ou la gigue s'est écartée, rouge en cas de perte de paquets, gris si rien n'a été mesuré.",
@@ -99,9 +104,7 @@
     "route_changed": "route changée",
     "ev_hint": "Un repère pointillé signale un changement de route sur le chemin aller, de cette sonde vers cette cible : le traceroute a traversé d'autres réseaux qu'auparavant. Cela ne concerne que cette cible, pas l'instance, et ne dit rien du chemin retour, invisible depuis ici. Aucune alerte n'est déclenchée : rien n'est cassé, le chemin n'est simplement plus le même. Les cibles dont le chemin n'a jamais changé ne portent aucun repère.",
     "aspath": "Route vers cette cible",
-    "aspath_hint": "Du réseau de cette instance jusqu'au réseau qui annonce l'adresse de la cible, d'après le dernier traceroute. Le chemin retour peut être différent.",
     "as_here": "depuis ici",
-    "as_target": "cible",
     "as_gap": "inconnu",
     "as_gap_hint": "Le traceroute n'a pas révélé cette portion du chemin : ces routeurs n'ont rien répondu, ou la destination n'a pas été atteinte.",
     "as_map_note": "{n} traceroutes · trait plein : chemin actuel, pointillés : vus précédemment",
@@ -270,7 +273,7 @@
   },
   "trace": {
     "title": "Traceroutes",
-    "sub": "Pris automatiquement quand la cible sort de sa référence, et une fois par jour sur un chemin sain pour comparaison.",
+    "sub": "Pris lors d'une anomalie, et une fois par jour pour comparaison.",
     "anomaly": "anomalie",
     "reference": "chemin de référence",
     "manual": "manuel",
@@ -281,6 +284,7 @@
     "address": "Adresse",
     "name": "Nom",
     "as": "AS",
+    "ix_hint": "LAN de peering de {ix}",
     "rtt": "RTT",
     "replies": "Réponses",
     "ref_col": "Chemin sain",

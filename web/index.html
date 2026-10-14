@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%232458e6%27/%3E%3Cstop offset=%271%27 stop-color=%27%230e8fa8%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Cpath d=%27M7 12h18M7 20h18%27 stroke=%27white%27 stroke-width=%272.5%27 stroke-linecap=%27round%27 opacity=%27.9%27/%3E%3C/svg%3E">
 <title>smokestack</title>
+<script src="/theme.js"></script>
 <link rel="stylesheet" href="/app.css">
 <style>
 :root{--grid:#eef2f7;--axis:#8e99aa}
-@media (prefers-color-scheme:dark){:root{--grid:#1b2331;--axis:#6b778a}}
+:root[data-theme="dark"]{--grid:#1b2331;--axis:#6b778a}
 .lbl{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
 
 /* bandeau d'état */
@@ -24,7 +25,7 @@
 .hero p.lead{margin:0;color:var(--ink-2);font-size:clamp(14px,1.3vw,16px)}
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:10px}
 @media(max-width:620px){.kpis{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
+.kpi{background:var(--bg);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow)}
 .kpi .k{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
 .kpi .v{font-size:24px;font-weight:700;letter-spacing:-.03em;line-height:1.25}
 .kpi .u{font-size:12px;color:var(--ink-3);font-weight:500;margin-left:3px}
@@ -37,32 +38,32 @@
 @media(min-width:960px){.shell{grid-template-columns:250px minmax(0,1fr)}}
 .rail{align-self:start;min-width:0}
 @media(min-width:960px){.rail{position:sticky;top:76px;max-height:calc(100vh - 92px);overflow-y:auto;padding-right:6px}}
-.rail-tog{display:none;width:100%;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg-soft);font-size:13.5px;font-weight:600}
+.rail-tog{display:none;width:100%;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-soft);font-size:13.5px;font-weight:600}
 .rail-tog .chev{margin-left:auto}
 @media(max-width:959px){.rail-tog{display:flex}.rail #rail{display:none}.rail.open #rail{display:block;margin-top:10px}.rail.open .rail-tog .chev{transform:rotate(180deg)}}
-.search{width:100%;font:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg-soft);color:var(--ink);margin-bottom:12px}
+.search{width:100%;font:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--line);border-radius:var(--radius-s);background:var(--bg-soft);color:var(--ink);margin-bottom:12px}
 .rg{margin-bottom:3px}
-.rgt{width:100%;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;font-size:13px;font-weight:600;text-align:left}
+.rgt{width:100%;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--radius-s);font-size:13px;font-weight:600;text-align:left}
 .rgt:hover{background:var(--bg-soft)}
 .chev{font-size:9px;color:var(--ink-3);width:9px;transition:transform .12s}
 .rg[data-open="false"] .chev{transform:rotate(-90deg)}
 .rg[data-open="false"] .rl{display:none}
-.cbar{width:3px;height:15px;border-radius:2px;flex:none}
+.cbar{width:3px;height:15px;border-radius:var(--radius-xs);flex:none}
 .rgn{margin-left:auto;font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
-.ri{width:100%;display:flex;align-items:center;gap:8px;padding:4px 8px 4px 28px;border-radius:8px;font-size:12.8px;color:var(--ink-2);text-align:left}
+.ri{width:100%;display:flex;align-items:center;gap:8px;padding:4px 8px 4px 28px;border-radius:var(--radius-s);font-size:12.8px;color:var(--ink-2);text-align:left}
 .ri:hover{background:var(--bg-soft);color:var(--ink)}
 .ri[aria-current="true"]{background:var(--accent-soft);color:var(--accent-ink);font-weight:550}
 .ri .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ri .vl{font-size:11px;color:var(--ink-3)}
 .d-nodata{background:var(--ink-3)}
-.netcard{display:block;margin-top:16px;border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:var(--bg-soft);color:inherit}
+.netcard{display:block;margin-top:16px;border:1px solid var(--line);border-radius:var(--radius);padding:12px 13px;background:var(--bg-soft);color:inherit}
 .netcard:hover{border-color:var(--accent);text-decoration:none}
 .netcard .h{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)}
 .netcard .n{font-weight:650;margin:3px 0 7px}
 .netcard .s{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--ink-2)}
 .netcard .s b{color:var(--ink);font-weight:650}
 
-details.how{border:1px solid var(--line);border-radius:12px;background:var(--bg-soft);margin-bottom:clamp(20px,2.6vw,30px)}
+details.how{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-soft);margin-bottom:clamp(20px,2.6vw,30px)}
 details.how summary{cursor:pointer;padding:11px 15px;font-size:13px;font-weight:600;list-style:none;display:flex;align-items:center;gap:8px}
 details.how summary::-webkit-details-marker{display:none}
 details.how summary::before{content:"?";width:18px;height:18px;border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;font-size:11px}
@@ -70,7 +71,7 @@ details.how summary::before{content:"?";width:18px;height:18px;border-radius:50%
 .how-b h3{margin:0 0 3px;font-size:12.5px}.how-b p{margin:0;font-size:12.5px;color:var(--ink-2)}
 
 /* lignes */
-.rows{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+.rows{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--bg)}
 .row{display:grid;align-items:center;gap:14px;padding:11px 14px;cursor:pointer;border-top:1px solid var(--line-2);
   grid-template-columns:minmax(0,1.5fr) minmax(170px,1.4fr) 110px 86px 72px 100px}
 .row:first-child{border-top:none}
@@ -83,7 +84,7 @@ details.how summary::before{content:"?";width:18px;height:18px;border-radius:50%
 .num{font-size:13.5px}.num b{font-weight:650}
 .x{color:var(--warn);font-size:12px;margin-left:3px}
 .hbar{display:flex;gap:1.5px;height:22px}
-.hbar i{flex:1;border-radius:2px;background:var(--ok);opacity:.8}
+.hbar i{flex:1;border-radius:var(--radius-xs);background:var(--ok);opacity:.8}
 .hbar i.w{background:var(--warn);opacity:1}.hbar i.c{background:var(--crit);opacity:1}.hbar i.n{background:var(--bg-sunk);opacity:1}
 .hbar-l{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);margin-top:2px}
 canvas{display:block;width:100%}
@@ -92,14 +93,14 @@ canvas{display:block;width:100%}
 .catblock{margin-bottom:18px}
 .cath{display:flex;align-items:center;gap:10px;margin:0 0 8px}
 .cath .t{font-size:14px;font-weight:650}
-.empty{display:flex;gap:10px;align-items:center;padding:14px 16px;border-radius:12px;background:var(--ok-soft);color:var(--ok);font-size:13.5px}
+.empty{display:flex;gap:10px;align-items:center;padding:14px 16px;border-radius:var(--radius);background:var(--ok-soft);color:var(--ok);font-size:13.5px}
 
 /* détail */
 .crumb{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);margin-bottom:12px}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .dh h1{font-size:clamp(21px,2.6vw,28px);margin:0;letter-spacing:-.025em;font-weight:700}
 .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
-.tag{background:var(--bg-sunk);color:var(--ink-2);border-radius:7px;padding:3px 9px;font-size:11.5px}
+.tag{background:var(--bg-sunk);color:var(--ink-2);border-radius:var(--radius-s);padding:3px 9px;font-size:11.5px}
 /* The twin target, in the other address family. An action rather than a
    label: it is the one tag you are meant to click, so it says so. */
 .tag.twin{background:var(--accent-soft);color:var(--accent-ink);font-weight:650;
@@ -108,19 +109,19 @@ canvas{display:block;width:100%}
 .tag.twin:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 .tag.twin svg{width:13px;height:13px;flex:none}
 .presets{display:flex;gap:5px;margin-top:18px;flex-wrap:wrap;align-items:center}
-.preset{padding:5px 12px;border-radius:8px;border:1px solid var(--line);color:var(--ink-2);font-size:12.5px}
+.preset{padding:5px 12px;border-radius:var(--radius-s);border:1px solid var(--line);color:var(--ink-2);font-size:12.5px}
 .preset[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:550}
 #cw{position:relative}
 .legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--ink-2);border-top:1px solid var(--line-2);margin-top:8px;padding-top:8px}
 .sw{display:inline-block;vertical-align:middle;margin-right:5px}
-.tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:11.5px;line-height:1.6;box-shadow:0 6px 20px rgba(0,0,0,.12);display:none;white-space:nowrap}
+.tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-s);padding:7px 10px;font-size:11.5px;line-height:1.6;box-shadow:0 6px 20px rgba(0,0,0,.12);display:none;white-space:nowrap}
 .stats{display:grid;gap:10px;margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
-.st{background:var(--bg-soft);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px}
+.st{background:var(--bg-soft);border:1px solid var(--line-2);border-radius:var(--radius-s);padding:11px 13px}
 .st .k{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
 .st .v{font-size:21px;font-weight:700;letter-spacing:-.02em}
 .st .u{font-size:11.5px;color:var(--ink-3);font-weight:500;margin-left:3px}
 .avrow{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
-.av{border:1px solid var(--line-2);border-left-width:3px;border-radius:9px;padding:9px 12px;background:var(--bg-soft)}
+.av{border:1px solid var(--line-2);border-left-width:3px;border-radius:var(--radius-s);padding:9px 12px;background:var(--bg-soft)}
 .av-w{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
 .av-v{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
 .av-v .u{font-size:12px;color:var(--ink-3);font-weight:500;margin-left:2px}
@@ -128,7 +129,7 @@ canvas{display:block;width:100%}
 .av-ok{border-left-color:var(--ok)} .av-warn{border-left-color:var(--warn)}
 .av-crit{border-left-color:var(--crit)} .av-n{border-left-color:var(--line)}
 .corr{display:flex;gap:9px;align-items:center;flex-wrap:wrap;border:1px solid var(--line-2);
-  border-left-width:3px;border-radius:9px;padding:9px 12px;background:var(--bg-soft)}
+  border-left-width:3px;border-radius:var(--radius-s);padding:9px 12px;background:var(--bg-soft)}
 .corr-m{font-size:12.5px;color:var(--ink-2)}
 .corr-ok{border-left-color:var(--ok)} .corr-warn{border-left-color:var(--warn)}
 .corr-crit{border-left-color:var(--crit)} .corr-n{border-left-color:var(--line)}
@@ -137,6 +138,9 @@ canvas{display:block;width:100%}
 .trl th{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;font-weight:550;border-top:none}
 .trl tr.tr-row{cursor:pointer}.trl tr.tr-row:hover td{background:var(--bg-soft)}
 .trl tr.diff td{background:var(--warn-soft)}
+/* Le saut qui change de reseau se repere dans la colonne, sans avoir a lire
+   la colonne AS ligne par ligne. */
+.trl tr.ixhop td:first-child{box-shadow:inset 3px 0 var(--c-ix)}
 .hopnote{color:var(--crit);font-weight:650;margin-left:6px}
 </style>
 </head>
@@ -144,14 +148,16 @@ canvas{display:block;width:100%}
 <header class="hdr" id="hdr"></header>
 <div id="view"><p class="wrap muted" style="padding:40px 0" data-i18n="common.loading">…</p></div>
 <footer class="ftr" id="ftr"></footer>
+<script src="/html.js"></script>
 <script src="/i18n.js"></script>
 <script src="/app.js"></script>
 <script>
 "use strict";
-const $ = s => document.querySelector(s), esc = s => App.esc(s), t = (k, v) => I18N.t(k, v);
+const $ = s => document.querySelector(s), t = (k, v) => I18N.t(k, v);
+const { html, raw, url } = H;
 const PALETTE = ["#2458e6", "#0e8fa8", "#7a3fe0", "#0f917a", "#c26a00", "#c2185b", "#5d7a00", "#8d6e63"];
 const PALETTE_DARK = ["#6b93ff", "#3cc3dc", "#a98bff", "#3fd1b4", "#f0a93a", "#f06292", "#aed581", "#bcaaa4"];
-const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+const dark = () => document.documentElement.dataset.theme === "dark";
 const color = i => (dark() ? PALETTE_DARK : PALETTE)[i % PALETTE.length];
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const n1 = v => v == null ? "—" : I18N.num(v, 1);
@@ -182,8 +188,8 @@ const worst = list => list.some(x => x.status === "crit") ? "crit" : list.some(x
 async function loadOverview() {
   // "all=1" is only honoured for authenticated callers; visitors get the
   // public targets either way.
-  S.ov = await fetch(SHARE ? "/api/v1/overview?share=" + encodeURIComponent(SHARE)
-    : "/api/v1/overview?all=1").then(r => r.json());
+  S.ov = await App.getJSON(SHARE ? "/api/v1/overview?share=" + encodeURIComponent(SHARE)
+    : "/api/v1/overview?all=1");
   S.ov.categories.forEach(c => { if (S.open[c.id] === undefined) S.open[c.id] = true; });
 }
 async function loadSide() {
@@ -196,62 +202,91 @@ async function loadSide() {
 
 /* ------------------------------------------------------------ gabarits */
 function hbarHTML(tg) {
-  return `<div class="hbar" title="${esc(t("home.last24h"))}">${tg.hours.map(k =>
-    `<i class="${k === "crit" ? "c" : k === "warn" ? "w" : k === "nodata" ? "n" : ""}"></i>`).join("")}</div>`;
+  return html`<div class="hbar" title="${t("home.last24h")}">${tg.hours.map(k =>
+    html`<i class="${k === "crit" ? "c" : k === "warn" ? "w" : k === "nodata" ? "n" : ""}"></i>`)}</div>`;
 }
 function rowHTML(tg, showCat) {
-  const k = tg.status, ratio = tg.ratio && tg.ratio > 1.15 ? `<span class="x">×${n1(tg.ratio)}</span>` : "";
-  const since = tg.since ? `<div class="since" style="color:var(--${k === "crit" ? "crit" : "warn"})">${esc(t("common.since"))} ${clock(tg.since)} · ${esc(I18N.ago(tg.since))}</div>` : "";
-  return `<div class="row ${k === "crit" || k === "warn" ? "a-" + k : ""}" data-t="${tg.id}">
-    <div><div class="who"><span class="dot d-${k}"></span><div style="min-width:0"><div class="nm">${esc(tg.title)}</div>
-      <div class="sb"><span class="mono">${esc(tg.host)}</span>${showCat ? ` · <span style="color:${color(tg._ci)}">${esc(cname(tg._cat))}</span>` : ""}${tg.public === false ? ` · <span class="badge b-n">${esc(t("status.private"))}</span>` : ""}</div></div></div>${since}</div>
+  const k = tg.status;
+  return html`<div class="row ${k === "crit" || k === "warn" ? "a-" + k : ""}" data-t="${tg.id}">
+    <div><div class="who"><span class="dot d-${k}"></span><div style="min-width:0"><div class="nm">${tg.title}</div>
+      <div class="sb"><span class="mono">${tg.host}</span>${
+        showCat && html` · <span style="color:${color(tg._ci)}">${cname(tg._cat)}</span>`}${
+        tg.public === false && html` · <span class="badge b-n">${t("status.private")}</span>`}</div></div></div>${
+      tg.since && html`<div class="since" style="color:var(--${k === "crit" ? "crit" : "warn"})">${
+        t("common.since")} ${clock(tg.since)} · ${I18N.ago(tg.since)}</div>`}</div>
     <div class="hb">${hbarHTML(tg)}</div>
     <div class="spk"><canvas height="30" data-spark="${tg.id}"></canvas></div>
-    <div><div class="lbl">${esc(t("metric.median"))}</div><div class="num"><b>${n2(tg.med_ms)}</b> ms${ratio}</div></div>
-    <div class="lc"><div class="lbl">${esc(t("metric.loss"))}</div><div class="num"><b>${n1(tg.loss_pct)}</b> %</div></div>
-    <div style="text-align:right"><span class="badge b-${k === "nodata" ? "n" : k}">${esc(t("status." + k))}</span></div></div>`;
+    <div><div class="lbl">${t("metric.median")}</div><div class="num"><b>${n2(tg.med_ms)}</b> ms${
+      tg.ratio && tg.ratio > 1.15 ? html`<span class="x">×${n1(tg.ratio)}</span>` : ""}</div></div>
+    <div class="lc"><div class="lbl">${t("metric.loss")}</div><div class="num"><b>${n1(tg.loss_pct)}</b> %</div></div>
+    <div style="text-align:right"><span class="badge b-${k === "nodata" ? "n" : k}">${t("status." + k)}</span></div></div>`;
+}
+
+function railGroup(c, ci, q) {
+  const cm = q && cname(c).toLowerCase().includes(q);
+  const list = c.targets.filter(x => !q || cm || x.title.toLowerCase().includes(q) || x.host.includes(q));
+  if (!list.length) return "";
+  return html`<div class="rg" data-open="${S.open[c.id] || !!q ? "true" : "false"}"><button class="rgt" data-tog="${c.id}"><span class="chev">▼</span>
+      <span class="cbar" style="background:${color(ci)}"></span><span>${cname(c)}</span>
+      <span class="rgn"><span class="dot d-${worst(list)}"></span>${list.length}</span></button><div class="rl">${
+    list.map(x => html`<button class="ri" data-t="${x.id}" aria-current="${
+      S.view === "detail" && S.target && S.target.id === x.id ? "true" : "false"}">
+        <span class="dot d-${x.status}"></span><span class="nm">${x.title}</span><span class="vl mono">${n2(x.med_ms)}</span></button>`)
+    }</div></div>`;
+}
+
+// The host-network figures are fetched from RIPEstat in the background:
+// until the cache is warm the server answers {pending:true}, and a card
+// full of "undefined" is worse than no card.
+function netCard() {
+  if (!S.net || S.net.pending || !S.net.asn) return "";
+  const p = S.net.peeringdb, num = v => (v == null ? "—" : v);
+  return html`<a class="netcard" href="/network"><div class="h">${t("home.hosted_by")}</div>
+      <div class="n">AS${S.net.asn}${S.net.holder && " · " + S.net.holder.split(" - ")[0]}</div>
+      <div class="s"><span><b>${num(S.net.prefixes_v4)}</b> IPv4 · <b>${num(S.net.prefixes_v6)}</b> IPv6</span>
+      <span><b>${num(S.net.nb_upstreams)}</b> ${t("net.nb_up").toLowerCase()}</span>
+      ${p && p.ixs && html`<span><b>${p.ixs.length}</b> IX</span><span>PeeringDB · ${p.policy || "—"}</span>`}</div>
+      <div style="font-size:12px;color:var(--accent);margin-top:8px">${t("home.see_network")} →</div></a>`;
 }
 
 function railHTML() {
   const q = S.q.toLowerCase();
-  let h = `<input class="search" id="q" placeholder="⌕  ${esc(t("metric.targets"))}…" value="${esc(S.q)}">`;
-  S.ov.categories.forEach((c, ci) => {
-    const cm = q && cname(c).toLowerCase().includes(q);
-    const list = c.targets.filter(x => !q || cm || x.title.toLowerCase().includes(q) || x.host.includes(q));
-    if (!list.length) return;
-    h += `<div class="rg" data-open="${S.open[c.id] || !!q}"><button class="rgt" data-tog="${c.id}"><span class="chev">▼</span>
-      <span class="cbar" style="background:${color(ci)}"></span><span>${esc(cname(c))}</span>
-      <span class="rgn"><span class="dot d-${worst(list)}"></span>${list.length}</span></button><div class="rl">` +
-      list.map(x => `<button class="ri" data-t="${x.id}" aria-current="${S.view === "detail" && S.target && S.target.id === x.id}">
-        <span class="dot d-${x.status}"></span><span class="nm">${esc(x.title)}</span><span class="vl mono">${n2(x.med_ms)}</span></button>`).join("") +
-      `</div></div>`;
-  });
-  // The host-network figures are fetched from RIPEstat in the background:
-  // until the cache is warm the server answers {pending:true}, and a card
-  // full of "undefined" is worse than no card.
-  if (S.net && !S.net.pending && S.net.asn) {
-    const p = S.net.peeringdb;
-    const num = v => (v == null ? "—" : v);
-    h += `<a class="netcard" href="/network"><div class="h">${esc(t("home.hosted_by"))}</div>
-      <div class="n">AS${esc(S.net.asn)}${S.net.holder ? " · " + esc(S.net.holder.split(" - ")[0]) : ""}</div>
-      <div class="s"><span><b>${num(S.net.prefixes_v4)}</b> IPv4 · <b>${num(S.net.prefixes_v6)}</b> IPv6</span>
-      <span><b>${num(S.net.nb_upstreams)}</b> ${esc(t("net.nb_up").toLowerCase())}</span>
-      ${p && p.ixs ? `<span><b>${p.ixs.length}</b> IX</span><span>PeeringDB · ${esc(p.policy || "—")}</span>` : ""}</div>
-      <div style="font-size:12px;color:var(--accent);margin-top:8px">${esc(t("home.see_network"))} →</div></a>`;
-  }
-  return h;
+  return html`<input class="search" id="q" placeholder="⌕  ${t("metric.targets")}…" value="${S.q}">${
+    S.ov.categories.map((c, ci) => railGroup(c, ci, q))}${netCard()}`;
 }
 function railBox() {
   const n = allTargets().length;
-  return `<aside class="rail" id="railBox"><button class="rail-tog" id="railTog"><span class="cbar" style="background:var(--accent)"></span>
-    ${esc(t("metric.categories"))} · ${n} ${esc(t("metric.targets").toLowerCase())}<span class="chev">▼</span></button>
+  return html`<aside class="rail" id="railBox"><button class="rail-tog" id="railTog"><span class="cbar" style="background:var(--accent)"></span>
+    ${t("metric.categories")} · ${n} ${t("metric.targets").toLowerCase()}<span class="chev">▼</span></button>
     <div id="rail">${railHTML()}</div></aside>`;
 }
+// Un seul ecouteur : les « ? » sont reconstruits a chaque rendu, et deux
+// bulles ouvertes en meme temps se genent.
+document.addEventListener("click", e => {
+  const b = e.target.closest(".hintb");
+  document.querySelectorAll(".hintb[aria-expanded='true']").forEach(o => {
+    if (o === b) return;
+    o.setAttribute("aria-expanded", "false");
+    document.getElementById(o.getAttribute("aria-controls")).hidden = true;
+  });
+  if (!b) return;
+  const open = b.getAttribute("aria-expanded") !== "true";
+  b.setAttribute("aria-expanded", open ? "true" : "false");
+  document.getElementById(b.getAttribute("aria-controls")).hidden = !open;
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  document.querySelectorAll(".hintb[aria-expanded='true']").forEach(o => {
+    o.setAttribute("aria-expanded", "false");
+    document.getElementById(o.getAttribute("aria-controls")).hidden = true;
+  });
+});
+
 function bindRail() {
   const tg = $("#railTog"); if (tg) tg.onclick = () => $("#railBox").classList.toggle("open");
   const q = $("#q");
-  if (q) q.oninput = e => { S.q = e.target.value; const pos = e.target.selectionStart; $("#rail").innerHTML = railHTML(); bindRail(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); };
-  document.querySelectorAll("[data-tog]").forEach(b => b.onclick = () => { S.open[b.dataset.tog] = !S.open[b.dataset.tog]; $("#rail").innerHTML = railHTML(); bindRail(); });
+  if (q) q.oninput = e => { S.q = e.target.value; const pos = e.target.selectionStart; H.render($("#rail"), railHTML()); bindRail(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); };
+  document.querySelectorAll("[data-tog]").forEach(b => b.onclick = () => { S.open[b.dataset.tog] = !S.open[b.dataset.tog]; H.render($("#rail"), railHTML()); bindRail(); });
   document.querySelectorAll("#rail [data-t]").forEach(b => b.onclick = () => openTarget(+b.dataset.t));
 }
 
@@ -341,48 +376,144 @@ function draw(cv, s, o) {
 // The route as measured: one box per autonomous system crossed, from this
 // network to the destination. Derived from the traceroutes, so it follows
 // their visibility rules.
+// A link folded onto the next row needs square corners rather than a curve:
+// an orthogonal run with rounded angles, given as the points it passes.
+function elbow(pts, r = 8) {
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1];
+    const a = Math.min(r, Math.hypot(x - px, y - py) / 2), b = Math.min(r, Math.hypot(nx - x, ny - y) / 2);
+    d += ` L${x - Math.sign(x - px) * a},${y - Math.sign(y - py) * a}`;
+    d += ` Q${x},${y} ${x + Math.sign(nx - x) * b},${y + Math.sign(ny - y) * b}`;
+  }
+  return d + ` L${pts[pts.length - 1][0]},${pts[pts.length - 1][1]}`;
+}
+
 // The map, drawn like a looking-glass bgpmap: one box per autonomous system,
 // left to right from us to the target, arrows for the adjacencies actually
 // observed. The current path is solid, the ones seen earlier are dashed, so a
-// target reached through two transits shows both.
-function asGraphSVG(g) {
-  const layers = [];
-  for (const n of g.nodes) (layers[n.layer] = layers[n.layer] || []).push(n);
-  const BW = 150, BH = 44, GX = 54, GY = 16, P = 10;
-  const rows = Math.max(...layers.map(l => l.length));
-  const W = layers.length * BW + (layers.length - 1) * GX + P * 2;
-  const H = rows * BH + (rows - 1) * GY + P * 2 + 14;
-  const pos = {};
-  layers.forEach((l, li) => l.forEach((n, ni) => {
-    const colH = l.length * BH + (l.length - 1) * GY;
-    pos[n.asn] = { x: P + li * (BW + GX), y: P + 14 + (H - 14 - P * 2 - colH) / 2 + ni * (BH + GY) };
-  }));
+// target reached through two transits shows both. A path wider than the
+// column it is drawn in folds onto the next row: scaling the whole map down
+// to fit shrank the names until nothing on it could be read.
+function asGraphSVG(g, avail) {
+  // Le serveur numerote les couches par distance et peut en sauter une :
+  // un chemin sans AS intermediaire donne 0, 2, 3. Indexer par ce numero
+  // laissait un trou dans le tableau, et etaler un tableau a trous rend
+  // undefined la ou il manque -- Math.max valait NaN, chaque boite
+  // recevait translate(x, NaN) et le viewBox devenait invalide, si bien
+  // que toutes se superposaient en haut a gauche. On ne garde que les
+  // colonnes qui portent quelque chose.
+  const byLayer = [];
+  for (const n of g.nodes) (byLayer[n.layer] = byLayer[n.layer] || []).push(n);
+  const layers = byLayer.filter(l => l && l.length);
+  const BW = 150, BH = 44, GY = 18, P = 12, TOP = 12, FOLD = 56;
+  const ixW = ix => (ix.length > 16 ? 16 : ix.length) * 5.9 + 30;
+  // La gouttiere s'ouvre a la largeur du nom le plus long : le point
+  // d'echange est pose au milieu de sa fleche, et doit tenir entre deux
+  // boites sans en couvrir aucune.
+  const GX = Math.max(54, ...(g.edges || []).filter(e => e.ix).map(e => ixW(e.ix) + 12));
+  const perRow = Math.max(2, Math.floor((avail - 2 * P + GX) / (BW + GX)));
+  const bands = [];
+  for (let i = 0; i < layers.length; i += perRow) bands.push(layers.slice(i, i + perRow));
+  const cols = Math.max(1, ...bands.map(b => b.length));
+  const W = cols * BW + (cols - 1) * GX + P * 2;
+  // lane[i] : la voie libre sous la bande i, par ou un lien replie revient.
+  const pos = {}, lane = [];
+  let bottom = TOP;
+  bands.forEach((band, bi) => {
+    const rows = Math.max(1, ...band.map(l => l.length));
+    const bh = rows * BH + (rows - 1) * GY;
+    band.forEach((l, li) => {
+      const colH = l.length * BH + (l.length - 1) * GY;
+      l.forEach((n, ni) => {
+        pos[n.asn] = { x: P + li * (BW + GX), band: bi, y: bottom + (bh - colH) / 2 + ni * (BH + GY) };
+      });
+    });
+    lane.push(bottom + bh + FOLD / 2);
+    bottom += bh + FOLD;
+  });
+  // A folded link runs along the lane under the band it leaves, and its IX
+  // badge is laid on that lane. bottom - FOLD + P leaves the lane under the
+  // *last* band exactly FOLD / 2 - P = 16 px outside the viewBox, so every
+  // folded link out of the last band had its elbow and its badge clipped
+  // away — and on a map short enough to fit one band, that is every link
+  // that is not strictly left to right. Since the map is only drawn when the
+  // route branches, those are the expected links, not the corner case.
+  //
+  // The lanes under earlier bands are well inside the height already, so
+  // this only ever adds room where something is actually drawn down there.
+  const foldedLanes = (g.edges || []).map(e => {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) return -1;
+    if (a.band === b.band && b.x > a.x + BW) return -1; // runs straight across
+    return lane[a.band];
+  }).filter(y => y >= 0);
+  // 8 is the badge's half-height: ixBadge draws it centred on the lane.
+  const HT = Math.max(bottom - FOLD + P, ...foldedLanes.map(y => y + 8 + P));
+  const labels = []; // drawn last: a name is of no use under a box
+  // Two networks meet somewhere, and the exchange is the one thing a bare
+  // arrow between them never says. It is written on the arrow, in the colour
+  // it carries everywhere else: it is the hop an operator looks for first.
+  const ixBadge = (cx, cy, ix, tip) => {
+    const s = ix.length > 16 ? ix.slice(0, 15) + "…" : ix;
+    const w = ixW(ix);
+    return html`<g class="gixb"><rect x="${cx - w / 2}" y="${cy - 8}" width="${w}" height="16" rx="8"></rect>
+      <text x="${cx}" y="${cy + 3.5}"><tspan class="gixk">IX</tspan><tspan dx="5">${s}</tspan></text>
+      <title>${tip}</title></g>`;
+  };
   const edges = (g.edges || []).map(e => {
     const a = pos[e.from], b = pos[e.to];
     if (!a || !b) return "";
-    const x1 = a.x + BW, y1 = a.y + BH / 2, x2 = b.x, y2 = b.y + BH / 2, mx = (x1 + x2) / 2;
-    return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"
-      fill="none" stroke="${e.current ? "var(--accent)" : "var(--line-2, #cbd5e1)"}"
-      stroke-width="${e.current ? 2 : 1.2}" ${e.current ? "" : 'stroke-dasharray="4 4"'}
-      marker-end="url(#asarrow)"><title>${esc(e.from)} → ${esc(e.to)} · ${e.seen}×</title></path>`;
-  }).join("");
+    const x1 = a.x + BW, y1 = a.y + BH / 2, x2 = b.x, y2 = b.y + BH / 2;
+    const tip = `${e.from} → ${e.to} · ${e.seen}×` + (e.ix ? " · " + t("trace.ix_hint", { ix: e.ix }) : "");
+    let d, lx, ly;
+    if (a.band === b.band && x2 > x1) {
+      const mx = (x1 + x2) / 2;
+      d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+      lx = mx; ly = (y1 + y2) / 2;
+    } else {
+      // Replie : on sort par la droite, on longe la voie libre sous la
+      // bande, on redescend dans une goulotte entre deux colonnes -- jamais
+      // au travers d'une boite -- et on entre par la gauche.
+      const xr = W - 3, xl = Math.max(3, x2 - GX / 2), yl = lane[a.band];
+      d = elbow([[x1, y1], [xr, y1], [xr, yl], [xl, yl], [xl, y2], [x2, y2]]);
+      lx = (xr + xl) / 2; ly = yl; // pose sur la voie, qui passe derriere
+    }
+    if (e.ix) labels.push(ixBadge(lx, ly, e.ix, tip));
+    return html`<path d="${d}" fill="none" stroke="${e.current ? "var(--accent)" : "var(--ink-3)"}"
+      stroke-width="${e.current ? 2 : 1.2}" stroke-dasharray="${e.current ? "none" : "4 4"}"
+      opacity="${e.current ? 1 : .6}" marker-end="url(#${e.current ? "asarrow" : "asarrowo"})"
+      ><title>${tip}</title></path>`;
+  });
   const boxes = g.nodes.map(n => {
     const p = pos[n.asn];
     const cls = n.unknown ? "gnode gunknown" : n.origin ? "gnode gself" : n.dest ? "gnode gdest" : "gnode";
     const name = n.unknown ? t("detail.as_gap") : (n.name || "");
-    const rtt = n.rtt_ms ? `${n2(n.rtt_ms)} ms` : "";
-    return `<g class="${cls}" transform="translate(${p.x},${p.y})">
+    return html`<g class="${cls}" transform="translate(${p.x},${p.y})">
       <rect width="${BW}" height="${BH}" rx="9"></rect>
-      <text x="9" y="17" class="gasn">${esc(n.unknown ? "?" : n.asn)}</text>
-      <text x="9" y="31" class="gname">${esc(name.length > 22 ? name.slice(0, 21) + "…" : name)}</text>
-      ${rtt ? `<text x="${BW - 9}" y="17" class="grtt">${esc(rtt)}</text>` : ""}
-      <title>${esc(n.name || n.asn)}${n.seen ? ` · ${n.seen}/${g.traces} traceroutes` : ""}</title></g>`;
-  }).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" class="asmap" style="width:100%;max-width:${W}px;height:auto">
-    <defs><marker id="asarrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6"
-      orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--ink3)"></path></marker></defs>
-    ${edges}${boxes}</svg>`;
+      <text x="9" y="17" class="gasn">${n.unknown ? "?" : n.asn}</text>
+      <text x="9" y="31" class="gname">${name.length > 22 ? name.slice(0, 21) + "…" : name}</text>
+      ${n.rtt_ms ? html`<text x="${BW - 9}" y="17" class="grtt">${n2(n.rtt_ms) + " ms"}</text>` : ""}
+      <title>${(n.name || n.asn) + (n.seen ? " · " + n.seen + "/" + g.traces + " traceroutes" : "")}</title></g>`;
+  });
+  const marker = (id, fill) => html`<marker id="${id}" viewBox="0 0 8 8" refX="7" refY="4"
+    markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="${fill}"></path></marker>`;
+  return html`<svg viewBox="0 0 ${W} ${HT}" class="asmap" style="width:100%;max-width:${W}px;height:auto">
+    <defs>${marker("asarrow", "var(--accent)")}${marker("asarrowo", "var(--ink-3)")}</defs>
+    ${edges}${boxes}${labels}</svg>`;
 }
+
+// Les explications servent une fois, pas a chaque visite : elles passent
+// derriere un « ? » a cote du titre de la section, replie par defaut.
+let HINT_N = 0;
+const hint = key => {
+  const text = t(key);
+  if (!text) return "";
+  const id = "hint" + (++HINT_N);
+  return html`<span class="hint"><button type="button" class="hintb" aria-expanded="false"
+    aria-controls="${id}" aria-label="${t("common.explain")}">?</button>
+    <span class="hintbox" id="${id}" role="note" hidden>${text}</span></span>`;
+};
 
 async function renderASPath(tg) {
   const box = document.getElementById("asbox"), chain = document.getElementById("aschain");
@@ -394,24 +525,31 @@ async function renderASPath(tg) {
   } catch (e) { /* the graph matters more than this */ }
   if (!v || (!v.origin && !v.dest && !(v.path || []).length)) { box.hidden = true; return; }
   box.hidden = false;
-  const node = (h, cls, sub) => `<span class="asnode ${cls || ""}" title="${esc(h.name || h.asn)}${h.hops > 1 ? ` · ${h.hops} hops` : ""}">
-    <span class="asn">${esc(h.asn)}</span>${h.name ? `<span class="asname">${esc(h.name)}</span>` : ""}
-    ${sub ? `<span class="asrole">${esc(sub)}</span>` : ""}</span>`;
-  const arrow = `<span class="asarrow">→</span>`;
-  const parts = [];
-  if (v.origin) parts.push(node(v.origin, "self", t("detail.as_here")));
-  for (const h of (v.path || [])) parts.push(node(h, "", ""));
+  const node = (h, cls, sub) => html`<span class="asnode ${cls || ""}" title="${
+    (h.name || h.asn) + (h.hops > 1 ? " · " + h.hops + " hops" : "")}">
+    <span class="asn">${h.asn}</span>${h.name && html`<span class="asname">${h.name}</span>`}
+    ${sub && html`<span class="asrole">${sub}</span>`}</span>`;
+  // The arrow carries the exchange the path crossed to enter the network it
+  // points at, when it crossed one.
+  const arrow = via => html`<span class="asarrow" title="${via ? t("trace.ix_hint", { ix: via }) : ""}">${
+    via && html`<span class="asvia">${via}</span>`}<span>→</span></span>`;
+  const parts = [], vias = [];
+  const push = (el, via) => { parts.push(el); vias.push(via || ""); };
+  if (v.origin) push(node(v.origin, "self", t("detail.as_here")));
+  for (const h of (v.path || [])) push(node(h, "", ""), h.via);
   // An unknown segment is said, not hidden: the ends do not touch.
-  if (v.gap || v.empty) parts.push(`<span class="asnode unknown" title="${esc(t("detail.as_gap_hint"))}">
-    <span class="asn">?</span><span class="asname">${esc(t("detail.as_gap"))}</span></span>`);
-  if (v.dest) parts.push(node(v.dest, "dest", t("detail.as_target")));
-  else if (v.pending) parts.push(`<span class="asnode unknown"><span class="asn">…</span>
-    <span class="asname">${esc(t("common.loading"))}</span></span>`);
+  if (v.gap || v.empty) push(html`<span class="asnode unknown" title="${t("detail.as_gap_hint")}">
+    <span class="asn">?</span><span class="asname">${t("detail.as_gap")}</span></span>`);
+  if (v.dest) push(node(v.dest, "dest", ""), v.dest.via);
+  else if (v.pending) push(html`<span class="asnode unknown"><span class="asn">…</span>
+    <span class="asname">${t("common.loading")}</span></span>`);
   // One observed path: the chain reads better. Several: the map shows the
   // divergence, which the chain cannot.
   const g = v.graph;
   const branching = g && (g.edges || []).length > Math.max(0, (g.nodes || []).length - 1);
-  chain.innerHTML = (branching ? asGraphSVG(g) : parts.join(arrow));
+  // La carte est repliee a la largeur reelle de la colonne, mesuree ici.
+  H.render(chain, branching ? asGraphSVG(g, Math.max(300, chain.clientWidth || 900))
+    : parts.flatMap((n, i) => i ? [arrow(vias[i]), n] : [n]));
   // The global view, in its own block: it answers a different question.
   const rb = document.getElementById("risbox");
   if (rb) {
@@ -420,10 +558,10 @@ async function renderASPath(tg) {
     if (!rb.hidden) {
       document.getElementById("risline").textContent = t("detail.ris_line",
         { prefix: ris.prefix, origin: ris.origin_asn || "?", peers: ris.peers || 0 });
-      document.getElementById("risup").innerHTML = (ris.upstreams || []).length
-        ? `<span class="faint" style="font-size:11.5px;margin-right:4px">${esc(t("detail.ris_up"))} :</span>`
-          + ris.upstreams.map(a => `<span class="asnode ris"><span class="asn">${esc(a)}</span></span>`).join("")
-        : "";
+      H.render(document.getElementById("risup"), (ris.upstreams || []).length
+        ? html`<span class="faint" style="font-size:11.5px;margin-right:4px">${t("detail.ris_up")} :</span>${
+            ris.upstreams.map(a => html`<span class="asnode ris"><span class="asn">${a}</span></span>`)}`
+        : "");
     }
   }
   const meta = document.getElementById("asmeta");
@@ -449,59 +587,80 @@ function renderEvents() {
   const evs = (S.events || []).filter(e => e.ts_start >= S.from && e.ts_start <= S.to)
     .sort((a, b) => a.ts_start - b.ts_start);
   box.hidden = evs.length === 0;
-  list.innerHTML = evs.map(e => {
-    const label = e.kind === "path" ? t("detail.route_changed") : e.title;
-    return `<li><span class="evdate">${esc(new Date(e.ts_start * 1000).toLocaleString())}</span>
-      <span class="evwhat">${esc(label)}</span>
-      ${e.body ? `<span class="evdetail mono">${esc(e.body)}</span>` : ""}</li>`;
-  }).join("");
+  H.render(list, evs.map(e => html`<li>
+      <span class="evdate">${new Date(e.ts_start * 1000).toLocaleString()}</span>
+      <span class="evwhat">${e.kind === "path" ? t("detail.route_changed") : e.title}</span>
+      ${e.body && html`<span class="evdetail mono">${e.body}</span>`}</li>`));
 }
 
 /* --------------------------------------------------------------- accueil */
+function heroSection(all, c, faults, heroK) {
+  const asn = S.net ? "AS" + S.net.asn : (App.site.asn || "");
+  const kpi = (label, value, unit) => html`<div class="kpi"><div class="k">${label}</div>
+    <div class="v">${value}${unit && html`<span class="u">${unit}</span>`}</div></div>`;
+  return html`<section class="hero ${heroK}"><div class="wrap hero-in"><div>
+      <p class="eyebrow"><span class="pulse"></span>${asn && t("home.hosted_by") + " " + asn + " · "}${t("home.refresh")}</p>
+      <h1>${faults.length ? t("home.hero_fault_title", { n: faults.length }) : t("home.hero_ok_title")}</h1>
+      <p class="lead">${faults.length ? t("home.hero_fault_body", { total: c.targets })
+        : t("home.hero_ok_body", { total: c.targets, cats: S.ov.categories.length })}</p></div>
+    <div class="kpis">
+      ${kpi(t("metric.targets"), c.targets, "")}
+      ${kpi(t("metric.median"), n2(avg(all.map(x => x.med_ms))), "ms")}
+      ${kpi(t("metric.loss"), n1(avg(all.map(x => x.loss_pct))), "%")}
+      ${kpi(t("metric.peers"), S.peers, "")}
+    </div></div></section>`;
+}
+
+function howBox(open) {
+  const part = (title, body) => html`<div><h3>${t(title)}</h3><p>${t(body)}</p></div>`;
+  return html`<details class="how" ${open ? raw("open") : ""}><summary>${
+      t("home.ex_measure_t")} · ${t("home.ex_bands_t")} · ${t("home.ex_colours_t")}</summary>
+    <div class="how-b">${part("home.ex_measure_t", "home.ex_measure")}${
+      part("home.ex_bands_t", "home.ex_bands")}${part("home.ex_colours_t", "home.ex_colours")}</div></details>`;
+}
+
 function renderHome() {
   const all = allTargets(), c = S.ov.counts;
   const faults = all.filter(x => x.status === "crit" || x.status === "warn")
     .sort((a, b) => (b.status === "crit") - (a.status === "crit") || (b.loss_pct || 0) - (a.loss_pct || 0));
   const heroK = c.crit ? "crit" : c.warn ? "warn" : "ok";
-  const asn = S.net ? "AS" + S.net.asn : (App.site.asn || "");
-  let h = `<section class="hero ${heroK}"><div class="wrap hero-in"><div>
-      <p class="eyebrow"><span class="pulse"></span>${asn ? esc(t("home.hosted_by")) + " " + esc(asn) + " · " : ""}${esc(t("home.refresh"))}</p>
-      <h1>${esc(faults.length ? t("home.hero_fault_title", { n: faults.length }) : t("home.hero_ok_title"))}</h1>
-      <p class="lead">${esc(faults.length ? t("home.hero_fault_body", { total: c.targets }) : t("home.hero_ok_body", { total: c.targets, cats: S.ov.categories.length }))}</p></div>
-    <div class="kpis">
-      <div class="kpi"><div class="k">${esc(t("metric.targets"))}</div><div class="v">${c.targets}</div></div>
-      <div class="kpi"><div class="k">${esc(t("metric.median"))}</div><div class="v">${n2(avg(all.map(x => x.med_ms)))}<span class="u">ms</span></div></div>
-      <div class="kpi"><div class="k">${esc(t("metric.loss"))}</div><div class="v">${n1(avg(all.map(x => x.loss_pct)))}<span class="u">%</span></div></div>
-      <div class="kpi"><div class="k">${esc(t("metric.peers"))}</div><div class="v">${S.peers}</div></div>
-    </div></div></section>
-  <div class="wrap"><div class="shell">${railBox()}<div style="min-width:0">
-    <div id="mbanner" hidden></div>
-    <details class="how" ${faults.length ? "" : "open"}><summary>${esc(t("home.ex_measure_t"))} · ${esc(t("home.ex_bands_t"))} · ${esc(t("home.ex_colours_t"))}</summary>
-      <div class="how-b"><div><h3>${esc(t("home.ex_measure_t"))}</h3><p>${esc(t("home.ex_measure"))}</p></div>
-      <div><h3>${esc(t("home.ex_bands_t"))}</h3><p>${esc(t("home.ex_bands"))}</p></div>
-      <div><h3>${esc(t("home.ex_colours_t"))}</h3><p>${esc(t("home.ex_colours"))}</p></div></div></details>
-    <section class="section"><div class="section-h"><h2><span class="dot d-${faults.length ? heroK : "ok"}"></span> ${esc(t("home.faults"))}</h2>
-      <span class="badge b-${faults.length ? heroK : "ok"}">${faults.length}</span>
-      <span class="sub">${esc(t("home.faults_sub"))}</span>
-      <span class="right"><label class="faint once-lbl" title="${esc(t("home.once_hint"))}">
-        <input type="checkbox" id="once" ${once() ? "checked" : ""}> ${esc(t("home.once"))}
-        <span class="info" role="img" tabindex="0" aria-label="${esc(t("home.once_hint"))}">i</span></label></span></div>
-      ${faults.length ? `<div class="rows">${faults.map(x => rowHTML(x, true)).join("")}</div>` : `<div class="empty"><span class="dot d-ok"></span>${esc(t("home.no_fault"))}</div>`}</section>`;
   const hide = once() ? new Set(faults.map(x => x.id)) : new Set();
   const feat = all.filter(x => x.featured && !hide.has(x.id));
-  if (feat.length) h += `<section class="section"><div class="section-h"><h2>★ ${esc(t("home.key"))}</h2><span class="sub">${esc(t("home.key_sub"))}</span>
-      <span class="right faint" style="font-size:11.5px">${esc(t("home.last24h"))}</span></div><div class="rows">${feat.map(x => rowHTML(x, true)).join("")}</div></section>`;
-  h += `<section class="section"><div class="section-h"><h2>${esc(t("home.all"))}</h2></div>`;
-  S.ov.categories.forEach((cat, ci) => {
+
+  const catBlock = (cat, ci) => {
     const shown = cat.targets.filter(x => !hide.has(x.id));
-    if (!shown.length) return;
-    const meds = cat.targets.map(x => x.med_ms);
-    h += `<div class="catblock"><div class="cath"><span class="cbar" style="background:${color(ci)};height:18px;width:4px"></span><span class="t">${esc(cname(cat))}</span>
-      <span class="faint" style="font-size:12px">${cat.targets.length} · ${n2(avg(meds))} ms</span><span style="margin-left:auto" class="badge b-${worst(cat.targets)}">${esc(t("status." + worst(cat.targets)))}</span></div>
-      <div class="rows">${shown.map(x => rowHTML(x, false)).join("")}</div></div>`;
-  });
-  h += `</section></div></div></div>`;
-  $("#view").innerHTML = h; bindRail();
+    if (!shown.length) return "";
+    return html`<div class="catblock"><div class="cath">
+      <span class="cbar" style="background:${color(ci)};height:18px;width:4px"></span>
+      <span class="t">${cname(cat)}</span>
+      <span class="faint" style="font-size:12px">${cat.targets.length} · ${n2(avg(cat.targets.map(x => x.med_ms)))} ms</span>
+      <span style="margin-left:auto" class="badge b-${worst(cat.targets)}">${t("status." + worst(cat.targets))}</span></div>
+      <div class="rows">${shown.map(x => rowHTML(x, false))}</div></div>`;
+  };
+
+  H.render($("#view"), html`${heroSection(all, c, faults, heroK)}
+  <div class="wrap"><div class="shell">${railBox()}<div style="min-width:0">
+    <div id="mbanner" hidden></div>
+    ${howBox(!faults.length)}
+    <section class="section"><div class="section-h">
+      <h2><span class="dot d-${faults.length ? heroK : "ok"}"></span> ${t("home.faults")}</h2>
+      <span class="badge b-${faults.length ? heroK : "ok"}">${faults.length}</span>
+      <span class="sub">${t("home.faults_sub")}</span>
+      <span class="right"><label class="faint once-lbl" title="${t("home.once_hint")}">
+        <input type="checkbox" id="once" ${once() ? raw("checked") : ""}> ${t("home.once")}
+        <span class="info" role="img" tabindex="0" aria-label="${t("home.once_hint")}">i</span></label></span></div>
+      ${faults.length
+        ? html`<div class="rows">${faults.map(x => rowHTML(x, true))}</div>`
+        : html`<div class="empty"><span class="dot d-ok"></span>${t("home.no_fault")}</div>`}</section>
+    ${feat.length > 0 && html`<section class="section"><div class="section-h">
+      <h2>★ ${t("home.key")}</h2><span class="sub">${t("home.key_sub")}</span>
+      <span class="right faint" style="font-size:11.5px">${t("home.last24h")}</span></div>
+      <div class="rows">${feat.map(x => rowHTML(x, true))}</div></section>`}
+    <section class="section"><div class="section-h"><h2>${t("home.all")}</h2></div>
+      ${S.ov.categories.map(catBlock)}</section>
+  </div></div></div>`);
+
+  bindRail();
   const onceBox = $("#once");
   if (onceBox) onceBox.onchange = () => {
     try { localStorage.setItem("smokestack.once", onceBox.checked ? "1" : "0"); } catch (e) {}
@@ -544,10 +703,9 @@ function writeHash(push) {
 // parenthesis rather than showing an empty one.
 function pinNote(tg) {
   if (!tg.pin_ip && !tg.pin_family) return "";
-  const txt = tg.pin_ip && tg.pin_family
+  return html`<div class="note-pin">${tg.pin_ip && tg.pin_family
     ? t("detail.pinned", { fam: "IPv" + tg.pin_family, ip: tg.pin_ip })
-    : t("detail.pinned_plain");
-  return `<div class="note-pin">${esc(txt)}</div>`;
+    : t("detail.pinned_plain")}</div>`;
 }
 
 // The maintenance banner. A reader who sees the measurement stop has to be
@@ -559,9 +717,9 @@ function maintNote(tg) {
   const m = tg.maint;
   if (!m) return "";
   const key = m.stop_probe ? "maint.banner_probe" : "maint.banner_alerts";
-  return `<div class="note-maint"><strong>${esc(t("maint.title"))} — ${esc(m.title)}</strong>
-    <span class="when">${esc(t(key, { until: I18N.date(m.ends_at) }))}</span>
-    ${m.note ? `<span class="when">${esc(m.note)}</span>` : ""}</div>`;
+  return html`<div class="note-maint"><strong>${t("maint.title")} — ${m.title}</strong>
+    <span class="when">${t(key, { until: I18N.date(m.ends_at) })}</span>
+    ${m.note && html`<span class="when">${m.note}</span>`}</div>`;
 }
 
 // On the home page, what is happening now and what is announced for the
@@ -580,14 +738,14 @@ async function renderMaintBanner() {
   const now = d.now || Math.floor(Date.now() / 1000);
   const live = list.filter(m => m.starts_at <= now && m.ends_at > now);
   const soon = list.filter(m => m.starts_at > now);
-  const line = m => `<li><strong>${esc(m.target_title || "")}</strong> — ${esc(m.title)}
-    <span class="when">${esc(t(m.starts_at > now ? "maint.from" : "maint.until",
-      { from: I18N.date(m.starts_at), until: I18N.date(m.ends_at) }))}${
-      m.stop_probe ? " · " + esc(t("maint.measure_paused")) : ""}</span></li>`;
+  const line = m => html`<li><strong>${m.target_title || ""}</strong> — ${m.title}
+    <span class="when">${t(m.starts_at > now ? "maint.from" : "maint.until",
+      { from: I18N.date(m.starts_at), until: I18N.date(m.ends_at) })}${
+      m.stop_probe && " · " + t("maint.measure_paused")}</span></li>`;
   box.hidden = false;
-  box.innerHTML = `<div class="note-maint">
-    <strong>${esc(live.length ? t("maint.live_title", { n: live.length }) : t("maint.soon_title", { n: soon.length }))}</strong>
-    <ul>${live.concat(soon).slice(0, 6).map(line).join("")}</ul></div>`;
+  H.render(box, html`<div class="note-maint">
+    <strong>${live.length ? t("maint.live_title", { n: live.length }) : t("maint.soon_title", { n: soon.length })}</strong>
+    <ul>${live.concat(soon).slice(0, 6).map(line)}</ul></div>`);
 }
 
 // Two arrows turning: the same service, measured in the other family.
@@ -596,66 +754,73 @@ const SWAP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
   <path d="M3 10a7 7 0 0 1 11.9-5M21 14a7 7 0 0 1-11.9 5"/>
   <path d="M3 5v5h5M21 19v-5h-5"/></svg>`;
 
+function detailTags(tg) {
+  return html`<div class="tags"><span class="tag mono">${tg.host}</span>
+    <span class="tag">${tg.proto.toUpperCase()} · ${tg.interval_s} s</span>
+    ${tg.family && html`<span class="tag">IPv${tg.family}</span>`}
+    ${tg.twin_slug && html`<a class="tag twin" href="/t/${encodeURIComponent(tg.twin_slug)}"
+      title="${t("detail.twin_hint")}">${raw(SWAP)}${t("detail.twin", { f: tg.family === 4 ? 6 : 4 })}</a>`}
+    ${tg.public === false && html`<span class="tag" style="background:var(--warn-soft);color:var(--warn)">${t("status.private")}</span>`}
+    ${tg.base_ms != null && html`<span class="tag">ref. ${n2(tg.base_ms)} ms</span>`}</div>`;
+}
+
+function chartCard(tg, acc) {
+  const sw = (w, h, bg) => html`<span class="sw" style="width:${w}px;height:${h}px;background:${bg}"></span>`;
+  return html`<div class="card" style="margin-top:12px"><div class="card-b">
+    <div id="cw"><canvas id="ch" height="330"></canvas><div class="tip" id="tip"></div></div>
+    <div class="legend">
+      <span>${sw(16, 3, acc)}${t("metric.median")}</span>
+      <span>${sw(16, 9, rgba(acc, .3))}p25–p75</span>
+      <span>${sw(16, 9, rgba(acc, .15))}p5–p95</span>
+      <span>${sw(10, 9, "var(--crit)")}${t("metric.loss")}</span>
+      <span class="mono faint" id="res" style="margin-left:auto"></span>${hint("detail.hint")}</div></div></div>`;
+}
+
 function renderDetail() {
   const tg = S.target, acc = color(tg._ci), k = tg.status;
-  $("#view").innerHTML = `<div class="wrap"><div class="shell">${railBox()}<div style="min-width:0;padding-top:4px">
-    <div class="crumb"><a href="/" id="bk">← ${esc(t("common.back_home"))}</a><span class="faint">/</span><span style="color:${acc}">${esc(cname(tg._cat))}</span></div>
-    <div class="dh"><h1>${esc(tg.title)}</h1><span class="badge b-${k === "nodata" ? "n" : k}">${esc(t("status." + (k === "nodata" ? "nodata" : k + "_long")))}</span></div>
-    <div class="tags"><span class="tag mono">${esc(tg.host)}</span><span class="tag">${esc(tg.proto.toUpperCase())} · ${tg.interval_s} s</span>
-      ${tg.family ? `<span class="tag">IPv${tg.family}</span>` : ""}
-      ${tg.twin_slug ? `<a class="tag twin" href="/t/${encodeURIComponent(tg.twin_slug)}"
-        title="${esc(t("detail.twin_hint"))}">${SWAP}${esc(t("detail.twin",
-          { f: tg.family === 4 ? 6 : 4 }))}</a>` : ""}
-      ${tg.public === false ? `<span class="tag" style="background:var(--warn-soft);color:var(--warn)">${esc(t("status.private"))}</span>` : ""}
-      ${tg.base_ms != null ? `<span class="tag">ref. ${n2(tg.base_ms)} ms</span>` : ""}</div>
-    ${(SHARE && t("share.banner")) ? `<div class="note-share">${esc(t("share.banner", {
-      org: (App.site.org || App.site.title || ""), loc: (App.site.location || App.site.asn || "—") }))}</div>` : ""}
-    ${(!tg.pin_ip && (tg.addr_count || 0) > 1 && t("detail.rotating")) ? `<div class="note-rot">
-      ${esc(t("detail.rotating", { n: tg.addr_count }))}</div>` : ""}
+  H.render($("#view"), html`<div class="wrap"><div class="shell">${railBox()}<div style="min-width:0;padding-top:4px">
+    <div class="crumb"><a href="/" id="bk">← ${t("common.back_home")}</a><span class="faint">/</span><span style="color:${acc}">${cname(tg._cat)}</span></div>
+    <div class="dh"><h1>${tg.title}</h1><span class="badge b-${k === "nodata" ? "n" : k}">${t("status." + (k === "nodata" ? "nodata" : k + "_long"))}</span></div>
+    ${detailTags(tg)}
+    ${SHARE && t("share.banner") ? html`<div class="note-share">${t("share.banner", {
+      org: (App.site.org || App.site.title || ""), loc: (App.site.location || App.site.asn || "—") })}</div>` : ""}
     ${maintNote(tg)}
     ${pinNote(tg)}
-    <div class="presets" id="pr">${PRESETS.map(([key], i) => `<button class="preset" data-p="${i}" aria-pressed="${S.preset === i}">${esc(t(key))}</button>`).join("")}
-      <button class="preset" id="cp" style="margin-left:auto">🔗 ${esc(t("common.copy_link"))}</button></div>
-    <div class="card" style="margin-top:12px"><div class="card-b"><div id="cw"><canvas id="ch" height="330"></canvas><div class="tip" id="tip"></div></div>
-      <div class="legend"><span><span class="sw" style="width:16px;height:3px;background:${acc}"></span>${esc(t("metric.median"))}</span>
-      <span><span class="sw" style="width:16px;height:9px;background:${rgba(acc, .3)}"></span>p25–p75</span>
-      <span><span class="sw" style="width:16px;height:9px;background:${rgba(acc, .15)}"></span>p5–p95</span>
-      <span><span class="sw" style="width:10px;height:9px;background:var(--crit)"></span>${esc(t("metric.loss"))}</span>
-      <span class="mono faint" id="res" style="margin-left:auto"></span></div>
-      <p class="strip-hint" style="margin-top:6px">${esc(t("detail.hint"))}</p></div></div>
+    <div class="presets" id="pr">${PRESETS.map(([key], i) =>
+      html`<button class="preset" data-p="${i}" aria-pressed="${S.preset === i ? "true" : "false"}">${t(key)}</button>`)}
+      <button class="preset" id="cp" style="margin-left:auto">\ud83d\udd17 ${t("common.copy_link")}</button></div>
+    ${chartCard(tg, acc)}
     <div class="card" style="margin-top:10px"><div class="card-b" style="padding-block:10px">
-      <div class="lbl" style="margin-bottom:5px">${esc(t("home.last24h"))}</div>${hbarHTML(tg)}
-      <div class="hbar-l"><span>−24 h</span><span>−12 h</span><span>${esc(t("common.updated"))}</span></div>
-      <p class="strip-hint">${esc(t("detail.last24_hint"))}</p>
-      <div class="lbl" style="margin:14px 0 3px">${esc(t("detail.navigator"))}</div><canvas id="nv" height="58"></canvas>
-      <p class="strip-hint">${esc(t("detail.nav_hint"))}</p></div></div>
+      <div class="lbl" style="margin-bottom:5px">${t("home.last24h")}${hint("detail.last24_hint")}</div>${hbarHTML(tg)}
+      <div class="hbar-l"><span>−24 h</span><span>−12 h</span><span>${t("common.updated")}</span></div>
+      <div class="lbl" style="margin:14px 0 3px">${t("detail.navigator")}${hint("detail.nav_hint")}</div><canvas id="nv" height="58"></canvas>
+      </div></div>
     <div class="card" id="asbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:7px">${esc(t("detail.aspath"))}</div>
+      <div class="lbl" style="margin-bottom:7px">${t("detail.aspath")}</div>
       <div class="aschain" id="aschain"></div>
       <div class="mono faint" id="asmeta" style="font-size:11px;margin-top:6px"></div>
-      <p class="strip-hint">${esc(t("detail.aspath_hint"))}</p>
       <div id="risbox" hidden style="margin-top:12px;padding-top:11px;border-top:1px solid var(--line)">
-        <div class="lbl" style="margin-bottom:5px">${esc(t("detail.ris"))}</div>
+        <div class="lbl" style="margin-bottom:5px">${t("detail.ris")}${hint("detail.ris_hint")}</div>
         <div id="risline" style="font-size:12.5px"></div>
         <div class="aschain" id="risup" style="margin-top:7px"></div>
-        <p class="strip-hint">${esc(t("detail.ris_hint"))}</p></div></div></div>
+        </div></div></div>
     <div class="card" id="evbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:6px">${esc(t("detail.events"))}</div>
+      <div class="lbl" style="margin-bottom:6px">${t("detail.events")}${hint("detail.ev_hint")}</div>
       <ol class="evlist" id="evlist"></ol>
-      <p class="strip-hint">${esc(t("detail.ev_hint"))}</p></div></div>
+      </div></div>
     <div class="stats" id="stats"></div>
     <div class="card" id="cobox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:7px">${esc(t("corr.title"))}</div>
+      <div class="lbl" style="margin-bottom:7px">${t("corr.title")}${hint("corr.hint")}</div>
       <div id="corr"></div>
-      <p class="strip-hint">${esc(t("corr.hint"))}</p></div></div>
+      </div></div>
     <div class="card" id="avbox" hidden style="margin-top:10px"><div class="card-b" style="padding-block:12px">
-      <div class="lbl" style="margin-bottom:7px">${esc(t("avail.title"))}</div>
+      <div class="lbl" style="margin-bottom:7px">${t("avail.title")}${hint("avail.definition")}</div>
       <div class="avrow" id="avrow"></div>
-      <p class="strip-hint">${esc(t("avail.definition"))}</p>
-      <p class="strip-hint" style="color:var(--warn)">${esc(t("avail.not_sla"))}</p></div></div>
-    <section class="section" id="trsec" hidden style="margin-top:22px"><div class="section-h"><h2>${esc(t("trace.title"))}</h2>
-      <span class="sub">${esc(t("trace.sub"))}</span></div><div class="card"><div class="card-b scroll-x" id="trbox"></div></div></section>
-  </div></div></div>`;
+      <p class="strip-hint" style="color:var(--warn)">${t("avail.not_sla")}</p></div></div>
+    <section class="section" id="trsec" hidden style="margin-top:22px"><div class="section-h">
+      <h2>${t("trace.title")}${hint("trace.sub")}</h2></div>
+      <div class="card"><div class="card-b scroll-x" id="trbox"></div></div></section>
+  </div></div></div>`);
   bindRail();
   $("#bk").onclick = e => { e.preventDefault(); S.view = "home"; writeHash(true); renderHome(); };
   document.querySelectorAll("[data-p]").forEach(b => b.onclick = () => { const now = Math.floor(Date.now() / 1000); S.preset = +b.dataset.p; S.to = now; S.from = now - PRESETS[S.preset][1]; writeHash(); paint(); });
@@ -665,13 +830,19 @@ function renderDetail() {
 async function paint() {
   const tg = S.target, acc = color(tg._ci), now = Math.floor(Date.now() / 1000);
   const q = `/api/v1/series?target=${tg.id}&from=${S.from}&to=${S.to}&points=1500`;
-  const [cur, ev, nav, traces] = await Promise.all([
-    fetch(q + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")).then(r => r.json()),
+  const got = await Promise.all([
+    App.getJSON(q + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")),
     fetch(`/api/v1/events?target=${tg.id}&from=${S.from}&to=${S.to}`).then(r => r.ok ? r.json() : []).catch(() => []),
-    S.nav ? Promise.resolve(S.nav) : fetch(`/api/v1/series?target=${tg.id}&from=${now - 365 * 86400}&to=${now}&points=600` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")).then(r => r.json()),
+    S.nav ? Promise.resolve(S.nav) : App.getJSON(`/api/v1/series?target=${tg.id}&from=${now - 365 * 86400}&to=${now}&points=600` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")),
     fetch(`/api/v1/traceroutes?target=${tg.id}&limit=40` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : "")).then(r => r.ok ? r.json() : []).catch(() => [])
-  ]);
+  ]).catch(() => null);
   if (S.view !== "detail" || S.target !== tg) return;
+  if (!got) {
+    $("#res").textContent = t("common.load_failed");
+    setTimeout(() => { if (S.view === "detail" && S.target === tg) paint(); }, 10000);
+    return;
+  }
+  const [cur, ev, nav, traces] = got;
   S.cur = cur; S.nav = nav; S.traces = traces || [];
   // Anomaly traceroutes are marked on the chart next to the annotated events.
   S.events = (ev || []).concat(S.traces.filter(x => x.kind === "anomaly").map(x => ({ ts_start: x.ts, title: "traceroute" })));
@@ -682,14 +853,18 @@ async function paint() {
   renderASPath(tg);
   S.ng = draw($("#nv"), nav, { height: 58, bare: 1, accent: acc, from: now - 365 * 86400, to: now }); sel();
   const jit = cur.p75.map((v, i) => v != null && cur.p25[i] != null ? v - cur.p25[i] : null);
-  const st = (key, v, u) => `<div class="st"><div class="k">${esc(t(key))}</div><div class="v">${v}<span class="u">${u}</span></div></div>`;
+  const st = (key, v, u) => html`<div class="st"><div class="k">${t(key)}</div><div class="v">${v}<span class="u">${u}</span></div></div>`;
   const loss = avg(cur.loss);
   // The fourth tile is the packet loss over the displayed window, named as
   // such. It used to read "uptime", which invited the reading that the
   // availability card below now answers properly: losing one packet in
   // five is not being unavailable one fifth of the time.
-  $("#stats").innerHTML = st("metric.median", n2(avg(cur.med)), "ms") + st("metric.p95", n2(avg(cur.p95)), "ms") +
-    st("metric.jitter", n2(avg(jit)), "ms") + st("metric.loss", loss == null ? "—" : n1(loss), "%");
+  H.render($("#stats"), [
+    st("metric.median", n2(avg(cur.med)), "ms"),
+    st("metric.p95", n2(avg(cur.p95)), "ms"),
+    st("metric.jitter", n2(avg(jit)), "ms"),
+    st("metric.loss", loss == null ? "—" : n1(loss), "%")
+  ]);
   document.querySelectorAll("[data-p]").forEach(b => b.setAttribute("aria-pressed", String(S.preset === +b.dataset.p)));
   renderAvailability(tg);
   renderCorroboration(tg);
@@ -713,10 +888,10 @@ async function renderCorroboration(tg) {
   if (!d || !d.verdict || !d.peer_asn) { box.hidden = true; return; }
   const cls = { path: "crit", target: "crit", both_ok: "ok", intermittent: "warn", pending: "n" }[d.verdict] || "n";
   box.hidden = false;
-  $("#corr").innerHTML = `<div class="corr corr-${cls}">
-    <span class="badge b-${cls}">${esc(t("corr.v_" + d.verdict) || d.verdict)}</span>
-    <span class="corr-m">${esc(t("corr.seen", { asn: d.peer_asn, ok: I18N.num(d.answered), n: I18N.num(d.passes) }))}${
-      d.med_ms ? " · " + esc(t("corr.median", { ms: n2(d.med_ms) })) : ""}</span></div>`;
+  H.render($("#corr"), html`<div class="corr corr-${cls}">
+    <span class="badge b-${cls}">${t("corr.v_" + d.verdict) || d.verdict}</span>
+    <span class="corr-m">${t("corr.seen", { asn: d.peer_asn, ok: I18N.num(d.answered), n: I18N.num(d.passes) })}${
+      d.med_ms && " · " + t("corr.median", { ms: n2(d.med_ms) })}</span></div>`);
 }
 
 /* ---------------------------------------------------------- availability */
@@ -728,6 +903,9 @@ async function renderCorroboration(tg) {
 async function renderAvailability(tg) {
   const box = $("#avbox"), row = $("#avrow");
   if (!box || !row) return;
+  // The operator can stop publishing the figure. Asking for it anyway
+  // would be answered with a 404, so the page does not ask.
+  if (!App.site.public_availability) { box.hidden = true; return; }
   let d = null;
   try {
     const r = await fetch(`/api/v1/availability?target=${tg.id}` + (SHARE ? "&share=" + encodeURIComponent(SHARE) : ""));
@@ -737,16 +915,16 @@ async function renderAvailability(tg) {
   const ws = (d && d.windows) || [];
   if (!ws.some(w => w.pct != null)) { box.hidden = true; return; }
   box.hidden = false;
-  row.innerHTML = ws.map(w => {
+  H.render(row, ws.map(w => {
     const known = w.pct != null;
     const cls = !known ? "n" : w.pct >= 99.9 ? "ok" : w.pct >= 99 ? "warn" : "crit";
-    return `<div class="av av-${cls}">
-      <div class="av-w">${esc(t("avail.window_" + w.label) || w.label)}</div>
+    return html`<div class="av av-${cls}">
+      <div class="av-w">${t("avail.window_" + w.label) || w.label}</div>
       <div class="av-v">${known ? n2(w.pct) : "—"}<span class="u">${known ? "%" : ""}</span></div>
       <div class="av-m">${known
-        ? esc(t("avail.passes", { n: I18N.num(w.passes), down: I18N.num(w.down) }))
-        : esc(t("avail.unknown"))}${w.partial ? ` · ${esc(t("avail.partial"))}` : ""}</div></div>`;
-  }).join("");
+        ? t("avail.passes", { n: I18N.num(w.passes), down: I18N.num(w.down) })
+        : t("avail.unknown")}${w.partial && " · " + t("avail.partial")}</div></div>`;
+  }));
 }
 
 /* ------------------------------------------------------------ traceroutes */
@@ -755,20 +933,25 @@ function hopRTT(h) {
   return n2(h.rtt_ms.reduce((a, b) => a + b, 0) / h.rtt_ms.length) + " ms";
 }
 function hopsHTML(tr, ref) {
-  const n = Math.max(tr.hops.length, ref ? ref.hops.length : 0); let rows = "";
+  const n = Math.max(tr.hops.length, ref ? ref.hops.length : 0);
+  const rows = [];
   for (let i = 0; i < n; i++) {
     const h = tr.hops[i], r = ref ? ref.hops[i] : null;
     const diff = ref && r && r.addr && (!h || (h.addr || "") !== r.addr);
-    rows += `<tr class="${diff ? "diff" : ""}"><td>${i + 1}</td>
-      <td class="mono">${h ? esc(h.addr || "*") : ""}${h && h.note ? `<span class="hopnote">${esc(h.note)}</span>` : ""}</td>
-      <td class="faint">${h ? esc(h.name || "") : ""}</td><td class="mono">${h ? esc(h.asn || "") : ""}</td>
+    rows.push(html`<tr class="${(diff ? "diff" : "") + (h && h.ix ? " ixhop" : "")}"><td>${i + 1}</td>
+      <td class="mono">${h && (h.addr || "*")}${h && h.note && html`<span class="hopnote">${h.note}</span>`}</td>
+      <td class="faint">${h && (h.name || "")}</td>
+      <td class="mono">${h && (h.asn || "")}${h && h.ix && html`<span class="ixb"
+        title="${t("trace.ix_hint", { ix: h.ix })}">${h.ix}</span>`}</td>
       <td>${h ? hopRTT(h) : ""}</td><td class="faint">${h ? (h.rtt_ms || []).length + "/" + h.sent : ""}</td>
-      ${ref ? `<td class="mono faint">${r ? esc(r.addr || "*") : "—"}</td>` : ""}</tr>`;
+      ${ref && html`<td class="mono faint">${r ? r.addr || "*" : "—"}</td>`}</tr>`);
   }
-  return `<table class="trl"><thead><tr><th>${esc(t("trace.hop"))}</th><th>${esc(t("trace.address"))}</th><th>${esc(t("trace.name"))}</th>
-    <th>${esc(t("trace.as"))}</th><th>${esc(t("trace.rtt"))}</th><th>${esc(t("trace.replies"))}</th>
-    ${ref ? `<th>${esc(t("trace.ref_col"))}, ${esc(I18N.date(ref.ts))}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table>
-    ${ref ? `<p class="faint" style="font-size:12px;margin:8px 10px 0">${esc(t("trace.changed"))}</p>` : ""}`;
+  return html`<table class="trl"><thead><tr>
+    <th>${t("trace.hop")}</th><th>${t("trace.address")}</th><th>${t("trace.name")}</th>
+    <th>${t("trace.as")}</th><th>${t("trace.rtt")}</th><th>${t("trace.replies")}</th>
+    ${ref && html`<th>${t("trace.ref_col")}, ${I18N.date(ref.ts)}</th>`}</tr></thead>
+    <tbody>${rows}</tbody></table>
+    ${ref && html`<p class="faint" style="font-size:12px;margin:8px 10px 0">${t("trace.changed")}</p>`}`;
 }
 function renderTraces() {
   const sec = $("#trsec"), box = $("#trbox"), list = S.traces || [];
@@ -777,18 +960,22 @@ function renderTraces() {
   if (S.trOpen === undefined || !list.some(x => x.id === S.trOpen)) {
     const first = list.find(x => x.kind !== "reference"); S.trOpen = first ? first.id : null;
   }
-  box.innerHTML = `<table class="trl"><tbody>` + list.map(tr => {
+  const outcome = tr => {
     const last = tr.hops.length, lh = tr.hops[last - 1] || {};
-    const res = tr.reached ? `<span class="badge b-ok">${esc(t("trace.reached", { n: last }))}</span>`
-      : lh.note ? `<span class="badge b-crit">${esc(t("trace.refused", { n: last }))} ${esc(lh.note)}</span>`
-      : `<span class="badge b-warn">${esc(t("trace.not_reached"))}</span>`;
+    if (tr.reached) return html`<span class="badge b-ok">${t("trace.reached", { n: last })}</span>`;
+    if (lh.note) return html`<span class="badge b-crit">${t("trace.refused", { n: last })} ${lh.note}</span>`;
+    return html`<span class="badge b-warn">${t("trace.not_reached")}</span>`;
+  };
+  H.render(box, html`<table class="trl"><tbody>${list.map(tr => {
     const kind = { anomaly: "b-crit", reference: "b-ok", manual: "b-n" }[tr.kind] || "b-n";
     const ref = tr.kind === "reference" ? null : list.find(x => x.kind === "reference" && x.ts < tr.ts);
-    return `<tr class="tr-row" data-tr="${tr.id}"><td class="faint" style="white-space:nowrap">${esc(I18N.date(tr.ts))}</td>
-      <td><span class="badge ${kind}">${esc(t("trace." + tr.kind))}</span></td><td>${esc(tr.reason)}</td>
-      <td class="mono faint">${esc(tr.dest)}</td><td>${res}</td></tr>` +
-      (S.trOpen === tr.id ? `<tr><td colspan="5" style="background:var(--bg-soft);padding:6px 0 12px">${hopsHTML(tr, ref)}</td></tr>` : "");
-  }).join("") + `</tbody></table>`;
+    return html`<tr class="tr-row" data-tr="${tr.id}">
+        <td class="faint" style="white-space:nowrap">${I18N.date(tr.ts)}</td>
+        <td><span class="badge ${kind}">${t("trace." + tr.kind)}</span></td><td>${tr.reason}</td>
+        <td class="mono faint">${tr.dest}</td><td>${outcome(tr)}</td></tr>
+      ${S.trOpen === tr.id && html`<tr><td colspan="5" style="background:var(--bg-soft);padding:6px 0 12px">${
+        hopsHTML(tr, ref)}</td></tr>`}`;
+  })}</tbody></table>`);
   box.querySelectorAll("[data-tr]").forEach(r => r.onclick = () => { const id = +r.dataset.tr; S.trOpen = S.trOpen === id ? null : id; renderTraces(); });
 }
 
@@ -822,7 +1009,8 @@ function bindChart() {
     if (x < PAD.l || x > g.w - PAD.r) { tip.style.display = "none"; return; }
     const ts = g.x0 + (x - PAD.l) / g.pw * (g.x1 - g.x0); let i = 0, best = 1e18;
     for (let k = 0; k < cur.t.length; k++) { const dd = Math.abs(cur.t[k] - ts); if (dd < best) { best = dd; i = k; } }
-    tip.innerHTML = `<b>${esc(I18N.date(cur.t[i]))}</b><br>${esc(t("metric.median"))} ${n2(cur.med[i])} ms<br>p95 ${n2(cur.p95[i])} ms<br>${esc(t("metric.loss"))} ${n1(cur.loss[i])} %`;
+    H.render(tip, html`<b>${I18N.date(cur.t[i])}</b><br>${t("metric.median")} ${n2(cur.med[i])} ms<br>p95 ${
+      n2(cur.p95[i])} ms<br>${t("metric.loss")} ${n1(cur.loss[i])} %`);
     tip.style.display = "block"; tip.style.left = Math.min(g.w - 190, g.X(cur.t[i]) + 14) + "px"; tip.style.top = "20px";
   });
   $("#ch").addEventListener("mouseleave", () => { tip.style.display = "none"; });
@@ -856,16 +1044,35 @@ function fromHash() {
   return false;
 }
 (async () => {
-  await Promise.all([loadOverview(), loadSide()]);
-  let first = true;
+  let first = true, shown = false, failed = false, booted = false;
   // A shared link has one target and no overview to come back to: it opens
   // straight on that target.
-  App.boot("home", () => {
+  const show = () => {
+    if (!S.ov) {
+      H.render($("#view"), html`<p class="wrap muted" style="padding:40px 0">${t(failed ? "common.load_failed" : "common.loading")}</p>`);
+      return;
+    }
+    shown = true;
     if (first) { first = false; if (SHARE ? openShared() : fromHash()) return; }
     if (SHARE) { openShared(); return; }
     render();
-  });
-  setInterval(async () => { await loadOverview(); if (S.view === "home") renderHome(); else if (S.target) { S.target = byId(S.target.id) || S.target; } }, 30000);
+  };
+  // The overview is the whole page. One failed request used to leave it
+  // blank until a reload; it now says so and keeps trying.
+  const loaded = (async () => {
+    for (let wait = 5000; ; wait = Math.min(2 * wait, 60000)) {
+      try { await Promise.all([loadOverview(), loadSide()]); return; } catch (e) { failed = true; if (booted) show(); }
+      await new Promise(done => setTimeout(done, wait));
+    }
+  })();
+  await App.boot("home", show);
+  booted = true;
+  await loaded;
+  if (!shown) show();
+  setInterval(async () => {
+    try { await loadOverview(); } catch (e) { return; }
+    if (S.view === "home") renderHome(); else if (S.target) { S.target = byId(S.target.id) || S.target; }
+  }, 30000);
   let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 160); });
   const route = () => {
     if (SHARE) return openShared();

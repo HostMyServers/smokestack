@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -119,6 +120,14 @@ type ASNService struct {
 
 	mu       sync.Mutex
 	attempts map[string]int64
+	asked    map[string]bool // addresses queued for a background lookup
+
+	// La table des LAN de peering et la file qui les resout : ixp.go.
+	ixMu     sync.RWMutex
+	ix       *ixTable
+	ixLoaded bool
+	jobsOnce sync.Once
+	jobs     chan string
 }
 
 func NewASNService(store *Store, fed *Federation, pdbKey string) *ASNService {
@@ -516,6 +525,13 @@ func (s *ASNService) Loop(stop <-chan struct{}) {
 			}
 			time.Sleep(3 * time.Second) // courtoisie envers les API publiques
 		}
+		// The map of peering LANs ages in weeks, and naming the hop where
+		// two networks meet is worth one call a week.
+		if s.ixStale() {
+			if err := s.refreshIXPrefixes(); err != nil {
+				log.Printf("peering LANs: %v", err)
+			}
+		}
 	}
 	time.Sleep(20 * time.Second)
 	run()
@@ -635,13 +651,20 @@ func (s *ASNService) ASNOfIP(ip string) (string, bool) {
 
 func (s *ASNService) RefreshIPASN(ip string) {
 	addr := net.ParseIP(ip)
-	if addr == nil {
+	if addr == nil || s.store == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 	as := ""
-	if txts, err := net.DefaultResolver.LookupTXT(ctx, cymruName(addr)); err == nil && len(txts) > 0 {
+	txts, err := net.DefaultResolver.LookupTXT(ctx, cymruName(addr))
+	if err != nil && !dnsMiss(err) {
+		// A resolver that timed out said nothing about the address. Writing
+		// that down as "nothing announces it" is how a hop stayed blank for
+		// good after one bad second.
+		return
+	}
+	if len(txts) > 0 {
 		as = parseCymru(txts[0])
 	}
 	if as == "" {
@@ -652,6 +675,13 @@ func (s *ASNService) RefreshIPASN(ip string) {
 		as = "AS" + as
 	}
 	s.store.SetSetting("ipasn:"+ip, as)
+}
+
+// dnsMiss tells a name that does not exist from a resolver that did not
+// answer. Only the first is an answer, and only an answer is cached.
+func dnsMiss(err error) bool {
+	var de *net.DNSError
+	return errors.As(err, &de) && de.IsNotFound
 }
 
 func (a *API) asnContact(w http.ResponseWriter, r *http.Request, u *User) {

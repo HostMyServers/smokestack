@@ -6,6 +6,48 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ### New
 
+- **The availability figure can be left unpublished.**
+
+  It is the one number on a public target page a reader is likely to read as a commitment, whatever the two warnings beside it say. *Publisher → Availability* now decides whether it is published at all. On by default, and an instance that was already showing it keeps showing it after an upgrade: only an explicit choice takes it away.
+
+  Off does two things, not one. The block leaves every target page, and `/api/v1/availability` stops answering a visitor or a share link — hiding it in the browser alone would leave the endpoint serving the figure to whoever knows the address. The back-office still reads it, since that is where the choice is made.
+
+  Nothing stops being measured or counted. The passes are recorded as before, and switching the setting back on shows the same history, including the period it was hidden.
+
+- **Light or dark is now a choice, not only what the system says.**
+
+  The public pages already followed `prefers-color-scheme`. A visitor whose system is dark but who wants this page light — or the other way round — had no say. A button in the header cycles through three states: *Automatic*, *Light*, *Dark*. The choice is remembered by the browser, on that machine only, like the language.
+
+  *Automatic* stays the default and keeps following the system, including when the system changes while the page is open. From *Automatic* the button goes to the opposite of what is on screen, so the first press always shows — a fixed *Automatic → Light → Dark* order would change nothing on the first press for anyone whose machine is set to light, which is most of them. *Automatic* comes back at the end of the round, the one place where a press that changes only the button is not a surprise: it hands the decision back to the system.
+
+  The dark palette moves from the `prefers-color-scheme` media query to a `data-theme` attribute, which `theme.js` resolves from `<head>` before the first paint — so there is no light flash to swap away, and the palette is written once instead of once per condition. The chart colours read the same attribute, so a graph drawn after a switch is drawn in the right palette.
+
+  The back-office is not covered: it carries its own light-only stylesheet and needs a palette of its own.
+
+- **Every back-office screen has its own address.**
+
+  `/admin/targets`, `/admin/traces`, `/admin/site` — one segment per screen, named after the screen. Refreshing stays where you were instead of dropping you back on the dashboard, the browser's back button works, and an address can be pasted to a colleague who lands on the right page.
+
+  Nothing changed on the server: `GET /admin/` was already registered for its whole subtree, which is why the back-office scripts live under `/backoffice/`.
+
+  Three cases that would otherwise make it worse than no routing at all:
+
+  - **signing in from a deep address** lands you there, not on the dashboard — which is the case that makes a refresh worth having;
+  - **an address your role may not open** falls back to the dashboard, and the address follows rather than lying about what is shown;
+  - **an address that no longer exists** does the same, without an error.
+
+  The screens keep what they had in memory, so the selected target of the traceroutes page and the target being edited are not in the address. They can be, later, without moving anything that is there now.
+
+- **The hop where the route crosses a peering is named.**
+
+  A peering LAN is deliberately kept out of the global routing table, so the lookup that names every other hop of a traceroute answered nothing for exactly the one an operator looks for: the address where two networks meet. That line stayed blank, and the map of the route drew the peer behind it as unknown.
+
+  PeeringDB publishes both halves of what was missing — which prefixes belong to which exchange, and which member holds each address on them. A hop on a peering LAN now carries the AS of that member and the name of the exchange — a badge in the colour the interface reserves for exchanges, announced by `IX`, identical in the hop table, in the chain and on the map — and the hop that crosses one is marked in the table.
+
+  The table of peering LANs is about 2 600 prefixes: fetched once a week, kept in `config.db` so a restart does not wait on PeeringDB, and consulted in memory. Member addresses are resolved one at a time in the background. No page waits for either, and an instance that cannot reach PeeringDB keeps what it had.
+
+  This table decides what every hop of every traceroute is labelled with, and it comes from a source anyone with a member account can write to. A prefix far wider than a peering LAN can be — a default route above all — is refused and the refusal logged, and where two prefixes overlap the more specific one wins, deterministically.
+
 - **The CI audits the code now, and not only on the days somebody pushes.**
 
   `make test` proves the tree builds and passes its tests. It says nothing about a published CVE in a dependency, and the formatting rule the project documents as mandatory was enforced nowhere. The CI now runs five jobs in parallel, one per surface so that a red mark says which, and a sixth that reports their verdict — one box to tick in branch protection instead of five:
@@ -20,7 +62,169 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Turning it on found eight things. Four were functions no caller had, in `sketch.go`, `instance.go`, `maintenance.go` and `doublecheck.go`, and they are removed. The other four are error strings that one style check dislikes, and that check is turned off in `staticcheck.conf` with the reason recorded beside it: ST1005 refuses `"Telegram needs a bot token"` while accepting `"SMTP needs a server"` three lines away in the same switch, so the difference it is pointing at is the case of a brand name, not the style of a message.
 
+### Changed
+
+- **Less rounded, and rounded in one place.**
+
+  Sixty `border-radius` declarations carried thirteen different values for the same handful of roles: 6, 7, 8, 9 and 10 px on controls that are the same kind of control, 12 and 14 px on panels that are the same kind of panel. Nothing distinguished them but the order they were written in.
+
+  They become four variables — `--radius` for panels and cards, `--radius-s` for controls and small surfaces, `--radius-xs` for hairline bars, `--radius-pill` for the badges and chips that stay pills — and the scale is halved: 12 px becomes 6, 8 px becomes 4. True circles (status dots, the step numbers) keep `50%`, because they are circles rather than rounded corners.
+
+  How round the interface looks is now four values rather than sixty. The back-office does not load `app.css`, so it carries the same four in its own `:root` instead of a scale it would never see.
+
+- **The explanations on a target page fold away.**
+
+  Eight grey paragraphs sat under the blocks of a target page, explaining what a band is, what dragging the navigator does, what an event list contains. They are read once and then re-read forever by someone who already knows. Each now sits behind a small `?` next to its section title, closed by default, one open at a time, `Escape` to close.
+
+  Two are gone rather than folded. The route block explained in two sentences what the chain above it already shows, and the traceroute subtitle is shorter: *taken on an anomaly, and once a day for comparison*.
+
+  The one paragraph still shown is the one that says the availability figure is not an SLA. It is there precisely so nobody has to go looking for it.
+
+- **The route to a target takes the width of the page.**
+
+  The AS chain was packed into the left of its block, each hop as wide as its name. It now spreads across the full width with the hops grown to equal size, which is the shape the thing actually is: a path read left to right.
+
+  The *target* label under the last hop is gone with it. The frame is already green where the others are grey, and the origin's is blue — a word under each one said what the colour said first.
+
+- **The load-balancing warning leaves the target pages.**
+
+  A target whose name answered from more than one address carried a paragraph in an amber box explaining that the figures mix machines. It was right, and it was a wall of text above the graph on exactly the targets people look at most — public resolvers and CDNs, which are load-balanced by design.
+
+  The diagnosis is not lost: *Why this loss?* in the back-office still names a rotating name when it is the explanation, which is where an operator looks when a figure puzzles them.
+
+- **HTML is assembled by a template that escapes by default.**
+
+  Pages are built in the browser by concatenating strings, which puts an escaping decision at every interpolation — there are over nine hundred of them. A scan found no defect among them today, which is a credit to whoever wrote them and not a property of the method: getting nine hundred right once is possible, keeping them right as the code changes is a promise nobody keeps by attention alone.
+
+  `html.js` adds a tagged template where the default is safe:
+
+  ```js
+  H.html`<td>${t.title}</td>`         // escaped
+  H.html`<tr>${rows.map(row)}</tr>`   // nested templates are not
+  H.html`<div>${H.raw(svg)}</div>`    // saying so is the only way
+  ```
+
+  A reviewer now looks for `H.raw` instead of reading every interpolation to decide whether the value behind it could have come from a person. `null`, `undefined` and `false` render as nothing, so a conditional fragment needs no empty branch, and `H.url` drops anything that is not plainly `http(s)` before it reaches an `href`.
+
+  `federation.html` is migrated as the first case, deliberately: everything that page shows was sent by another instance.
+
+- **The shared header and footer and three more pages are assembled by the template.**
+
+  `app.js`, `about.html`, `network.html` and `pairing.html` join `federation.html`: no `esc()` left in any of them, and no string concatenation building markup. The host network page gains named pieces — `routingCard`, `declaredCard`, `upstreams`, `presence` — in place of one function appending to a string across sixty lines.
+
+  Everything the host network page shows comes from RIPEstat and PeeringDB, and `H.url` now drops a `javascript:` address before it can reach an `href` — which the old code escaped but still rendered.
+
+  `App.escURL` is gone, having lost its last caller. `App.esc` stays until the back-office follows.
+
+- **The overview and the target page are assembled by the template.**
+
+  `index.html` is the last public page to convert: 106 `esc()` calls and twelve `innerHTML` assignments become none of either. The two render functions that ran to sixty and forty lines break into named pieces — `heroSection`, `howBox`, `railGroup`, `netCard`, `detailTags`, `chartCard`, `outcome` — each of which fits on a screen.
+
+  The conversion was checked by comparing what the browser actually built, before and against after, on the overview and on a target page, and again with traceroutes, events and hostile values injected into both: every container came out identical, character for character.
+
+- **The back-office is twenty files instead of one.**
+
+  `admin.html` was 2 392 lines carrying a single 2 245-line `<script>`. Nothing in it could be opened on its own, and `go test` never saw it: the CI extracted the block and ran `node --check` over the whole thing.
+
+  It becomes a 173-line page that loads `/backoffice/*.js`, one file per concern, in the order it already depended on: `core`, `gate`, `shell`, then a file per view. The largest is `targets.js` at 471 lines, the smallest `startup.js` at 23.
+
+  They are plain scripts sharing a global scope rather than ES modules, which is what `app.js`, `i18n.js` and `theme.js` already are: splitting the file was the point, and rewriting a hundred references to shared state to buy module scope was not. Nothing moved between files.
+
+  Checked by driving all twenty-one views in a browser before and after and comparing the markup produced: seventeen identical, and the four that differ do so by a clock — a login line in the audit log, the service log of a different process, two date fields defaulting to *now*, one *last seen*.
+
+  `find web -name "*.js"` in the CI replaces `web/*.js`, which would have stopped checking the back-office the moment it was split, and a page's references to its own scripts and stylesheets are now versioned by pattern rather than from a list of five names that the twenty new files would have silently fallen off.
+
+- **The back-office assembles its markup with the template too.**
+
+  The twenty files of `/backoffice/` lose **238 `esc()` calls and 99 `innerHTML` assignments**, and gain no `H.raw`: not one place in the back-office needs to say a value is already markup. Nothing on any page of this instance, public or authenticated, is built by joining strings any more.
+
+  Two things came out of the conversion, each a defect that escaping by hand had hidden. Markup stored in plain strings — forty-two `'<span class="badge">…</span>'` — was invisible to the eye as markup and had to become templates. Five `.map(esc).join("<br>")` escaped their items and left the separator as live markup, which is the right answer written the wrong way round.
+
+  A third construct was correct and is written differently now. `aria-pressed="${kind === k}"` worked in a plain string, where a boolean stringifies to `true` or `false`, and the tab it highlights was highlighted. Under the template a bare boolean prints nothing, by design, so that a conditional fragment needs no empty branch — which would have turned a working attribute into a silent one. It is spelled out as `"true"` / `"false"`, as every boolean attribute in the codebase now is.
+
+  Checked by driving all twenty-one views before and after and comparing the markup produced, then again with the API client substituted so that every view has rows to draw, each carrying `<img src=x onerror=…>` in every text field: no tag appears escaped anywhere, nothing executes, and the name shows as the text it is. The second pass matters — a view whose table is empty on the instance used for the check compares equal to itself whatever its row path does.
+
+- **There is one way markup reaches the DOM, with no exception left.**
+
+  One line of the back-office still assigned `outerHTML` directly. It worked, and what it wrote was a constant with nothing interpolated into it, so no escaping decision was being skipped — but it was the one place where the engine's output reached the page without going through it, and a rule with one exception is a rule nobody can check.
+
+  `H.replace(el, tpl)` replaces an element the way `H.render(el, tpl)` fills one. It parses through a `<template>`, so a `<tr>` survives the trip where a bare container would have had it dropped by the parser, and it does nothing on an element that is null or already detached.
+
+  `innerHTML`, `outerHTML`, `insertAdjacentHTML` and `document.write` now appear nowhere in `web/` outside `html.js` itself.
+
+- **The footer is the link to the project and nothing else.**
+
+  The copyright line was the last thing standing next to it. It asserted a reserved right over figures the instance publishes openly, next to a page that says those figures come with no warranty and are not an SLA — a claim nobody had asked for and nothing relied on.
+
+  What is left is one line: *Powered by smokestack*, pointing at the project, from the address compiled into the binary.
+
 ### Fixed
+
+- **The publisher page said *Saved* and showed the old values back.**
+
+  Filling in the AS number, the title or a contact and saving worked: the value reached the database. The form then re-read `/api/v1/site`, which the server marks `public, max-age=600`, so the browser answered from its own cache — for ten minutes, including across a full page reload. An operator had every reason to conclude the page was broken.
+
+  The back-office now reads with `cache: "no-store"`. Nothing it reads should ever come from a cache: it reads public endpoints, which are cacheable because they are, for a visitor — and the operator who has just saved is not a visitor.
+
+- **A response that depends on who asks no longer says it may be cached for everyone.**
+
+  `/api/v1/site` hands an authenticated caller the NOC phone, the address that receives contact notifications and the operator's own address, and strips all three for a visitor — then marked the answer `public, max-age=600` with no `Vary`. `/api/v1/aspath` is the same shape and matters more: an anonymous caller gets an empty path for a private target, for a target that hides its host, or on an instance that does not publish traceroutes, and masked addresses where the operator masks them.
+
+  A shared cache in front — the reverse proxy [DEPLOY.md](DEPLOY.md) tells you to run — was therefore allowed to keep the operator's answer and hand it to a visitor. No proxy does this unless it is configured to cache, so this is a door left open rather than one anybody walked through, but it is the one thing the stripping exists to prevent.
+
+  Both now send `Vary: Cookie, Authorization`, and `no-store` when the caller is authenticated. The list of traceroutes, which set no header at all on that path, says `no-store` too. A test fails on the old headers.
+
+- **The map of the route drew every network on top of the others.**
+
+  A target reached without a single intermediate AS — your own network, then theirs — produced a map with one box in the corner and a wide empty space, under a line saying no intermediate system was found.
+
+  The server numbers the columns by distance and may skip one: that path gives 0, 2 and 3. Indexing an array by that number leaves a hole at 1, and spreading an array with a hole yields `undefined` where it is missing, so `Math.max(...)` returned `NaN`. Every box was placed at `translate(x, NaN)`, the `viewBox` became `0 0 782 NaN`, and the browser stacked them all in the corner — only the last one drawn was visible.
+
+  Columns that hold nothing are dropped before anything is measured. The map draws the three networks again, each in its place.
+
+- **For five minutes after an update, a browser could pair the new page with the previous stylesheet.**
+
+  Pages are served `no-cache`, so the HTML a visitor sees is always the current one. The stylesheet and the scripts it loads were served `max-age=300`, so for up to five minutes after an upgrade a browser could hold the previous `app.css` against the new markup — and an intermediary cache could hold it for everyone behind it, not just one visitor.
+
+  The pages now name the build in the addresses they load, `/app.css?v=<version>-<build date>`, rewritten on the way out so the files on disk stay plain and openable. A new build is a new address, and no cache can confuse it with the old one.
+
+  Because such an address cannot go stale, the answer is kept for a year instead of five minutes (`max-age=31536000, immutable`), which is also fewer requests than before. An address without a version, or carrying the version of an earlier build, keeps the five-minute cache it has always had: a page cached before this change still works.
+
+- **A translation was downloaded in full on every page view.**
+
+  `/api/v1/i18n/<lang>` was served `no-cache` and carried no validator, so a browser had nothing to revalidate against and fetched the whole dictionary again on each page — about 7 kB compressed, before the first sentence could be shown. The header was deliberate: a dictionary gains keys with every version and can be reloaded while the instance runs, and a stale copy means a page showing `detail.navigator` where a sentence belongs.
+
+  The address now names a revision, a short hash of everything loaded. It changes when a translation changes — including a file dropped into `/var/lib/smokestack/i18n/` and reloaded from the back-office — and does not change when the same content is loaded again, so a restart does not throw away every visitor's cache.
+
+  Under that address a dictionary cannot go stale, so it is kept for a year. The kilobyte that carries the revision is the one thing never cached. Measured in a browser: 7.3 kB on the first page, 0 on the next. An address without a revision, or with an older one, is revalidated exactly as before.
+
+- **An internet exchange never showed its link speed.**
+
+  The host network page read `speed` where the API publishes `speed_mbps`, so the column had printed an em dash followed by `M` for every exchange since it existed.
+
+- **A hop whose lookup timed out stayed blank for good.**
+
+  A resolver that did not answer was written down as "no network announces this address", and nothing ever revisited that verdict. Only an answer is recorded now — a name that does not exist is one, a timeout is not.
+
+  Traceroutes already stored are named from the cache as they are read, so a path recorded with holes fills in on the next view instead of keeping them for its ninety days. Nothing is rewritten: the lookups are kept beside the measurements, not inside them.
+
+- **The route map was unreadable in dark mode.**
+
+  Its text asked for colour variables that only the back-office palette defines, and the public pages do not load it. A property whose value cannot be resolved falls back to the initial one, so the names and the round-trip times came out black whatever the theme, and the box around an unmeasured stretch had no outline at all — in dark mode, black on near-black. The arrow heads were in the same case.
+
+- **A route too long for the column was shrunk until nothing could be read.**
+
+  The whole map was drawn on one line and scaled down to fit, names included. It now folds onto as many rows as the width allows: the boxes keep their size, and a link crossing to the next row runs back along a lane under the one it leaves.
+
+- **A traceroute going silent inside the target's network drew a detour through the unknown.**
+
+  Routers answering nothing between two hops of the same network are internal to it: the packet never left. They were counted as a hole in the AS path, so the map stepped out of the network, drew an unknown box and came back in with an arrow pointing backwards. Those hops now stay inside the network they belong to.
+
+- **A page whose first request failed stayed blank until it was reloaded.**
+
+  The public pages are built in the browser, and the home page drew nothing, header and footer included, until the overview arrived. One failed request was enough: a 502 from the reverse proxy while the service restarts for an update, a 429 from the rate limit, a dropped connection.
+
+  A failed request is now retried after 1, 2 and 4 seconds, following `Retry-After` on a 429. If the overview still cannot be loaded, the page says so and keeps trying, then draws itself as soon as it gets through. A chart whose series cannot be loaded says so in its legend and tries again ten seconds later.
 
 - **A version number could carry a shell command into the release build.**
 

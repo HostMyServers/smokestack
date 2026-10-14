@@ -13,10 +13,15 @@
     "pairing": "Emparelhamento",
     "admin": "Administração",
     "language": "Idioma",
-    "menu": "Menu"
+    "menu": "Menu",
+    "theme": "Tema",
+    "theme_auto": "Automático",
+    "theme_light": "Claro",
+    "theme_dark": "Escuro"
   },
   "common": {
     "loading": "A carregar…",
+    "explain": "Explicação",
     "back_home": "Voltar à visão geral",
     "probe": "Sonda",
     "updated": "Atualizado",
@@ -30,7 +35,8 @@
     "copy_link": "Copiar ligação",
     "minutes_ago": "há {n} min",
     "hours_ago": "há {n} h",
-    "days_ago": "há {n} d"
+    "days_ago": "há {n} d",
+    "load_failed": "Não foi possível carregar os dados. A tentar novamente…"
   },
   "status": {
     "ok": "nominal",
@@ -90,7 +96,6 @@
     "preset_10d": "10 d",
     "preset_3m": "3 meses",
     "preset_1y": "1 ano",
-    "rotating": "Este nome responde a partir de {n} endereços diferentes: é um serviço com equilíbrio de carga. Cada passagem mede o servidor devolvido pelo DNS, pelo que os valores abaixo misturam máquinas que podem estar em locais diferentes e com cargas diferentes. Um servidor que ignora ICMP aparece como perda.",
     "pinned": "Medido num endereço {fam} fixo ({ip}): o nome pode apontar para outro sítio, os valores abaixo descrevem sempre a mesma máquina.",
     "pinned_plain": "Medido num endereço fixo: o nome pode apontar para outro sítio, os valores abaixo descrevem sempre a mesma máquina.",
     "last24_hint": "Um bloco por cada 30 minutos: verde se o destino cumpriu a referência, âmbar se a latência ou o jitter se desviaram, vermelho em caso de perda, cinzento se nada foi medido.",
@@ -99,9 +104,7 @@
     "route_changed": "rota alterada",
     "ev_hint": "Uma marca tracejada assinala uma mudança de rota no caminho de ida, desta sonda para este destino: o traceroute atravessou redes diferentes das anteriores. Diz respeito apenas a este destino, não à instância, e nada diz do caminho de volta, invisível daqui. Nenhum alerta é gerado: nada está avariado, o caminho apenas já não é o mesmo. Destinos cujo caminho nunca mudou não têm marcas.",
     "aspath": "Rota até este destino",
-    "aspath_hint": "Da rede desta instância até à rede que anuncia o endereço do destino, segundo o último traceroute. O caminho de volta pode diferir.",
     "as_here": "daqui",
-    "as_target": "destino",
     "as_gap": "desconhecido",
     "as_gap_hint": "O traceroute não revelou esta parte do caminho: esses routers não responderam, ou o destino não foi alcançado.",
     "as_map_note": "{n} traceroutes · contínuo: caminho atual, tracejado: vistos antes",
@@ -270,7 +273,7 @@
   },
   "trace": {
     "title": "Traceroutes",
-    "sub": "Feitos automaticamente quando o destino sai da referência, e uma vez por dia num caminho saudável para comparação.",
+    "sub": "Executado numa anomalia, e uma vez por dia para comparação.",
     "anomaly": "anomalia",
     "reference": "caminho de referência",
     "manual": "manual",
@@ -281,6 +284,7 @@
     "address": "Endereço",
     "name": "Nome",
     "as": "AS",
+    "ix_hint": "LAN de peering de {ix}",
     "rtt": "RTT",
     "replies": "Respostas",
     "ref_col": "Caminho saudável",

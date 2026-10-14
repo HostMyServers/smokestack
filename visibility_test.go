@@ -454,3 +454,52 @@ func TestPublicAddressesAreMasked(t *testing.T) {
 		}
 	}
 }
+
+// Une reponse dont le contenu depend de l'appelant ne doit pas s'annoncer
+// cachable par un cache partage : le reverse proxy que DEPLOY.md
+// recommande garderait la reponse de l'exploitant et la servirait a un
+// visiteur. C'est aussi ce qui faisait croire que la page editeur
+// n'enregistrait rien : le back-office relisait sa propre reponse,
+// vieille de dix minutes.
+func TestCacheHeadersFollowTheCaller(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	site := store.Site()
+	site.NOCPhone = "+33 1 23 45 67 89"
+	if err := store.SetSite(site); err != nil {
+		t.Fatal(err)
+	}
+	api := &API{store: store, token: "secret", probeID: 1}
+
+	get := func(auth bool) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", "/api/v1/site", nil)
+		if auth {
+			req.Header.Set("Authorization", "Bearer secret")
+		}
+		w := httptest.NewRecorder()
+		api.siteGet(w, req)
+		return w
+	}
+
+	anon := get(false)
+	if cc := anon.Header().Get("Cache-Control"); cc != "public, max-age=600" {
+		t.Errorf("visiteur: %q", cc)
+	}
+	if v := anon.Header().Get("Vary"); !strings.Contains(v, "Cookie") {
+		t.Errorf("sans Vary, un cache partage ne distingue pas les deux reponses: %q", v)
+	}
+	if strings.Contains(anon.Body.String(), "23 45 67") {
+		t.Error("le telephone du NOC ne doit pas sortir sur la page publique")
+	}
+
+	authed := get(true)
+	if cc := authed.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("exploitant: %q, une reponse qui lui est propre ne se met pas en cache", cc)
+	}
+	if !strings.Contains(authed.Body.String(), "23 45 67") {
+		t.Error("l'exploitant doit voir le telephone du NOC")
+	}
+}

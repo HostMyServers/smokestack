@@ -592,6 +592,15 @@ routeur qui renvoie « inaccessible » n'est jamais pris pour la destination : i
 est noté `!N`, `!H` ou `!A` et le chemin s'arrête là. Traceroutes non publics
 par défaut (les sauts révèlent l'intérieur du réseau).
 
+Les sauts portent le DNS inverse et l'AS d'origine (Team Cymru). Un saut posé
+sur un point d'échange est nommé depuis PeeringDB : un LAN de peering n'est
+annoncé nulle part, le routage mondial n'en sait rien, et c'est justement le
+saut où deux réseaux se rencontrent. Les préfixes des points d'échange sont
+récupérés une fois par semaine et conservés dans `config.db` ; le membre qui
+tient une adresse est demandé en arrière-plan. Les sauts sont renommés à la
+lecture d'une trace, pour qu'une résolution ratée le jour de la mesure ne
+laisse pas un trou définitif dans le chemin.
+
 Le back-office et les messages du serveur sont en anglais ; les pages
 publiques restent traduites (anglais de référence, français, allemand,
 espagnol).

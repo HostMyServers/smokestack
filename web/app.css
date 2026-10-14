@@ -9,26 +9,35 @@
   --warn: #b86a00; --warn-soft: #fff5e3;
   --crit: #d92d20; --crit-soft: #fdeeec;
   --info: #4338ca; --info-soft: #eef2ff;
-  --c-transit: #2458e6; --c-ix: #0e8fa8; --c-dns: #7a3fe0;
+  --c-transit: #2458e6; --c-ix: #0b7f96; --c-dns: #7a3fe0;
   --c-cloud: #0f917a; --c-fed: #c26a00;
-  --radius: 12px; --radius-s: 8px;
+  --c-ix-soft: #e4f4f8; --c-ix-line: #9fd5e2;
+  /* One scale, four roles: panels and cards, controls and small surfaces,
+     hairline bars, and the pills that stay pills. How round the whole
+     interface looks is these four values, not sixty scattered ones. */
+  --radius: 6px; --radius-s: 4px; --radius-xs: 2px; --radius-pill: 999px;
   --shadow: 0 1px 2px rgba(11,18,32,.04), 0 4px 16px rgba(11,18,32,.04);
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --wrap: 1720px;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b0f17; --bg-soft: #111723; --bg-sunk: #161d2b;
-    --ink: #e7ecf4; --ink-2: #9aa6b8; --ink-3: #6b778a;
-    --line: #232c3b; --line-2: #1b2331;
-    --accent: #6b93ff; --accent-soft: #17223d; --accent-ink: #9db7ff;
-    --ok: #3ccb7f; --ok-soft: #10261b;
-    --warn: #f0a93a; --warn-soft: #2a1f0d;
-    --crit: #ff6b5e; --crit-soft: #2d1513;
-    --info: #a5b4fc; --info-soft: #1c1f3d;
-    --shadow: 0 1px 2px rgba(0,0,0,.3);
-  }
+/* La palette sombre est posee par l'attribut, pas par le media query :
+   theme.js resout « automatique » avant la premiere peinture, si bien
+   que la palette ne s'ecrit qu'une fois au lieu d'une par condition. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0f17; --bg-soft: #111723; --bg-sunk: #161d2b;
+  --ink: #e7ecf4; --ink-2: #9aa6b8; --ink-3: #6b778a;
+  --line: #232c3b; --line-2: #1b2331;
+  --accent: #6b93ff; --accent-soft: #17223d; --accent-ink: #9db7ff;
+  --ok: #3ccb7f; --ok-soft: #10261b;
+  --warn: #f0a93a; --warn-soft: #2a1f0d;
+  --crit: #ff6b5e; --crit-soft: #2d1513;
+  --info: #a5b4fc; --info-soft: #1c1f3d;
+  --c-transit: #6b93ff; --c-ix: #3cc3dc; --c-dns: #a98bff;
+  --c-cloud: #3fd1b4; --c-fed: #f0a93a;
+  --c-ix-soft: #0e2a33; --c-ix-line: #1e5a6b;
+  --shadow: 0 1px 2px rgba(0,0,0,.3);
 }
 
 * { box-sizing: border-box; }
@@ -55,24 +64,30 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em;
          color: var(--ink); white-space: nowrap; }
 .brand:hover { text-decoration: none; }
-.mark { width: 26px; height: 26px; border-radius: 8px; flex: none; position: relative;
+.mark { width: 26px; height: 26px; border-radius: var(--radius-s); flex: none; position: relative;
         background: linear-gradient(140deg, #2458e6 0%, #0e8fa8 100%); }
-.mark::after { content: ""; position: absolute; inset: 7px 5px 9px; border-radius: 3px;
+.mark::after { content: ""; position: absolute; inset: 7px 5px 9px; border-radius: var(--radius-xs);
                border-top: 2px solid rgba(255,255,255,.9); border-bottom: 2px solid rgba(255,255,255,.45); }
 .nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .nav::-webkit-scrollbar { display: none; }
-.nav a { padding: 7px 12px; border-radius: 9px; color: var(--ink-2); font-size: 13.5px; white-space: nowrap; }
+.nav a { padding: 7px 12px; border-radius: var(--radius-s); color: var(--ink-2); font-size: 13.5px; white-space: nowrap; }
 .nav a:hover { background: var(--bg-soft); color: var(--ink); text-decoration: none; }
 .nav a[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 550; }
 .spacer { flex: 1; }
 .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-2);
-        border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; white-space: nowrap; }
+        border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 4px 11px; white-space: nowrap; }
 @media (max-width: 900px) { .hide-m { display: none !important; } }
+
+/* --- clair / sombre : un bouton a trois etats --- */
+.thm { display: inline-flex; align-items: center; justify-content: center; flex: none;
+       width: 30px; height: 28px; font-size: 14px; line-height: 1; color: var(--ink-2);
+       background: var(--bg-soft); border: 1px solid var(--line); border-radius: 9px; }
+.thm:hover { border-color: var(--ink-3); color: var(--ink); }
 
 /* --- choix de la langue : drapeau et menu --- */
 .lang { position: relative; flex: none; }
 .lang-btn { display: inline-flex; align-items: center; gap: 5px; background: var(--bg-soft);
-            border: 1px solid var(--line); border-radius: 9px; padding: 5px 8px; line-height: 1.2; }
+            border: 1px solid var(--line); border-radius: var(--radius-s); padding: 5px 8px; line-height: 1.2; }
 .lang-btn:hover { border-color: var(--ink-3); }
 .flag { font-size: 15px; line-height: 1;
         font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font); }
@@ -91,13 +106,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 /* --- menu mobile --- */
 .burger { display: none; flex-direction: column; justify-content: center; gap: 4px; width: 38px; height: 34px;
-          padding: 0 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-soft); cursor: pointer; }
-.burger span { display: block; height: 2px; border-radius: 2px; background: var(--ink-2); transition: transform .15s, opacity .15s; }
+          padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg-soft); cursor: pointer; }
+.burger span { display: block; height: 2px; border-radius: var(--radius-xs); background: var(--ink-2); transition: transform .15s, opacity .15s; }
 .burger.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
 .burger.open span:nth-child(2) { opacity: 0; }
 .burger.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 .nav-menu { display: none; flex-direction: column; gap: 2px; padding: 8px 0 12px; border-top: 1px solid var(--line-2); }
-.nav-menu a { padding: 11px 12px; border-radius: 9px; color: var(--ink); font-size: 15px; }
+.nav-menu a { padding: 11px 12px; border-radius: var(--radius-s); color: var(--ink); font-size: 15px; }
 .nav-menu a[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 550; }
 @media (max-width: 760px) {
   .nav-wide { display: none; }
@@ -144,7 +159,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .stat .v { font-size: 26px; font-weight: 700; letter-spacing: -.03em; line-height: 1.2; margin-top: 2px; }
 .stat .u { font-size: 12px; color: var(--ink-3); font-weight: 500; margin-left: 3px; }
 
-.badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 9px;
+.badge { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--radius-pill); padding: 2px 9px;
          font-size: 11.5px; font-weight: 550; white-space: nowrap; }
 .b-ok { background: var(--ok-soft); color: var(--ok); }
 .b-warn { background: var(--warn-soft); color: var(--warn); }
@@ -176,7 +191,7 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 .fp { font-family: var(--mono); font-size: 17px; font-weight: 650; letter-spacing: .08em; }
 .pill-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill-list span { font-family: var(--mono); font-size: 12px; background: var(--bg-sunk);
-                  border-radius: 6px; padding: 2px 7px; }
+                  border-radius: var(--radius-s); padding: 2px 7px; }
 
 /* --- pied de page --- */
 .ftr { border-top: 1px solid var(--line); margin-top: 64px; background: var(--bg-soft); font-size: 13px; color: var(--ink-2); }
@@ -190,16 +205,16 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 .cf-grid label, .cf-full { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
 .cf-grid input, .cf-full input, .cf-full textarea { display: block; width: 100%; margin-top: 4px; font: inherit;
   font-size: 14px; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
-  border-radius: 9px; padding: 8px 10px; box-sizing: border-box; }
+  border-radius: var(--radius-s); padding: 8px 10px; box-sizing: border-box; }
 .cf-full textarea { resize: vertical; }
 .cf-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .btn-primary { font: inherit; font-size: 13.5px; font-weight: 550; color: #fff; background: var(--accent);
-  border: 0; border-radius: 9px; padding: 9px 16px; cursor: pointer; }
+  border: 0; border-radius: var(--radius-s); padding: 9px 16px; cursor: pointer; }
 .btn-primary:disabled { opacity: .6; cursor: default; }
 
 /* --- étiquette « cible unique » et sa pastille d'information --- */
 .once-lbl { font-size: 12px; display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
-  white-space: nowrap; padding: 3px 9px 3px 6px; border: 1px solid var(--line); border-radius: 999px; }
+  white-space: nowrap; padding: 3px 9px 3px 6px; border: 1px solid var(--line); border-radius: var(--radius-pill); }
 .once-lbl:hover { background: var(--bg-soft); }
 .once-lbl input { margin: 0; }
 .info { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
@@ -208,15 +223,10 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 .info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* --- avertissements de la page de détail --- */
-.note-rot, .note-pin { font-size: 12.5px; line-height: 1.5; border-radius: 10px;
-  padding: 12px 14px; margin: 16px 0 6px; }
-.note-rot strong, .note-pin strong { font-weight: 600; }
-
-.note-rot { color: #92400e; background: #fffbeb; border: 1px solid #fde68a; }
-.note-pin { color: var(--ink-2); background: var(--bg-soft); border: 1px solid var(--line); }
-@media (prefers-color-scheme: dark) {
-  .note-rot { color: #fcd34d; background: rgba(120, 53, 15, .25); border-color: rgba(252, 211, 77, .35); }
-}
+.note-pin { font-size: 12.5px; line-height: 1.5; border-radius: var(--radius-s);
+  padding: 12px 14px; margin: 16px 0 6px;
+  color: var(--ink-2); background: var(--bg-soft); border: 1px solid var(--line); }
+.note-pin strong { font-weight: 600; }
 
 /* --- les trois adresses publiques, sur la page about --- */
 /* Le pied de page ne les porte plus : elles vivent ici, à côté de ce que
@@ -228,7 +238,7 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 /* --- bandeau de maintenance programmée --- */
 /* Sur la page publique : un lecteur qui voit la mesure s'arrêter doit
    comprendre pourquoi sans écrire à personne. */
-.note-maint { font-size: 12.5px; line-height: 1.55; border-radius: 10px; padding: 12px 14px;
+.note-maint { font-size: 12.5px; line-height: 1.55; border-radius: var(--radius-s); padding: 12px 14px;
   margin: 16px 0 6px; color: var(--info); background: var(--info-soft);
   border: 1px solid var(--info); border-left-width: 3px; }
 .note-maint strong { font-weight: 600; }
@@ -237,40 +247,74 @@ table.t td { padding: 10px; border-top: 1px solid var(--line-2); vertical-align:
 .note-maint li { margin: 2px 0; }
 
 /* --- bandeau d'un graphe partagé --- */
-.note-share { font-size: 12.5px; line-height: 1.5; border-radius: 10px; padding: 12px 14px;
-  margin: 16px 0 6px; color: var(--ink2);
+.note-share { font-size: 12.5px; line-height: 1.5; border-radius: var(--radius-s); padding: 12px 14px;
+  margin: 16px 0 6px; color: var(--ink-2);
   background: var(--bg-soft); border: 1px solid var(--line); }
 
 /* --- légendes sous les bandes de la page de détail --- */
-.strip-hint { font-size: 11.5px; line-height: 1.45; color: var(--ink3); margin: 6px 0 0; }
+.strip-hint { font-size: 11.5px; line-height: 1.45; color: var(--ink-3); margin: 6px 0 0; }
+
+/* --- aide repliee : un « ? » a cote d'un intitule, sa bulle en dessous ---
+   Une explication se lit une fois. Laissee sous chaque bloc, elle ajoute
+   trois lignes grises a chaque visite pour un lecteur qui sait deja. */
+.hint { position: relative; display: inline-flex; vertical-align: middle; margin-left: 6px; }
+.hintb { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
+         border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink);
+         font-size: 10.5px; font-weight: 700; line-height: 1; }
+.hintb:hover, .hintb[aria-expanded="true"] { background: var(--accent); color: #fff; }
+.hintbox { position: absolute; left: 0; top: calc(100% + 7px); z-index: 30; width: max-content;
+           max-width: min(360px, 72vw); padding: 10px 12px; background: var(--bg);
+           border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+           font-size: 11.5px; line-height: 1.5; font-weight: 400; color: var(--ink-2);
+           text-transform: none; letter-spacing: normal; white-space: normal; }
 
 /* --- liste des événements sous le graphe --- */
 .evlist { margin: 0; padding-left: 22px; font-size: 12.5px; line-height: 1.6; }
 .evlist li { margin-bottom: 3px; }
 .evlist li::marker { color: var(--warn); font-weight: 600; }
-.evdate { color: var(--ink3); margin-right: 8px; }
+.evdate { color: var(--ink-3); margin-right: 8px; }
 .evwhat { font-weight: 500; }
-.evdetail { color: var(--ink2); margin-left: 8px; font-size: 11.5px; }
+.evdetail { color: var(--ink-2); margin-left: 8px; font-size: 11.5px; }
 
 /* --- chaîne des AS traversés --- */
-.aschain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.asnode { display: inline-flex; flex-direction: column; line-height: 1.25;
-  border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; background: var(--bg-soft); }
+/* La chaine occupe la largeur et respire : les maillons grandissent a
+   parts egales au lieu d'etre tasses a gauche. */
+.aschain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px 4px; width: 100%; }
+.asnode { display: inline-flex; flex: 1 1 0; min-width: 104px; align-items: center; text-align: center;
+          flex-direction: column; justify-content: center; line-height: 1.25;
+  border: 1px solid var(--line); border-radius: var(--radius-s); padding: 5px 9px; background: var(--bg-soft); }
 .asnode.self { border-color: var(--accent); }
 .asnode.dest { border-color: var(--ok); }
-.asnode.unknown { color: var(--ink3); border-style: dashed; }
+.asnode.unknown { color: var(--ink-3); border-style: dashed; }
 .asnode.ris { padding: 3px 8px; background: transparent; }
-.asnode .asrole { font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink3); }
+.asnode .asrole { font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
 .asnode .asn { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 600; }
-.asnode .asname { font-size: 10.5px; color: var(--ink3); max-width: 160px; overflow: hidden;
+.asnode .asname { font-size: 10.5px; color: var(--ink-3); max-width: 100%; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
-.asarrow { color: var(--ink3); font-size: 12px; }
+.asarrow { flex: 0 0 auto; color: var(--ink-3); font-size: 12px; padding: 0 2px;
+  display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; }
+/* Le point d'echange traverse pour entrer dans le reseau suivant : au-dessus
+   de la fleche du chemin, et a cote de l'AS dans le tableau des sauts. Il
+   porte sa couleur a lui : c'est le seul saut que le routage mondial ne
+   nomme pas, et le premier qu'un operateur cherche dans la liste. */
+.ixb, .asvia { border: 1px solid var(--c-ix-line); border-radius: var(--radius-pill);
+  background: var(--c-ix-soft); color: var(--c-ix); padding: 0 6px;
+  font: 600 9.5px var(--font); letter-spacing: .03em; white-space: nowrap; }
+.ixb::before, .asvia::before { content: "IX"; margin-right: 5px; opacity: .6; }
+.ixb { display: inline-block; margin-left: 7px; vertical-align: 1px; }
+.asvia { max-width: 104px; overflow: hidden; text-overflow: ellipsis; }
 
 /* --- carte des AS traversés --- */
+.asmap { display: block; }
 .asmap .gnode rect { fill: var(--bg-soft); stroke: var(--line); }
 .asmap .gself rect { stroke: var(--accent); stroke-width: 1.5; }
 .asmap .gdest rect { stroke: var(--ok); stroke-width: 1.5; }
-.asmap .gunknown rect { stroke: var(--ink3); stroke-dasharray: 4 3; fill: none; }
-.asmap .gasn { font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; fill: var(--ink); }
-.asmap .gname { font: 10.5px system-ui, sans-serif; fill: var(--ink3); }
-.asmap .grtt { font: 10.5px ui-monospace, SFMono-Regular, Menlo, monospace; fill: var(--ink2); text-anchor: end; }
+.asmap .gunknown rect { stroke: var(--ink-3); stroke-dasharray: 4 3; fill: none; }
+.asmap .gasn { font: 600 12px var(--mono); fill: var(--ink); }
+.asmap .gname { font: 10.5px var(--font); fill: var(--ink-2); }
+.asmap .grtt { font: 10.5px var(--mono); fill: var(--ink-2); text-anchor: end; }
+/* Le meme point d'echange que dans la chaine et dans le tableau : pose sur
+   la fleche, il doit rester lisible par-dessus le trait. */
+.asmap .gixb rect { fill: var(--c-ix-soft); stroke: var(--c-ix-line); }
+.asmap .gixb text { font: 600 9.5px var(--font); fill: var(--c-ix); text-anchor: middle; }
+.asmap .gixb .gixk { opacity: .6; }

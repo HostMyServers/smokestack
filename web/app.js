@@ -12,15 +12,7 @@
     { id: "about",      href: "/about",      key: "nav.about" }
   ];
 
-  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
-    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  // Échapper ne suffit pas pour un href : javascript:… reste cliquable.
-  // Toute URL venant d'une autre instance passe par ici.
-  const escURL = s => {
-    const v = String(s == null ? "" : s).trim();
-    return /^https?:\/\/[^\s]+$/i.test(v) ? esc(v) : "";
-  };
+  const { html, url } = H;
 
   // A flag is the pair of regional indicator symbols for the country the
   // language declares in _meta.flag: no image to serve, and no table of
@@ -42,19 +34,33 @@
 
   function header(active) {
     const t = I18N.t;
+    // aria-current spells "false" rather than being left off: the
+    // stylesheet reads "page" and nothing else, and an attribute that is
+    // always present is one fewer branch here.
     const nav = pages().map(p =>
-      `<a href="${p.href}" ${p.id === active ? 'aria-current="page"' : ""}>${esc(t(p.key))}</a>`).join("");
-    const asn = SITE.asn ? `<span class="chip mono hide-m">${esc(SITE.asn)}</span>` : "";
+      html`<a href="${p.href}" aria-current="${p.id === active ? "page" : "false"}">${t(p.key)}</a>`);
     // Under 760 px the links no longer fit: they move into a menu opened
     // by the button, instead of being cut off and unreachable.
-    return `<div class="wrap"><div class="hdr-in">
-      <a class="brand" href="/"><span class="mark"></span><span>${esc(SITE.title || "smokestack")}</span></a>
+    return html`<div class="wrap"><div class="hdr-in">
+      <a class="brand" href="/"><span class="mark"></span><span>${SITE.title || "smokestack"}</span></a>
       <nav class="nav nav-wide">${nav}</nav>
-      <span class="spacer"></span>${asn}
-      ${langPicker()}
-      <button class="burger" id="burger" aria-label="${esc(t("nav.menu"))}" aria-expanded="false" aria-controls="navm">
+      <span class="spacer"></span>${SITE.asn && html`<span class="chip mono hide-m">${SITE.asn}</span>`}
+      ${themeButton()}${langPicker()}
+      <button class="burger" id="burger" aria-label="${t("nav.menu")}" aria-expanded="false" aria-controls="navm">
         <span></span><span></span><span></span></button>
     </div><nav class="nav-menu" id="navm" hidden>${nav}</nav></div>`;
+  }
+
+  // Three states rather than two: a visitor whose system is dark may
+  // still want this page light, and "auto" has to stay reachable once
+  // one of the two has been chosen. The glyph carries a text-presentation
+  // selector so a platform does not turn it into an emoji.
+  const THEME_GLYPH = { auto: "\u25d0", light: "\u2600\ufe0e", dark: "\u263e\ufe0e" };
+
+  function themeButton() {
+    const t = I18N.t, pref = Theme.pref;
+    return html`<button class="thm" id="thmBtn" aria-label="${t("nav.theme")}"
+            title="${t("nav.theme_" + pref)}">${THEME_GLYPH[pref]}</button>`;
   }
 
   // Ten language names took a quarter of the header and said nothing a
@@ -66,20 +72,19 @@
     const cur = I18N.langs.find(l => l.code === I18N.lang) || { code: I18N.lang, name: I18N.lang };
     const face = l => {
       const f = flag(l.flag);
-      return f ? `<span class="flag">${f}</span>`
-               : `<span class="lang-code">${esc(String(l.code).toUpperCase())}</span>`;
+      return f ? html`<span class="flag">${f}</span>`
+               : html`<span class="lang-code">${String(l.code).toUpperCase()}</span>`;
     };
-    const items = I18N.langs.map(l =>
-      `<li role="none"><button type="button" role="menuitemradio" data-lang="${esc(l.code)}"` +
-      ` aria-checked="${l.code === I18N.lang}">${face(l)}<span>${esc(l.name)}</span>` +
-      (l.coverage < 1 ? `<span class="faint">${Math.round(l.coverage * 100)} %</span>` : "") +
-      `</button></li>`).join("");
-    return `<div class="lang">
+    const items = I18N.langs.map(l => html`<li role="none"><button type="button"
+      role="menuitemradio" data-lang="${l.code}"
+      aria-checked="${l.code === I18N.lang ? "true" : "false"}">${face(l)}<span>${l.name}</span>${
+      l.coverage < 1 && html`<span class="faint">${Math.round(l.coverage * 100)} %</span>`}</button></li>`);
+    return html`<div class="lang">
       <button class="lang-btn" id="langBtn" aria-haspopup="true" aria-expanded="false"
-              aria-controls="langm" aria-label="${esc(t("nav.language"))}" title="${esc(cur.name)}">
-        ${face(cur)}<span class="caret" aria-hidden="true">▾</span>
+              aria-controls="langm" aria-label="${t("nav.language")}" title="${cur.name}">
+        ${face(cur)}<span class="caret" aria-hidden="true">\u25be</span>
       </button>
-      <ul class="lang-menu" id="langm" role="menu" aria-label="${esc(t("nav.language"))}"
+      <ul class="lang-menu" id="langm" role="menu" aria-label="${t("nav.language")}"
           hidden>${items}</ul>
     </div>`;
   }
@@ -88,19 +93,17 @@
   // binaire (/api/v1/version) : il est ecrit en dur et ne se configure
   // pas depuis le back-office.
   function footer() {
-    const t = I18N.t, official = (VERSION || {}).official_url || "";
-    return `<div class="wrap">
+    const t = I18N.t, official = url((VERSION || {}).official_url);
+    return html`<div class="wrap">
       <div class="fbottom">
-        <span>© ${new Date().getFullYear()}${SITE.org ? " " + esc(SITE.org) : ""}</span>
-        <span class="spacer"></span>
-        ${official ? `<a href="${esc(official)}" rel="noopener" target="_blank">${esc(t("footer.powered"))}</a>`
-                   : `<span>${esc(t("footer.powered"))}</span>`}
+        ${official ? html`<a href="${official}" rel="noopener" target="_blank">${t("footer.powered")}</a>`
+                   : html`<span>${t("footer.powered")}</span>`}
       </div>
     </div>`;
   }
 
   function paintChrome(active) {
-    document.getElementById("hdr").innerHTML = header(active);
+    H.render(document.getElementById("hdr"), header(active));
     const burger = document.getElementById("burger"), menu = document.getElementById("navm");
     if (burger && menu) {
       const setOpen = open => {
@@ -113,8 +116,12 @@
       document.addEventListener("keydown", e => { if (e.key === "Escape") setOpen(false); });
       addEventListener("resize", () => { if (innerWidth > 760) setOpen(false); });
     }
-    document.getElementById("ftr").innerHTML = footer();
+    H.render(document.getElementById("ftr"), footer());
     wireLang();
+    const thm = document.getElementById("thmBtn");
+    if (thm) {
+      thm.onclick = () => Theme.set(Theme.next());
+    }
   }
 
   // The header is rebuilt on every language change, so the listeners the
@@ -159,6 +166,36 @@
     };
   }
 
+  const pause = ms => new Promise(done => setTimeout(done, ms));
+
+  // The longest a retry will ever wait, whatever the server asks for.
+  const RETRY_CAP_S = 30;
+
+  // getJSON tries again when the failure is one that passes — the network,
+  // a 429, a 5xx while the service restarts — and throws once it persists.
+  async function getJSON(url, tries = 4) {
+    for (let i = 1; ; i++) {
+      let r;
+      try {
+        r = await fetch(url);
+      } catch (e) {
+        if (i >= tries) throw e;
+        await pause(1000 * 2 ** (i - 1));
+        continue;
+      }
+      if (r.ok) return r.json();
+      if (i >= tries || (r.status !== 429 && r.status < 500)) throw new Error(`${url}: HTTP ${r.status}`);
+      // Retry-After is honoured, but capped: it is a number this page does
+      // not choose, and an hour of it would leave the page sitting on
+      // "loading" with nothing said. Only a positive number is taken — the
+      // header also allows an HTTP date, which gives NaN, and a zero or a
+      // negative value would otherwise skip the wait altogether and spend
+      // every attempt at once.
+      const after = +r.headers.get("Retry-After");
+      await pause(1000 * (after > 0 ? Math.min(after, RETRY_CAP_S) : 2 ** (i - 1)));
+    }
+  }
+
   async function boot(active, render) {
     const [site, ver] = await Promise.all([
       fetch("/api/v1/site").then(r => r.json()).catch(() => ({})),
@@ -168,8 +205,11 @@
     await I18N.init();
     const run = () => { paintChrome(active); I18N.apply(); render && render(SITE); };
     document.addEventListener("i18n:change", run);
+    document.addEventListener("theme:change", run);
     run();
   }
 
-  window.App = { boot, esc, escURL, get site() { return SITE; } };
+  // esc reste exporte tant qu'une page assemble encore ses chaines a la
+  // main ; escURL n'avait plus d'appelant.
+  window.App = { boot, getJSON, esc: H.esc, get site() { return SITE; } };
 })();

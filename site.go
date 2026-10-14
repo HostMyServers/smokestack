@@ -47,6 +47,12 @@ type Site struct {
 	// PublicTraceroutes shows anomaly traceroutes on public pages. Off by
 	// default: hops reveal the inside of the operator's network.
 	PublicTraceroutes bool `json:"public_traceroutes"`
+	// PublicAvailability publishes the availability figure on the target
+	// pages. On by default. It is the one number on those pages a reader
+	// is likely to take for a commitment, whatever the two warnings next
+	// to it say, so an operator who does not want to be read that way can
+	// stop publishing it rather than explain it.
+	PublicAvailability bool `json:"public_availability"`
 	// Thresholds applied to every target that does not set its own.
 	Thresholds Thresholds `json:"thresholds,omitempty"`
 	// MaskAddresses : sur les pages publiques, une adresse IP n'est montree
@@ -69,6 +75,9 @@ func defaultSite() Site {
 		Description:   "Latency and packet loss measured from our network to public destinations.",
 		Thresholds:    DefaultThresholds(),
 		MaskAddresses: true,
+		// Publishing stays the default: the figure is honest, and what
+		// this setting governs is how it can be read.
+		PublicAvailability: true,
 	}
 }
 
@@ -105,6 +114,12 @@ func (s *Store) Site() Site {
 			// showing less, which is never the surprising direction.
 			if !strings.Contains(raw, `"mask_addresses"`) {
 				site.MaskAddresses = true
+			}
+			// Same reasoning the other way: an instance that was already
+			// showing the figure keeps showing it after an upgrade, and
+			// only an explicit choice takes it away.
+			if !strings.Contains(raw, `"public_availability"`) {
+				site.PublicAvailability = true
 			}
 		}
 	}
@@ -145,7 +160,21 @@ func (a *API) siteGet(w http.ResponseWriter, r *http.Request) {
 		"pairing":    a.fed != nil && a.fed.Enabled() && site.ASN != "",
 		"network":    site.ASN != "",
 	}
-	w.Header().Set("Cache-Control", "public, max-age=600")
+	// Who asks changes the answer: an authenticated caller gets the NOC
+	// phone, the address that receives contact notifications and the
+	// operator's own address. Announced as publicly cacheable with no
+	// Vary, that answer may be kept by a shared cache and handed to a
+	// visitor — which is the one thing the stripping above is for.
+	//
+	// It also made the back-office look broken: it reads this endpoint,
+	// and after saving kept showing values the browser had cached ten
+	// minutes earlier.
+	w.Header().Set("Vary", "Cookie, Authorization")
+	if a.authenticated(r) {
+		w.Header().Set("Cache-Control", "no-store")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=600")
+	}
 	writeJSON(w, out)
 }
 

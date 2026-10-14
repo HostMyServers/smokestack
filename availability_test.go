@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -279,5 +281,63 @@ func TestRecordAndRecordBatchAgree(t *testing.T) {
 					i, j, cols, a[i][j], b[i][j])
 			}
 		}
+	}
+}
+
+// Publishing the figure is a setting. Switched off, it must not leave by
+// the API either: hiding the block in the browser would leave the
+// endpoint serving it to whoever knows its address.
+func TestAvailabilityNotPublished(t *testing.T) {
+	store, id := availStore(t)
+	now := time.Now().Unix()
+	for i := 0; i < 5; i++ {
+		if err := store.Record(Measurement{TargetID: id, ProbeID: 1,
+			TS: now - int64(i)*60, Sent: 5, Lost: 0,
+			RTTus: []float64{1000, 1000, 1000, 1000, 1000}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	api := &API{store: store, token: "secret", probeID: 1}
+
+	// The answer is cached for a minute, which would otherwise hide the
+	// effect of the setting on the second call.
+	get := func(auth bool) int {
+		availCache.mu.Lock()
+		availCache.items = map[string]availEntry{}
+		availCache.mu.Unlock()
+		req := httptest.NewRequest("GET",
+			"/api/v1/availability?target="+strconv.FormatInt(id, 10), nil)
+		if auth {
+			req.Header.Set("Authorization", "Bearer secret")
+		}
+		w := httptest.NewRecorder()
+		api.availability(w, req)
+		return w.Code
+	}
+
+	// The default, and what an instance configured before the setting
+	// existed keeps after an upgrade.
+	if code := get(false); code != 200 {
+		t.Errorf("published by default: %d", code)
+	}
+
+	site := store.Site()
+	site.PublicAvailability = false
+	if err := store.SetSite(site); err != nil {
+		t.Fatal(err)
+	}
+	if code := get(false); code != 404 {
+		t.Errorf("switched off, a visitor must get 404, not %d", code)
+	}
+	if code := get(true); code != 200 {
+		t.Errorf("switched off, the back-office still reads it: %d", code)
+	}
+
+	site.PublicAvailability = true
+	if err := store.SetSite(site); err != nil {
+		t.Fatal(err)
+	}
+	if code := get(false); code != 200 {
+		t.Errorf("published again: %d", code)
 	}
 }

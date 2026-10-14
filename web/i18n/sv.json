@@ -13,10 +13,15 @@
     "pairing": "Parkoppling",
     "admin": "Administration",
     "language": "Språk",
-    "menu": "Meny"
+    "menu": "Meny",
+    "theme": "Tema",
+    "theme_auto": "Automatiskt",
+    "theme_light": "Ljust",
+    "theme_dark": "Mörkt"
   },
   "common": {
     "loading": "Laddar…",
+    "explain": "Förklaring",
     "back_home": "Tillbaka till översikten",
     "probe": "Sond",
     "updated": "Uppdaterad",
@@ -30,7 +35,8 @@
     "copy_link": "Kopiera länk",
     "minutes_ago": "för {n} min sedan",
     "hours_ago": "för {n} h sedan",
-    "days_ago": "för {n} d sedan"
+    "days_ago": "för {n} d sedan",
+    "load_failed": "Det gick inte att läsa in data. Försöker igen…"
   },
   "status": {
     "ok": "normal",
@@ -90,7 +96,6 @@
     "preset_10d": "10 d",
     "preset_3m": "3 mån",
     "preset_1y": "1 år",
-    "rotating": "Det här namnet svarar från {n} olika adresser: det är en lastbalanserad tjänst. Varje omgång mäter den server som DNS gav, så siffrorna nedan blandar maskiner som kan stå på olika platser och ha olika belastning. En server som ignorerar ICMP visas som förlust.",
     "pinned": "Mätt mot en fast {fam}-adress ({ip}): namnet kan peka någon annanstans, siffrorna nedan beskriver alltid samma maskin.",
     "pinned_plain": "Mätt mot en fast adress: namnet kan peka någon annanstans, siffrorna nedan beskriver alltid samma maskin.",
     "last24_hint": "Ett block per 30 minuter: grönt när målet följde sin referens, bärnsten när latens eller jitter avvek, rött vid paketförlust, grått när inget mättes.",
@@ -99,9 +104,7 @@
     "route_changed": "rutt ändrad",
     "ev_hint": "En streckad markering visar en ruttändring på vägen dit, från denna sond till detta mål: traceroute gick genom andra nät än förut. Det gäller bara detta mål, inte instansen, och säger inget om vägen tillbaka, som är osynlig härifrån. Inget larm utlöses: inget är trasigt, vägen är bara inte densamma. Mål vars väg aldrig ändrats har inga markeringar.",
     "aspath": "Väg till detta mål",
-    "aspath_hint": "Från denna instans nät till nätet som annonserar målets adress, enligt senaste traceroute. Vägen tillbaka kan skilja sig.",
     "as_here": "härifrån",
-    "as_target": "mål",
     "as_gap": "okänt",
     "as_gap_hint": "Traceroute visade inte denna del av vägen: de routrarna svarade inte, eller målet nåddes inte.",
     "as_map_note": "{n} traceroutes · heldragen: nuvarande väg, streckad: tidigare sedda",
@@ -270,7 +273,7 @@
   },
   "trace": {
     "title": "Traceroutes",
-    "sub": "Körs automatiskt när målet lämnar sin referens, och en gång per dag på en frisk väg för jämförelse.",
+    "sub": "Tas vid en avvikelse, och en gång om dagen för jämförelse.",
     "anomaly": "avvikelse",
     "reference": "referensväg",
     "manual": "manuell",
@@ -281,6 +284,7 @@
     "address": "Adress",
     "name": "Namn",
     "as": "AS",
+    "ix_hint": "Peering-LAN hos {ix}",
     "rtt": "RTT",
     "replies": "Svar",
     "ref_col": "Frisk väg",

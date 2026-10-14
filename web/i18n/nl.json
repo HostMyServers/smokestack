@@ -13,10 +13,15 @@
     "pairing": "Koppelen",
     "admin": "Beheer",
     "language": "Taal",
-    "menu": "Menu"
+    "menu": "Menu",
+    "theme": "Thema",
+    "theme_auto": "Automatisch",
+    "theme_light": "Licht",
+    "theme_dark": "Donker"
   },
   "common": {
     "loading": "Laden…",
+    "explain": "Uitleg",
     "back_home": "Terug naar het overzicht",
     "probe": "Sonde",
     "updated": "Bijgewerkt",
@@ -30,7 +35,8 @@
     "copy_link": "Link kopiëren",
     "minutes_ago": "{n} min geleden",
     "hours_ago": "{n} u geleden",
-    "days_ago": "{n} d geleden"
+    "days_ago": "{n} d geleden",
+    "load_failed": "De gegevens konden niet worden geladen. Nieuwe poging…"
   },
   "status": {
     "ok": "normaal",
@@ -90,7 +96,6 @@
     "preset_10d": "10 d",
     "preset_3m": "3 mnd",
     "preset_1y": "1 jaar",
-    "rotating": "Deze naam antwoordt vanaf {n} verschillende adressen: het is een dienst met load balancing. Elke ronde meet de server die DNS teruggaf, dus de cijfers hieronder mengen machines die op verschillende plaatsen kunnen staan en verschillende belasting hebben. Een server die ICMP negeert, verschijnt als verlies.",
     "pinned": "Gemeten op een vast {fam}-adres ({ip}): de naam kan naar iets anders wijzen, de cijfers hieronder beschrijven altijd dezelfde machine.",
     "pinned_plain": "Gemeten op een vast adres: de naam kan naar iets anders wijzen, de cijfers hieronder beschrijven altijd dezelfde machine.",
     "last24_hint": "Eén blok per 30 minuten: groen als het doel aan zijn referentie voldeed, amber bij afwijkende latentie of jitter, rood bij pakketverlies, grijs als er niets is gemeten.",
@@ -99,9 +104,7 @@
     "route_changed": "route gewijzigd",
     "ev_hint": "Een streepjesmarkering toont een routewijziging op het heenpad, van deze sonde naar dit doel: de traceroute liep via andere netwerken dan eerder. Het betreft alleen dit doel, niet de instantie, en zegt niets over het terugpad, dat van hieruit onzichtbaar is. Er komt geen alarm: er is niets stuk, het pad is alleen niet meer hetzelfde. Doelen waarvan het pad nooit wijzigde krijgen geen markering.",
     "aspath": "Route naar dit doel",
-    "aspath_hint": "Van het netwerk van deze instantie naar het netwerk dat het adres van het doel aankondigt, volgens de laatste traceroute. Het terugpad kan afwijken.",
     "as_here": "vanaf hier",
-    "as_target": "doel",
     "as_gap": "onbekend",
     "as_gap_hint": "De traceroute toonde dit deel van het pad niet: die routers antwoordden niets, of het doel werd niet bereikt.",
     "as_map_note": "{n} traceroutes · doorlopend: huidig pad, streepjes: eerder gezien",
@@ -270,7 +273,7 @@
   },
   "trace": {
     "title": "Traceroutes",
-    "sub": "Automatisch uitgevoerd wanneer het doel buiten de referentie valt, en eenmaal per dag op een gezond pad ter vergelijking.",
+    "sub": "Genomen bij een afwijking, en eenmaal per dag ter vergelijking.",
     "anomaly": "afwijking",
     "reference": "referentiepad",
     "manual": "handmatig",
@@ -281,6 +284,7 @@
     "address": "Adres",
     "name": "Naam",
     "as": "AS",
+    "ix_hint": "Peering-LAN van {ix}",
     "rtt": "RTT",
     "replies": "Antwoorden",
     "ref_col": "Gezond pad",
