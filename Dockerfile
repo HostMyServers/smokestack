@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 go build -trimpath \
       -ldflags "-s -w -X main.Version=${VERSION} -X main.BuildDate=$(date -u +%Y-%m-%d)" \
       -o /smokestack .
 
-FROM alpine:3.20
+FROM alpine:3.23
 RUN apk add --no-cache ca-certificates tzdata libcap && \
     adduser -S -D -H -u 10001 smokestack && \
     mkdir -p /var/lib/smokestack && chown smokestack /var/lib/smokestack
