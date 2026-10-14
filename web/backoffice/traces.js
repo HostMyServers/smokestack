@@ -59,8 +59,8 @@ async function nocPanel(asn, ctx){
         ${mail?html`<a class="btn p s" href="mailto:${mail.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}">Write to the NOC</a>`:""}
         <button class="btn s" data-copy>Copy the message</button>
         ${ctx.makeShare?html`<button class="btn s" data-mkshare title="Create a read-only link to this target and put it in the message">Attach a share link</button>`:""}
-        <a class="btn s" href="${d.peeringdb_url||""}" target="_blank" rel="noreferrer">PeeringDB page</a>
-        ${d.looking_glass?html`<a class="btn s" href="${d.looking_glass}" target="_blank" rel="noreferrer">Looking glass</a>`:""}
+        <a class="btn s" href="${H.url(d.peeringdb_url)}" target="_blank" rel="noreferrer">PeeringDB page</a>
+        ${H.url(d.looking_glass)?html`<a class="btn s" href="${H.url(d.looking_glass)}" target="_blank" rel="noreferrer">Looking glass</a>`:""}
       </div>`);
     let text=body;
     const cp=box.querySelector("[data-copy]");

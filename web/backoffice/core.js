@@ -49,10 +49,20 @@ async function showInherited(catID){
     });
   }catch(e){box.style.display="none";}
 }
-// Échapper ne protège pas un href : javascript:… reste cliquable. Toute
-// URL qui vient d'ailleurs (pair, PeeringDB) passe par ici, et revient
-// non échappée parce que le gabarit où elle atterrit s'en charge.
-const escURL = H.url;
+// Escaping does not protect an href: javascript:… survives it and stays
+// clickable. Every URL that comes from somewhere else — a peer, PeeringDB —
+// goes through H.url, which returns "" for anything that is not plainly
+// http(s). The value comes back unescaped because the template it lands in
+// escapes it.
+//
+// extLink is the shape that needs it most often: a link to a third party,
+// which falls back to its own label as inert text when the URL does not
+// survive. Returning null rather than "" keeps it usable as `extLink(…) ||
+// fallback`, since H.html renders null as nothing.
+const extLink = (href, label) => {
+  const u = H.url(href);
+  return u ? html`<a href="${u}" target="_blank" rel="noopener noreferrer">${label}</a>` : null;
+};
 
 const dt=ts=>ts?new Date(ts*1000).toLocaleString("en-GB",
   {day:"2-digit",month:"short",year:"2-digit",hour:"2-digit",minute:"2-digit"}):"—";
