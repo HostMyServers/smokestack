@@ -46,6 +46,8 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The table of peering LANs is about 2 600 prefixes: fetched once a week, kept in `config.db` so a restart does not wait on PeeringDB, and consulted in memory. Member addresses are resolved one at a time in the background. No page waits for either, and an instance that cannot reach PeeringDB keeps what it had.
 
+  This table decides what every hop of every traceroute is labelled with, and it comes from a source anyone with a member account can write to. A prefix far wider than a peering LAN can be — a default route above all — is refused and the refusal logged, and where two prefixes overlap the more specific one wins, deterministically.
+
 - **The CI audits the code now, and not only on the days somebody pushes.**
 
   `make test` proves the tree builds and passes its tests. It says nothing about a published CVE in a dependency, and the formatting rule the project documents as mandatory was enforced nowhere. The CI now runs five jobs in parallel, one per surface so that a red mark says which, and a sixth that reports their verdict — one box to tick in branch protection instead of five:
@@ -124,7 +126,7 @@ Versions are published as signed releases; servers with automatic updates instal
 
   `admin.html` was 2 392 lines carrying a single 2 245-line `<script>`. Nothing in it could be opened on its own, and `go test` never saw it: the CI extracted the block and ran `node --check` over the whole thing.
 
-  It becomes a 167-line page that loads `/backoffice/*.js`, one file per concern, in the order it already depended on: `core`, `gate`, `shell`, then a file per view. The largest is `targets.js` at 473 lines, the smallest `startup.js` at 19.
+  It becomes a 173-line page that loads `/backoffice/*.js`, one file per concern, in the order it already depended on: `core`, `gate`, `shell`, then a file per view. The largest is `targets.js` at 471 lines, the smallest `startup.js` at 23.
 
   They are plain scripts sharing a global scope rather than ES modules, which is what `app.js`, `i18n.js` and `theme.js` already are: splitting the file was the point, and rewriting a hundred references to shared state to buy module scope was not. Nothing moved between files.
 
