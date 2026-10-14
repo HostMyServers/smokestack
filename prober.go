@@ -463,25 +463,30 @@ func (p *Prober) runICMP(t *Target) ([]float64, string) {
 func (p *Prober) runTCP(t *Target) ([]float64, string) {
 	timeout := time.Duration(t.TimeoutMs) * time.Millisecond
 	spacing := time.Duration(t.SpacingMs) * time.Millisecond
-	network := "tcp"
-	if t.Family == 4 || t.Family == 6 {
-		network = fmt.Sprintf("tcp%d", t.Family)
+	port := strconv.Itoa(t.Port)
+	if t.Port <= 0 {
+		_, legacy, err := net.SplitHostPort(t.Host)
+		if err != nil {
+			// Go would say "missing port in address", which tells an operator
+			// nothing about what to do.
+			return nil, fmt.Sprintf("this TCP target has no port: set one (for example 443 or 80) " +
+				"in the target settings")
+		}
+		port = legacy
 	}
-	addr := t.Host
-	switch {
-	case t.Port > 0:
-		addr = net.JoinHostPort(t.Host, strconv.Itoa(t.Port))
-	case !strings.Contains(t.Host, ":"):
-		// Go would say "missing port in address", which tells an operator
-		// nothing about what to do.
-		return nil, fmt.Sprintf("this TCP target has no port: set one (for example 443 or 80) " +
-			"in the target settings")
+	// Resolved once per pass, like an ICMP target. Dialling the name looked
+	// it up again on every connection, inside the timeout: a hesitating
+	// resolver read as loss on every named target at once.
+	ip, err := p.targetIP(t)
+	if err != nil {
+		return nil, err.Error()
 	}
+	addr := net.JoinHostPort(ip.String(), port)
 	var out []float64
 	var lastErr string
 	for i := 0; i < t.Packets; i++ {
 		start := time.Now()
-		c, err := net.DialTimeout(network, addr, timeout)
+		c, err := net.DialTimeout("tcp", addr, timeout)
 		if err == nil {
 			// The SYN -> SYN/ACK time measured by the TCP stack does not
 			// depend on process load; application timing is the fallback.
