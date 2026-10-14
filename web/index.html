@@ -432,7 +432,24 @@ function asGraphSVG(g, avail) {
     lane.push(bottom + bh + FOLD / 2);
     bottom += bh + FOLD;
   });
-  const HT = bottom - FOLD + P;
+  // A folded link runs along the lane under the band it leaves, and its IX
+  // badge is laid on that lane. bottom - FOLD + P leaves the lane under the
+  // *last* band exactly FOLD / 2 - P = 16 px outside the viewBox, so every
+  // folded link out of the last band had its elbow and its badge clipped
+  // away — and on a map short enough to fit one band, that is every link
+  // that is not strictly left to right. Since the map is only drawn when the
+  // route branches, those are the expected links, not the corner case.
+  //
+  // The lanes under earlier bands are well inside the height already, so
+  // this only ever adds room where something is actually drawn down there.
+  const foldedLanes = (g.edges || []).map(e => {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) return -1;
+    if (a.band === b.band && b.x > a.x + BW) return -1; // runs straight across
+    return lane[a.band];
+  }).filter(y => y >= 0);
+  // 8 is the badge's half-height: ixBadge draws it centred on the lane.
+  const HT = Math.max(bottom - FOLD + P, ...foldedLanes.map(y => y + 8 + P));
   const labels = []; // drawn last: a name is of no use under a box
   // Two networks meet somewhere, and the exchange is the one thing a bare
   // arrow between them never says. It is written on the arrow, in the colour
