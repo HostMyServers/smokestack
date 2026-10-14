@@ -2,6 +2,18 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **The route map wrote an exchange over a network the current path skips, and drew loops through networks crossed once.**
+
+  A link that skipped a column was drawn straight across it, under whatever box stood there, with its exchange written at its middle: on a target reached through two transits, the exchange of the current path covered the AS number and latency of the other one. Such a link now crosses each column through a slot of its own.
+
+  Every unmeasured stretch of the traceroutes was one shared node. A path with silent routers both before and after a transit, common over IPv6, became a loop through that transit, and the links running back were routed under the map, outside its frame, where they showed as lines cut off at its edge. Each stretch is now a node of its own, named after the network it follows; in `/api/v1/aspath`, its `asn` is `?` followed by that network. A link that genuinely runs back goes round beneath its row, inside the frame.
+
+  The current path now runs straight along the top row, with the paths seen earlier beneath it, and is drawn over them where they share a run.
+
 ## 0.6.12
 
 The history comes back. Every instance has been erasing its own aggregates as the rollup window slid past them: a chart longer than four days showed the last six hours, and the 1-minute history of some targets stopped two hours back. This version stops it, and on its first start rebuilds every level from what is left, the raw passes of the last 48 hours in full. Install it soon: what it can recover shrinks by the hour.
