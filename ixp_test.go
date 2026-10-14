@@ -286,3 +286,106 @@ func TestRouteNamesPeeringHop(t *testing.T) {
 		t.Errorf("the hop table should name the peering hop: %+v", h)
 	}
 }
+
+// A prefix from PeeringDB decides what a hop is labelled with, and anyone
+// with a member account can write one. A default route, or anything else far
+// wider than a peering LAN, must not be able to put one exchange's name on
+// every hop in the product — which is what ::/0 would have done, since the
+// IPv6 list is consulted in full.
+func TestIXTableRefusesOverWidePrefixes(t *testing.T) {
+	tbl := buildIXTable(ixStored{Nets: map[string]string{
+		"0.0.0.0/0":       "EVIL-IX",
+		"::/0":            "EVIL-IX6",
+		"8.0.0.0/8":       "EVIL-WIDE",
+		"2000::/3":        "EVIL-WIDE6",
+		"198.51.100.0/24": "TEST-IX",  // a real one, still kept
+		"2001:db8::/64":   "TEST-IX6", // likewise
+	}})
+	svc := NewASNService(nil, nil, "")
+	svc.setIXTable(tbl)
+
+	for _, c := range []struct{ addr, want string }{
+		{"198.51.100.7", "TEST-IX"},  // the legitimate entries still answer
+		{"2001:db8::1", "TEST-IX6"},  //
+		{"8.8.8.8", ""},              // would have been EVIL-WIDE
+		{"1.2.3.4", ""},              // would have been EVIL-IX
+		{"2606:4700::1111", ""},      // would have been EVIL-IX6 or EVIL-WIDE6
+		{"2001:4860:4860::8888", ""}, //
+	} {
+		if got := svc.IXAt(net.ParseIP(c.addr)); got != c.want {
+			t.Errorf("IXAt(%q) = %q, want %q", c.addr, got, c.want)
+		}
+	}
+}
+
+// The bounds refuse the impossible without second-guessing an exchange that
+// publishes an unusual size: every shape a real peering LAN comes in is kept.
+func TestIXPrefixBounds(t *testing.T) {
+	for _, c := range []struct {
+		cidr string
+		ok   bool
+	}{
+		{"185.1.47.0/24", true},  // the common IPv4 shape
+		{"80.81.192.0/22", true}, // a large exchange
+		{"196.60.8.0/21", true},  // larger still
+		{"198.51.100.0/26", true},
+		{"198.51.100.1/32", true},
+		{"198.51.0.0/16", true}, // the floor itself
+		{"2001:7f8::/64", true}, // the common IPv6 shape
+		{"2001:7f8::/48", true},
+		{"2001:db8::/32", true}, // the floor itself
+		{"2001:db8::1/128", true},
+
+		{"0.0.0.0/0", false}, // the default routes
+		{"::/0", false},
+		{"198.51.0.0/15", false}, // one bit wider than the floor
+		{"2001:db8::/31", false},
+		{"10.0.0.0/8", false},
+		{"2000::/3", false},
+	} {
+		_, n, err := net.ParseCIDR(c.cidr)
+		if err != nil {
+			t.Fatalf("ParseCIDR(%q): %v", c.cidr, err)
+		}
+		if got := ixPrefixOK(n); got != c.ok {
+			t.Errorf("ixPrefixOK(%q) = %v, want %v", c.cidr, got, c.ok)
+		}
+	}
+	if ixPrefixOK(nil) {
+		t.Error("ixPrefixOK(nil) = true, want false")
+	}
+}
+
+// IXAt returns the first entry containing the address, and the table is built
+// by walking a Go map, whose order is random by design. Two overlapping
+// prefixes therefore have to be ordered explicitly, or the same binary gives
+// different answers on the same table from one restart to the next.
+func TestIXTableLongestPrefixWinsDeterministically(t *testing.T) {
+	nets := map[string]string{
+		"198.51.100.0/22":  "BROAD-IX",
+		"198.51.100.0/24":  "SPECIFIC-IX",
+		"198.51.100.64/26": "MOST-SPECIFIC-IX",
+		"2001:db8::/32":    "BROAD-IX6",
+		"2001:db8::/48":    "SPECIFIC-IX6",
+		"2001:db8::/64":    "MOST-SPECIFIC-IX6",
+	}
+	want := map[string]string{
+		"198.51.100.65":   "MOST-SPECIFIC-IX",
+		"198.51.100.7":    "SPECIFIC-IX",
+		"198.51.101.7":    "BROAD-IX",
+		"2001:db8::1":     "MOST-SPECIFIC-IX6",
+		"2001:db8:0:1::1": "SPECIFIC-IX6",
+		"2001:db8:1::1":   "BROAD-IX6",
+	}
+	// Rebuilt from scratch each time: a different map iteration order every
+	// round is exactly the condition this guards against.
+	for round := 0; round < 50; round++ {
+		svc := NewASNService(nil, nil, "")
+		svc.setIXTable(buildIXTable(ixStored{Nets: nets}))
+		for addr, exp := range want {
+			if got := svc.IXAt(net.ParseIP(addr)); got != exp {
+				t.Fatalf("round %d: IXAt(%q) = %q, want %q", round, addr, got, exp)
+			}
+		}
+	}
+}
