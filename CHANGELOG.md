@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.7.1
+
+A private target's measurements could be kept by a cache in front of the instance and handed to a visitor. **An instance behind a CDN or a caching reverse proxy should take this one**; behind nothing it was never exposed, since a browser caches only for the person using it.
+
+Four smaller holes close with it — a target's title could add headers to every alert email, a sendmail recipient could be a command-line option, a federated double-check resolved its name twice, and the live stream endpoint had no ceiling — along with the route map drawing an exchange over a network the current path skips, and a pairing request that could not say which of your own settings was missing. Nothing to reconfigure, and no migration.
 
 ### Fixed
 
@@ -11,14 +15,6 @@ Versions are published as signed releases; servers with automatic updates instal
   A pairing request announces where to reach you. An instance whose `federation.base_url` is empty announces nothing, and the instance being asked refuses the request as incomplete — so the operator read a 400 from the far end and went looking for a problem at the other operator's. `install.sh` writes that setting from `--public-url`, so **any install done without that flag had it empty** and every pairing attempt failed this way.
 
   Checked before anything is sent now, beside the AS number, with a message that names the setting and says to restart. The instance being asked also names the missing field rather than counting it, so a request from a version without this check still produces something its sender can act on.
-
-## 0.7.1
-
-A private target's measurements could be kept by a cache in front of the instance and handed to a visitor. **An instance behind a CDN or a caching reverse proxy should take this one**; behind nothing it was never exposed, since a browser caches only for the person using it.
-
-Four smaller holes close with it — a target's title could add headers to every alert email, a sendmail recipient could be a command-line option, a federated double-check resolved its name twice, and the live stream endpoint had no ceiling — along with the route map drawing an exchange over a network the current path skips. Nothing to reconfigure, and no migration.
-
-### Fixed
 
 - **The route map wrote an exchange over a network the current path skips, and drew loops through networks crossed once.**
 
