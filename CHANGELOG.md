@@ -14,6 +14,50 @@ Versions are published as signed releases; servers with automatic updates instal
 
   The current path now runs straight along the top row, with the paths seen earlier beneath it, and is drawn over them where they share a run.
 
+- **A private target's measurements were announced as publicly cacheable.**
+
+  `/api/v1/series` set `Cache-Control: public, max-age=15` on every answer, including a target no visitor may read. A shared cache in front of an instance keys on the address, so it could keep an operator's answer and hand it to the next visitor who asked for the same one. Reported by **@Kofysh**.
+
+  Looking at the endpoint reported turned up five more, so the rule is now checked across every read endpoint at once rather than remembered one at a time:
+
+  | | |
+  |---|---|
+  | `tree` | the operator's answer — every target, private ones included — carried no directive at all, because the authenticated branch returns before the line that sets one |
+  | `charts` | the same, in both directions |
+  | `availability` | no directive at all, on an endpoint with exactly the series shape |
+  | `aspath` | the directive was set at the end of the function, and the two early returns above it skipped it |
+  | a 404 | cacheable by default, so a visitor's *target not found* for a private target could be kept and handed back to the operator whose target it is |
+
+  An instance behind a CDN or a caching reverse proxy should upgrade. One behind nothing was never exposed by this: a browser caches only for the person using it.
+
+  The public pages stay plainly cacheable on purpose. A series reads the same for everyone allowed to see it, so the target's visibility decides and no `Vary` is added — `Vary` on a public page means one cache entry per visitor, which is the cache turned off on the pages that need it most during an incident.
+
+- **A target's title could add headers to every alert email.**
+
+  The subject of an alert is built from the title and reached the `Subject:` header unfiltered, on all three mail paths. A title carrying a newline added headers of its own — a `Bcc:`, for instance. Setting a title needs the editor role and configuring a channel needs the admin role, so this let the lesser role write into the greater role's mail.
+
+- **A recipient address could be a command-line option.**
+
+  A sendmail channel hands its sender and recipients to the mail program as arguments, and an argument starting with `-` is an option. Addresses are validated before they get there now, and `--` ends the option list as well. The executable is checked too: absolute, cleaned, and a recognised mail program — in any directory, because that is the part which varies between systems. Reported by **@Kofysh**.
+
+- **A federated double-check resolved the name twice.**
+
+  The guard that refuses a non-public address resolved the name, and the probe resolved it again minutes later and every five minutes after that. A name whose answer changed in between was validated as one address and measured as another. The address the guard accepted is pinned to the check now. Reported by **@Kofysh**.
+
+- **The live stream endpoint had no ceiling.**
+
+  `/api/v1/live` holds a connection, a goroutine and a poll for as long as a client keeps it open, with no limit on how many. It is bounded per address as well as in total — a single global ceiling would let one client take the endpoint from everybody. Nothing in the interface uses this endpoint; it is there for third parties. Reported by **@Kofysh**.
+
+- **Ingestion read the body before the token.**
+
+  `POST /api/v1/ingest` parsed the whole request before checking whether the caller held a probe token, and had no ceiling on the batch. Both roads in — that endpoint and the Unix socket the local probe uses — share one pair of limits now. Reported by **@Kofysh**.
+
+### New
+
+- **There is a security policy, and a private way to use it.**
+
+  The cache leak above arrived as a public pull request, which disclosed the finding, the fix and the affected version at once, before any instance had upgraded. There was nowhere else to send it. [SECURITY.md](SECURITY.md) says where to report, what is in scope, and how a contribution on the security path is handled.
+
 ## 0.7.0
 
 Every page of an instance, public and authenticated, now assembles its markup through one engine that escapes by default — and the back-office, which was a single file of two thousand four hundred lines, is twenty.

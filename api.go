@@ -34,6 +34,58 @@ type API struct {
 	setupMu   sync.Mutex
 	setupCode string
 	setupFile string
+
+	streams liveStreams
+}
+
+// liveStreams bounds the SSE endpoint. Each stream holds a goroutine and a
+// poll of its own for as long as the client keeps it open, and nothing in
+// the interface this binary serves opens one — so what it bounds is a
+// third-party consumer, and an unbounded number of long-lived connections on
+// an endpoint nobody is watching is a cheap way to use a process up.
+//
+// Per address as well as in total, because a single global ceiling is itself
+// a denial of service: one client opening the maximum takes the endpoint
+// away from everybody else. The request rate limit does not cover this — it
+// counts requests, and these are connections held open.
+type liveStreams struct {
+	mu    sync.Mutex
+	total int
+	per   map[string]int
+}
+
+const (
+	maxLiveTotal   = 256
+	maxLivePerAddr = 4
+)
+
+func (l *liveStreams) take(addr string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.total >= maxLiveTotal || l.per[addr] >= maxLivePerAddr {
+		return false
+	}
+	if l.per == nil {
+		l.per = map[string]int{}
+	}
+	l.per[addr]++
+	l.total++
+	return true
+}
+
+func (l *liveStreams) done(addr string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.total > 0 {
+		l.total--
+	}
+	// Removed rather than decremented to zero: a counter per address ever
+	// seen is a slower version of the problem this is here to prevent.
+	if l.per[addr] <= 1 {
+		delete(l.per, addr)
+	} else {
+		l.per[addr]--
+	}
 }
 
 func (a *API) Routes(mux *http.ServeMux) {
@@ -85,6 +137,45 @@ func writeJSON(w http.ResponseWriter, v any) {
 	if err := enc.Encode(v); err != nil {
 		log.Printf("encode: %v", err)
 	}
+}
+
+// The two shapes an answer takes in front of a shared cache, in one place
+// because getting them right endpoint by endpoint is how two of them came to
+// be wrong at once.
+//
+// cacheByCaller is for an answer whose body depends on who asked — a list an
+// operator sees in full and a visitor sees part of. A cache in front of an
+// instance keys on the URL, so it has to be told that these are two answers
+// and that one of them is not for sharing.
+func (a *API) cacheByCaller(w http.ResponseWriter, r *http.Request, maxAge int) {
+	cacheByViewer(w, a.authenticated(r), maxAge)
+}
+
+// cacheByViewer is the same rule where the caller has already worked out
+// whether this viewer is privileged — a share link grants more than being
+// anonymous but less than being signed in, and only the handler knows.
+func cacheByViewer(w http.ResponseWriter, privileged bool, maxAge int) {
+	w.Header().Set("Vary", "Cookie, Authorization")
+	if privileged {
+		cachePrivate(w)
+	} else {
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
+	}
+}
+
+// cachePrivate is for an answer about something a visitor may not read. It
+// covers the 404 as well as the answer: a 404 is cacheable by default, so a
+// visitor's "target not found" could be kept and handed back to the operator
+// whose target it is.
+//
+// Note that it is the target's visibility that decides, not the caller's: a
+// series or an availability figure reads the same for everyone who may see
+// it, so a public target keeps a plain public directive and needs no Vary.
+// That is deliberate — Vary on a public page behind a CDN means one cache
+// entry per visitor, which is the cache turned off on the pages that need it
+// most during an incident.
+func cachePrivate(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "private, no-store")
 }
 
 func writeErr(w http.ResponseWriter, code int, msg string) {
@@ -217,6 +308,11 @@ func (a *API) tree(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, 500, err.Error())
 			return
 		}
+		// Every target, private ones included. This branch returned before
+		// the directive at the end of the function was set, so it carried
+		// none at all — and a 200 with no directive is cacheable by
+		// heuristic, which is the worst of the three possibilities.
+		a.cacheByCaller(w, r, 30)
 		writeJSON(w, cats)
 		return
 	}
@@ -235,7 +331,7 @@ func (a *API) tree(w http.ResponseWriter, r *http.Request) {
 	b := treeCache.data
 	treeCache.Unlock()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=30")
+	a.cacheByCaller(w, r, 30)
 	w.Write(b)
 }
 
@@ -264,8 +360,10 @@ func (a *API) series(w http.ResponseWriter, r *http.Request) {
 	// reponse depuis le cache.
 	// A share token opens exactly one target, and only for reading.
 	shared, hasShare := a.shareGrant(r)
-	if t, err := a.store.TargetByID(targetID); err != nil ||
+	t, terr := a.store.TargetByID(targetID)
+	if terr != nil ||
 		(!t.Public && !a.authenticated(r) && !(hasShare && shared == targetID)) {
+		cachePrivate(w)
 		writeErr(w, 404, "target not found")
 		return
 	}
@@ -309,7 +407,15 @@ func (a *API) series(w http.ResponseWriter, r *http.Request) {
 	if maxAge > 300 {
 		maxAge = 300
 	}
-	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
+	// A target that is not public is reachable here only by an operator or a
+	// share link, and this line used to announce its measurements as
+	// publicly cacheable with no Vary — so a shared cache could keep them
+	// and hand them to the next visitor who asked for the same URL.
+	if t.Public {
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
+	} else {
+		cachePrivate(w)
+	}
 	writeJSON(w, s)
 }
 
@@ -332,6 +438,9 @@ func (a *API) charts(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = kept
 	}
+	// An operator gets every target here and a visitor the public ones, and
+	// this carried no directive either way.
+	a.cacheByCaller(w, r, 30)
 	writeJSON(w, rows)
 }
 
@@ -425,6 +534,14 @@ func (a *API) eventsPost(w http.ResponseWriter, r *http.Request) {
 // n'a donc jamais besoin de recharger une serie entiere pour rester
 // a jour.
 func (a *API) live(w http.ResponseWriter, r *http.Request) {
+	addr := clientIP(r)
+	if !a.streams.take(addr) {
+		w.Header().Set("Retry-After", "10")
+		cachePrivate(w)
+		writeErr(w, http.StatusServiceUnavailable, "too many live streams")
+		return
+	}
+	defer a.streams.done(addr)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeErr(w, 500, "streaming not supported")
@@ -465,6 +582,20 @@ func (a *API) live(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// What one batch of measurements may weigh, on either road in: the Unix
+// socket the local probe uses and the HTTP endpoint a remote one would.
+// Two different ceilings for the same payload is a difference nobody would
+// discover until a flush the socket accepts is refused over HTTP.
+//
+// A probe that accumulated a backlog while the service was restarting must
+// chunk below maxIngestBatch rather than flush it in one piece. There is no
+// remote probe yet — issuing their tokens is not implemented — so this is
+// written down before there is anything to break.
+const (
+	maxIngestBytes int64 = 64 << 20
+	maxIngestBatch       = 20000
+)
+
 type ingestBody struct {
 	Probe string        `json:"probe"`
 	Seq   int64         `json:"seq"`
@@ -472,12 +603,29 @@ type ingestBody struct {
 }
 
 func (a *API) ingest(w http.ResponseWriter, r *http.Request) {
+	// The token is read before the body, not after. A probe without one can
+	// send nothing, so there is no reason to parse megabytes of JSON from a
+	// caller that is going to be refused — and this endpoint is reachable
+	// from anywhere, unlike the Unix socket the local probe uses. Reported
+	// by @Kofysh in #89.
+	auth := r.Header.Get("Authorization")
+	tok := strings.TrimPrefix(auth, "Bearer ")
+	if !strings.HasPrefix(auth, "Bearer ") || tok == "" {
+		writeErr(w, http.StatusUnauthorized, "a probe token is required")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxIngestBytes)
 	var body ingestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
-	tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if len(body.Batch) > maxIngestBatch {
+		writeErr(w, http.StatusRequestEntityTooLarge,
+			fmt.Sprintf("%d measurements in one batch, the limit is %d: send them in chunks",
+				len(body.Batch), maxIngestBatch))
+		return
+	}
 	var id int64
 	var hash string
 	err := a.store.cfg.QueryRow(

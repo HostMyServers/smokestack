@@ -12,6 +12,8 @@ import (
 	"net/smtp"
 	"net/url"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -91,6 +93,61 @@ func (s *Store) SetChannels(c ChannelSet) error {
 	return s.SetSetting("channels", string(b))
 }
 
+// checkMailAddresses validates the sender and every recipient of a mail
+// channel. mailAddress already refuses a newline and the punctuation that
+// separates header fields — it was written for what a federated peer sends
+// us — and the leading hyphen is the part specific to handing an address to
+// a command: sendmail reads an argument starting with "-" as an option, so a
+// recipient of "-X/tmp/trace@example.net" is a debug flag, not an address.
+func checkMailAddresses(what string, from, to string) (string, error) {
+	f, err := mailAddress(from)
+	if err != nil || strings.HasPrefix(f, "-") {
+		return "", fmt.Errorf("%s needs a valid sender address", what)
+	}
+	list := splitList(to)
+	if len(list) == 0 {
+		return "", fmt.Errorf("%s needs at least one recipient", what)
+	}
+	clean := make([]string, 0, len(list))
+	for _, addr := range list {
+		a, err := mailAddress(addr)
+		if err != nil || strings.HasPrefix(a, "-") {
+			return "", fmt.Errorf("%s recipient %q is not a valid address", what, oneLine(addr, 60))
+		}
+		clean = append(clean, a)
+	}
+	return strings.Join(clean, ", "), nil
+}
+
+// mailCommands are the basenames a mail channel may call. The directory is
+// free, because it is /usr/sbin on Debian, /usr/lib on some others, and a
+// path under /nix/store or /opt in a container or on NixOS — pinning the
+// full path would quietly stop an operator's alerting on upgrade. The
+// basename is not free: the setting is a path this process executes, and
+// "the local mail system" does not include /bin/sh.
+var mailCommands = map[string]bool{
+	"sendmail": true, "msmtp": true, "ssmtp": true, "mail": true, "mailx": true,
+}
+
+func checkMailCommand(path string) error {
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("the mail command must be an absolute path, not %q", oneLine(path, 60))
+	}
+	if path != filepath.Clean(path) || path != oneLine(path, 0) {
+		return fmt.Errorf("the mail command %q is not a plain path", oneLine(path, 60))
+	}
+	if !mailCommands[filepath.Base(path)] {
+		names := make([]string, 0, len(mailCommands))
+		for n := range mailCommands {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		return fmt.Errorf("the mail command must be one of %s, in any directory, not %q",
+			strings.Join(names, ", "), oneLine(filepath.Base(path), 40))
+	}
+	return nil
+}
+
 // checkChannel refuses a channel that could not possibly deliver, rather
 // than letting it fail silently the night it matters.
 func checkChannel(c *Channel) error {
@@ -102,6 +159,9 @@ func checkChannel(c *Channel) error {
 	case ChanSMTP:
 		if c.Host == "" || c.From == "" || strings.TrimSpace(c.To) == "" {
 			return fmt.Errorf("SMTP needs a server, a sender and at least one recipient")
+		}
+		if _, err := checkMailAddresses("SMTP", c.From, c.To); err != nil {
+			return err
 		}
 		if c.Port == 0 {
 			c.Port = 587
@@ -118,8 +178,14 @@ func checkChannel(c *Channel) error {
 		if c.From == "" || strings.TrimSpace(c.To) == "" {
 			return fmt.Errorf("sendmail needs a sender and at least one recipient")
 		}
+		if _, err := checkMailAddresses("sendmail", c.From, c.To); err != nil {
+			return err
+		}
 		if c.Command == "" {
 			c.Command = "/usr/sbin/sendmail"
+		}
+		if err := checkMailCommand(c.Command); err != nil {
+			return err
 		}
 	case ChanWebhook, ChanSlack, ChanTeams:
 		if !strings.HasPrefix(c.URL, "https://") && !strings.HasPrefix(c.URL, "http://") {
@@ -252,14 +318,21 @@ func (c Channel) Send(subject, body string) error {
 }
 
 func (c Channel) sendSMTP(subject, body string) error {
+	toLine, err := checkMailAddresses("SMTP", c.From, c.To)
+	if err != nil {
+		return err
+	}
 	to := splitList(c.To)
+	// mailHeader on the subject: it is built from a target's title, which an
+	// editor can set, and a title carrying a newline would otherwise add
+	// headers of its own to every alert — a Bcc, for instance — on a channel
+	// only an admin is allowed to configure.
 	msg := []byte(fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n"+
 		"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s",
-		c.From, strings.Join(to, ", "), subject, body))
+		c.From, toLine, mailHeader(subject), body))
 	addr := net.JoinHostPort(c.Host, fmt.Sprint(c.Port))
 
 	var conn net.Conn
-	var err error
 	if c.Security == "tls" { // implicit TLS, usually port 465
 		conn, err = tls.Dial("tcp", addr, &tls.Config{ServerName: c.Host})
 	} else {
@@ -311,11 +384,24 @@ func (c Channel) sendSMTP(subject, body string) error {
 // sendSendmail hands the message to the local mail system, for a server
 // that already relays mail and where no SMTP credentials are wanted.
 func (c Channel) sendSendmail(subject, body string) error {
+	// Checked again at send time, not only when the channel is saved: a
+	// channel stored by a version that did not check is read straight out of
+	// the settings and used.
+	toLine, err := checkMailAddresses("sendmail", c.From, c.To)
+	if err != nil {
+		return err
+	}
+	if err := checkMailCommand(c.Command); err != nil {
+		return err
+	}
 	to := splitList(c.To)
 	msg := fmt.Sprintf("From: %s\nTo: %s\nSubject: %s\n"+
 		"MIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\n%s",
-		c.From, strings.Join(to, ", "), subject, body)
-	args := append([]string{"-f", c.From}, to...)
+		c.From, toLine, mailHeader(subject), body)
+	// "--" ends the options, so a recipient is a recipient even if the
+	// validation above is ever loosened. Belt and braces on purpose: this is
+	// a command line built from stored settings.
+	args := append([]string{"-f", c.From, "--"}, to...)
 	cmd := exec.Command(c.Command, args...)
 	cmd.Stdin = strings.NewReader(msg)
 	out, err := cmd.CombinedOutput()

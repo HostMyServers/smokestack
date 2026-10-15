@@ -371,6 +371,8 @@ See [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
 ## Security
 
+**Found something?** Report it privately — *Security → Report a vulnerability* — rather than in an issue or a pull request, which discloses the finding and the affected version to everybody before any instance has upgraded. What is in scope, what helps in a report, and how contributions on the security path are handled: [SECURITY.md](SECURITY.md).
+
 - The web interface is embedded in the binary: no document root, databases
   and keys are never reachable over HTTP.
 - The first admin account requires a one-time setup code.
