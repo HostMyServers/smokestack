@@ -176,6 +176,9 @@ func (a *API) availability(w http.ResponseWriter, r *http.Request) {
 	// whoever knows the address. The back-office still reads it, since it
 	// is where publishing is decided.
 	if !a.store.Site().PublicAvailability && !a.authenticated(r) {
+		// Whether the figure is published is an instance setting an operator
+		// can change, so this 404 must not outlive the change in a cache.
+		cachePrivate(w)
 		writeErr(w, 404, "availability is not published")
 		return
 	}
@@ -186,10 +189,21 @@ func (a *API) availability(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	shared, hasShare := a.shareGrant(r)
-	if t, err := a.store.TargetByID(targetID); err != nil ||
+	t, terr := a.store.TargetByID(targetID)
+	if terr != nil ||
 		(!t.Public && !a.authenticated(r) && !(hasShare && shared == targetID)) {
+		cachePrivate(w)
 		writeErr(w, 404, "target not found")
 		return
+	}
+	// Same rule as a series: the figure reads the same for everyone allowed
+	// to see it, so the target's visibility decides and no Vary is needed.
+	// This endpoint set no directive at all, which left a private target's
+	// availability cacheable by heuristic.
+	if t.Public {
+		w.Header().Set("Cache-Control", "public, max-age=60")
+	} else {
+		cachePrivate(w)
 	}
 	key := fmt.Sprintf("avail|%d|%d", targetID, probeID)
 	if v := availCache.get(key); v != nil {

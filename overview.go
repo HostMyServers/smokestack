@@ -592,6 +592,15 @@ func (a *API) overview(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, 500, err.Error())
 			return
 		}
+		// build() declines rather than fails when it has no store to read
+		// from, returning a nil error without filling the cache — so the
+		// pointer can still be nil here, and dereferencing it below was the
+		// one way its "a nil store must never take the service down" guard
+		// could take a request down.
+		if ovCache.data.Load() == nil || ovCache.gz.Load() == nil {
+			writeErr(w, 503, "the overview is not ready yet")
+			return
+		}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=15")

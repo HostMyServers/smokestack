@@ -423,6 +423,7 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := a.store.TargetByID(id)
 	if err != nil {
+		cachePrivate(w)
 		writeErr(w, 404, "target not found")
 		return
 	}
@@ -430,6 +431,12 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 	if shared, ok := a.shareGrant(r); ok && shared == id {
 		authed = true
 	}
+	// Decided here rather than at the end of the function, which is where it
+	// used to be. The empty path below is an answer too, and it returned
+	// carrying no directive at all — including for a target no visitor may
+	// read, where a shared cache had nothing stopping it from keeping the
+	// answer under the address a visitor uses.
+	cacheByViewer(w, authed, 300)
 	hideAddr := t.HideHost
 	if !authed && (!t.Public || t.HideHost || !a.store.Site().PublicTraceroutes) {
 		writeJSON(w, ASRoute{Path: []ASPathHop{}})
@@ -597,12 +604,6 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 	// traceroutes, and masked addresses when the operator masks them. A
 	// shared cache must not be allowed to keep the authenticated answer
 	// under the address a visitor uses.
-	w.Header().Set("Vary", "Cookie, Authorization")
-	if authed {
-		w.Header().Set("Cache-Control", "no-store")
-	} else {
-		w.Header().Set("Cache-Control", "public, max-age=300")
-	}
 	writeJSON(w, out)
 }
 

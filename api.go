@@ -87,6 +87,45 @@ func writeJSON(w http.ResponseWriter, v any) {
 	}
 }
 
+// The two shapes an answer takes in front of a shared cache, in one place
+// because getting them right endpoint by endpoint is how two of them came to
+// be wrong at once.
+//
+// cacheByCaller is for an answer whose body depends on who asked — a list an
+// operator sees in full and a visitor sees part of. A cache in front of an
+// instance keys on the URL, so it has to be told that these are two answers
+// and that one of them is not for sharing.
+func (a *API) cacheByCaller(w http.ResponseWriter, r *http.Request, maxAge int) {
+	cacheByViewer(w, a.authenticated(r), maxAge)
+}
+
+// cacheByViewer is the same rule where the caller has already worked out
+// whether this viewer is privileged — a share link grants more than being
+// anonymous but less than being signed in, and only the handler knows.
+func cacheByViewer(w http.ResponseWriter, privileged bool, maxAge int) {
+	w.Header().Set("Vary", "Cookie, Authorization")
+	if privileged {
+		cachePrivate(w)
+	} else {
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
+	}
+}
+
+// cachePrivate is for an answer about something a visitor may not read. It
+// covers the 404 as well as the answer: a 404 is cacheable by default, so a
+// visitor's "target not found" could be kept and handed back to the operator
+// whose target it is.
+//
+// Note that it is the target's visibility that decides, not the caller's: a
+// series or an availability figure reads the same for everyone who may see
+// it, so a public target keeps a plain public directive and needs no Vary.
+// That is deliberate — Vary on a public page behind a CDN means one cache
+// entry per visitor, which is the cache turned off on the pages that need it
+// most during an incident.
+func cachePrivate(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "private, no-store")
+}
+
 func writeErr(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
@@ -217,6 +256,11 @@ func (a *API) tree(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, 500, err.Error())
 			return
 		}
+		// Every target, private ones included. This branch returned before
+		// the directive at the end of the function was set, so it carried
+		// none at all — and a 200 with no directive is cacheable by
+		// heuristic, which is the worst of the three possibilities.
+		a.cacheByCaller(w, r, 30)
 		writeJSON(w, cats)
 		return
 	}
@@ -235,7 +279,7 @@ func (a *API) tree(w http.ResponseWriter, r *http.Request) {
 	b := treeCache.data
 	treeCache.Unlock()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=30")
+	a.cacheByCaller(w, r, 30)
 	w.Write(b)
 }
 
@@ -264,8 +308,10 @@ func (a *API) series(w http.ResponseWriter, r *http.Request) {
 	// reponse depuis le cache.
 	// A share token opens exactly one target, and only for reading.
 	shared, hasShare := a.shareGrant(r)
-	if t, err := a.store.TargetByID(targetID); err != nil ||
+	t, terr := a.store.TargetByID(targetID)
+	if terr != nil ||
 		(!t.Public && !a.authenticated(r) && !(hasShare && shared == targetID)) {
+		cachePrivate(w)
 		writeErr(w, 404, "target not found")
 		return
 	}
@@ -309,7 +355,15 @@ func (a *API) series(w http.ResponseWriter, r *http.Request) {
 	if maxAge > 300 {
 		maxAge = 300
 	}
-	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
+	// A target that is not public is reachable here only by an operator or a
+	// share link, and this line used to announce its measurements as
+	// publicly cacheable with no Vary — so a shared cache could keep them
+	// and hand them to the next visitor who asked for the same URL.
+	if t.Public {
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
+	} else {
+		cachePrivate(w)
+	}
 	writeJSON(w, s)
 }
 
@@ -332,6 +386,9 @@ func (a *API) charts(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = kept
 	}
+	// An operator gets every target here and a visitor the public ones, and
+	// this carried no directive either way.
+	a.cacheByCaller(w, r, 30)
 	writeJSON(w, rows)
 }
 
