@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.7.1
+
+A private target's measurements could be kept by a cache in front of the instance and handed to a visitor. **An instance behind a CDN or a caching reverse proxy should take this one**; behind nothing it was never exposed, since a browser caches only for the person using it.
+
+Four smaller holes close with it — a target's title could add headers to every alert email, a sendmail recipient could be a command-line option, a federated double-check resolved its name twice, and the live stream endpoint had no ceiling — along with the route map drawing an exchange over a network the current path skips. Nothing to reconfigure, and no migration.
 
 ### Fixed
 
