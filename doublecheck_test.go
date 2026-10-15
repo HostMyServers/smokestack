@@ -257,15 +257,23 @@ func TestDCAddressChecks(t *testing.T) {
 		"127.0.0.1", "10.0.0.5", "192.168.1.1", "169.254.1.1", "::1",
 		"fe80::1", "224.0.0.1", "localhost", "anything.localhost", "",
 	} {
-		if err := dcCheckAddress(host, 0); err == nil {
+		if _, err := dcResolvePublicIP(host, 0); err == nil {
 			t.Errorf("%q should have been refused", host)
 		}
 	}
 	for _, host := range []string{"198.51.100.10", "203.0.113.1", "2001:db8::1"} {
-		if err := dcCheckAddress(host, 0); err != nil {
+		pin, err := dcResolvePublicIP(host, 0)
+		if err != nil {
 			// 2001:db8:: is documentation space, which is not special-cased
 			// as private, so it must pass the unicast test.
 			t.Errorf("%q should have been accepted: %v", host, err)
+			continue
+		}
+		// The address comes back so that the caller can pin it: a verdict
+		// alone left the probe free to resolve the name again and measure
+		// something else.
+		if pin != host {
+			t.Errorf("%q was validated but %q came back to pin", host, pin)
 		}
 	}
 }
@@ -664,5 +672,35 @@ func TestDCTickClosesExpiredChecks(t *testing.T) {
 	}
 	if !strings.Contains(c.Note, "no report") {
 		t.Errorf("the note should say the peer never reported: %q", c.Note)
+	}
+}
+
+// The guard resolves the name, the probe resolved it again — so a name whose
+// answer changed in between was validated as one address and measured as
+// another. The address the guard accepted is pinned on the target it makes.
+func TestDCTargetIsPinnedToTheValidatedAddress(t *testing.T) {
+	f, _, _, _ := dcPeers(t)
+	c := &DCCheck{ID: "pinned1", Dir: "in", PeerASN: "AS64501", Host: "198.51.100.10",
+		Proto: "icmp", IntervalS: 60, StartedAt: time.Now().Unix(),
+		ExpiresAt: time.Now().Unix() + 900, State: "running"}
+	pin, err := dcResolvePublicIP(c.Host, c.Family)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := f.dcMakeTarget(c, pin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tg, err := f.store.TargetByID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tg.PinIP != "198.51.100.10" {
+		t.Errorf("PinIP = %q, want the address the guard validated; without it the probe "+
+			"resolves the name again every five minutes", tg.PinIP)
+	}
+	// The rest of what makes this target harmless must survive the change.
+	if tg.Public || !tg.AlertsOff || !tg.HideHost || tg.DCCheck != c.ID {
+		t.Errorf("a double-check target must stay private, silent and hidden: %+v", tg)
 	}
 }

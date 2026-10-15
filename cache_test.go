@@ -151,3 +151,48 @@ func TestReadEndpointsTellSharedCachesTheTruth(t *testing.T) {
 	}
 	_ = fmt.Sprint
 }
+
+// An SSE stream holds a goroutine and a poll until the client goes away.
+// Bounding only the total would be its own denial of service: one client
+// opening the ceiling would take the endpoint from everybody.
+func TestLiveStreamsAreBoundedPerAddressAndInTotal(t *testing.T) {
+	var l liveStreams
+	for i := 0; i < maxLivePerAddr; i++ {
+		if !l.take("198.51.100.1") {
+			t.Fatalf("stream %d from one address refused below the per-address cap", i+1)
+		}
+	}
+	if l.take("198.51.100.1") {
+		t.Error("one address went past its cap")
+	}
+	if !l.take("198.51.100.2") {
+		t.Error("a second address was refused because the first had reached its cap")
+	}
+
+	// Giving a stream back frees the slot, and the per-address counter is
+	// dropped rather than left at zero.
+	l.done("198.51.100.2")
+	l.mu.Lock()
+	_, stillThere := l.per["198.51.100.2"]
+	l.mu.Unlock()
+	if stillThere {
+		t.Error("the counter for an address with no stream left is kept")
+	}
+	if !l.take("198.51.100.2") {
+		t.Error("the freed slot was not reusable")
+	}
+
+	// And the total holds, across as many addresses as it takes.
+	var g liveStreams
+	n := 0
+	for i := 0; n < maxLiveTotal+50; i++ {
+		if g.take(fmt.Sprintf("198.51.100.%d", i%256)) {
+			n++
+			continue
+		}
+		break
+	}
+	if n != maxLiveTotal {
+		t.Errorf("accepted %d streams in total, the ceiling is %d", n, maxLiveTotal)
+	}
+}

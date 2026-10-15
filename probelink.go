@@ -88,8 +88,14 @@ func ServeProbeSocket(path string, cache *TargetCache, writer *Writer, probeID i
 	})
 	mux.HandleFunc("POST /probe/v1/measurements", func(w http.ResponseWriter, r *http.Request) {
 		var batch []wireMeasure
-		if err := json.NewDecoder(io.LimitReader(r.Body, 64<<20)).Decode(&batch); err != nil {
+		// The same ceilings as the HTTP ingestion endpoint — see
+		// maxIngestBytes. One payload shape, one limit.
+		if err := json.NewDecoder(io.LimitReader(r.Body, maxIngestBytes)).Decode(&batch); err != nil {
 			writeErr(w, 400, err.Error())
+			return
+		}
+		if len(batch) > maxIngestBatch {
+			writeErr(w, http.StatusRequestEntityTooLarge, "too many measurements in one batch")
 			return
 		}
 		for _, b := range batch {
