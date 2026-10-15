@@ -376,25 +376,28 @@ function draw(cv, s, o) {
 // The route as measured: one box per autonomous system crossed, from this
 // network to the destination. Derived from the traceroutes, so it follows
 // their visibility rules.
-// A link folded onto the next row needs square corners rather than a curve:
-// an orthogonal run with rounded angles, given as the points it passes.
+// A link that cannot curve straight into its box takes square corners: an
+// orthogonal run with rounded angles through the given points, continuing a
+// path that already stands on the first one.
 function elbow(pts, r = 8) {
-  let d = `M${pts[0][0]},${pts[0][1]}`;
+  let d = "";
   for (let i = 1; i < pts.length - 1; i++) {
     const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1];
     const a = Math.min(r, Math.hypot(x - px, y - py) / 2), b = Math.min(r, Math.hypot(nx - x, ny - y) / 2);
     d += ` L${x - Math.sign(x - px) * a},${y - Math.sign(y - py) * a}`;
     d += ` Q${x},${y} ${x + Math.sign(nx - x) * b},${y + Math.sign(ny - y) * b}`;
   }
-  return d + ` L${pts[pts.length - 1][0]},${pts[pts.length - 1][1]}`;
+  const [lx, ly] = pts[pts.length - 1];
+  return d + ` L${lx},${ly}`;
 }
 
 // The map, drawn like a looking-glass bgpmap: one box per autonomous system,
 // left to right from us to the target, arrows for the adjacencies actually
-// observed. The current path is solid, the ones seen earlier are dashed, so a
-// target reached through two transits shows both. A path wider than the
-// column it is drawn in folds onto the next row: scaling the whole map down
-// to fit shrank the names until nothing on it could be read.
+// observed. The current path is solid and runs straight along the top row,
+// the ones seen earlier are dashed beneath it, so a target reached through two
+// transits shows both. A path wider than the column it is drawn in folds onto
+// the next row: scaling the whole map down to fit shrank the names until
+// nothing on it could be read.
 function asGraphSVG(g, avail) {
   // Le serveur numerote les couches par distance et peut en sauter une :
   // un chemin sans AS intermediaire donne 0, 2, 3. Indexer par ce numero
@@ -406,95 +409,147 @@ function asGraphSVG(g, avail) {
   const byLayer = [];
   for (const n of g.nodes) (byLayer[n.layer] = byLayer[n.layer] || []).push(n);
   const layers = byLayer.filter(l => l && l.length);
-  const BW = 150, BH = 44, GY = 18, P = 12, TOP = 12, FOLD = 56;
+  const BW = 150, BH = 44, GY = 18, TOP = 12, FOLD = 56;
   const ixW = ix => (ix.length > 16 ? 16 : ix.length) * 5.9 + 30;
-  // La gouttiere s'ouvre a la largeur du nom le plus long : le point
-  // d'echange est pose au milieu de sa fleche, et doit tenir entre deux
-  // boites sans en couvrir aucune.
-  const GX = Math.max(54, ...(g.edges || []).filter(e => e.ix).map(e => ixW(e.ix) + 12));
-  const perRow = Math.max(2, Math.floor((avail - 2 * P + GX) / (BW + GX)));
-  const bands = [];
-  for (let i = 0; i < layers.length; i += perRow) bands.push(layers.slice(i, i + perRow));
-  const cols = Math.max(1, ...bands.map(b => b.length));
-  const W = cols * BW + (cols - 1) * GX + P * 2;
-  // lane[i] : la voie libre sous la bande i, par ou un lien replie revient.
-  const pos = {}, lane = [];
-  let bottom = TOP;
-  bands.forEach((band, bi) => {
-    const rows = Math.max(1, ...band.map(l => l.length));
-    const bh = rows * BH + (rows - 1) * GY;
-    band.forEach((l, li) => {
-      const colH = l.length * BH + (l.length - 1) * GY;
-      l.forEach((n, ni) => {
-        pos[n.asn] = { x: P + li * (BW + GX), band: bi, y: bottom + (bh - colH) / 2 + ni * (BH + GY) };
-      });
-    });
-    lane.push(bottom + bh + FOLD / 2);
-    bottom += bh + FOLD;
-  });
-  // A folded link runs along the lane under the band it leaves, and its IX
-  // badge is laid on that lane. bottom - FOLD + P leaves the lane under the
-  // *last* band exactly FOLD / 2 - P = 16 px outside the viewBox, so every
-  // folded link out of the last band had its elbow and its badge clipped
-  // away — and on a map short enough to fit one band, that is every link
-  // that is not strictly left to right. Since the map is only drawn when the
-  // route branches, those are the expected links, not the corner case.
-  //
-  // The lanes under earlier bands are well inside the height already, so
-  // this only ever adds room where something is actually drawn down there.
-  const foldedLanes = (g.edges || []).map(e => {
-    const a = pos[e.from], b = pos[e.to];
-    if (!a || !b) return -1;
-    if (a.band === b.band && b.x > a.x + BW) return -1; // runs straight across
-    return lane[a.band];
-  }).filter(y => y >= 0);
-  // 8 is the badge's half-height: ixBadge draws it centred on the lane.
-  const HT = Math.max(bottom - FOLD + P, ...foldedLanes.map(y => y + 8 + P));
-  const labels = []; // drawn last: a name is of no use under a box
-  // Two networks meet somewhere, and the exchange is the one thing a bare
-  // arrow between them never says. It is written on the arrow, in the colour
-  // it carries everywhere else: it is the hop an operator looks for first.
-  const ixBadge = (cx, cy, ix, tip) => {
-    const s = ix.length > 16 ? ix.slice(0, 15) + "…" : ix;
-    const w = ixW(ix);
-    return html`<g class="gixb"><rect x="${cx - w / 2}" y="${cy - 8}" width="${w}" height="16" rx="8"></rect>
-      <text x="${cx}" y="${cy + 3.5}"><tspan class="gixk">IX</tspan><tspan dx="5">${s}</tspan></text>
-      <title>${tip}</title></g>`;
-  };
-  const edges = (g.edges || []).map(e => {
-    const a = pos[e.from], b = pos[e.to];
-    if (!a || !b) return "";
-    const x1 = a.x + BW, y1 = a.y + BH / 2, x2 = b.x, y2 = b.y + BH / 2;
-    const tip = `${e.from} → ${e.to} · ${e.seen}×` + (e.ix ? " · " + t("trace.ix_hint", { ix: e.ix }) : "");
-    let d, lx, ly;
-    if (a.band === b.band && x2 > x1) {
-      const mx = (x1 + x2) / 2;
-      d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
-      lx = mx; ly = (y1 + y2) / 2;
-    } else {
-      // Replie : on sort par la droite, on longe la voie libre sous la
-      // bande, on redescend dans une goulotte entre deux colonnes -- jamais
-      // au travers d'une boite -- et on entre par la gauche.
-      const xr = W - 3, xl = Math.max(3, x2 - GX / 2), yl = lane[a.band];
-      d = elbow([[x1, y1], [xr, y1], [xr, yl], [xl, yl], [xl, y2], [x2, y2]]);
-      lx = (xr + xl) / 2; ly = yl; // pose sur la voie, qui passe derriere
+  const shown = id => id[0] === "?" ? "?" : id; // a silent stretch is keyed by the network before it
+
+  const colOf = {}, slot = {}, onPath = new Set();
+  for (const e of g.edges || []) if (e.current) onPath.add(e.from).add(e.to);
+  const cols = layers.map((l, c) => l.map(n => {
+    colOf[n.asn] = c;
+    slot[n.asn] = { n, c, cur: !!n.origin || onPath.has(n.asn), seen: n.seen, preds: [] };
+    return slot[n.asn];
+  }));
+  // A link that skips columns takes a slot in each of them, as a box would:
+  // drawn straight across, it ran under whatever box stood in the way and
+  // its exchange was written on top of that box.
+  const runs = (g.edges || []).filter(e => slot[e.from] && slot[e.to]).map(e => {
+    const a = colOf[e.from], b = colOf[e.to], pts = [slot[e.from]];
+    for (let c = a + 1; c < b; c++) {
+      const s = { c, cur: !!e.current, seen: e.seen, preds: [], pass: true };
+      cols[c].push(s);
+      pts.push(s);
     }
-    if (e.ix) labels.push(ixBadge(lx, ly, e.ix, tip));
+    pts.push(slot[e.to]);
+    if (b > a) for (let i = 1; i < pts.length; i++) pts[i].preds.push(pts[i - 1]);
+    return { e, pts, back: b <= a };
+  });
+
+  // The current path first, so that it reads as one straight line; the
+  // others beneath, each level with what it comes from.
+  const colH = cols.map(col => {
+    for (const s of col) s.at = s.preds.length ? s.preds.reduce((sum, p) => sum + p.dy, 0) / s.preds.length : Infinity;
+    col.sort((p, q) => (q.cur - p.cur) || (p.at - q.at) || (q.seen - p.seen));
+    let y = 0;
+    col.forEach((s, row) => {
+      const h = s.pass && row ? 8 : BH;
+      s.dy = y + h / 2;
+      y += h + GY;
+    });
+    return y - GY;
+  });
+
+  // A gutter opens to the widest exchange written in it: the badge sits on
+  // its link, between two boxes, and must cover neither.
+  const gw = layers.map(() => 54);
+  for (const { e, back } of runs) if (e.ix && !back) gw[colOf[e.from]] = Math.max(gw[colOf[e.from]], ixW(e.ix) + 12);
+  // A link running back stays on its row: folded, it would have to climb
+  // through the boxes of the row below.
+  const keep = [];
+  for (const { e, back } of runs) if (back) for (let c = colOf[e.to]; c < colOf[e.from]; c++) keep[c] = true;
+  const flat = layers.reduce((w, _, c) => w + BW + (c ? gw[c - 1] : 0), 0);
+  const M = runs.some(r => r.back) || flat + 24 > avail ? 28 : 12; // room for a link going round to turn
+  const bands = [];
+  let used = 0;
+  layers.forEach((_, c) => {
+    const band = bands[bands.length - 1];
+    if (band && (band.length < 2 || keep[c - 1] || used + gw[c - 1] + BW + 2 * M <= avail)) {
+      band.push(c);
+      used += gw[c - 1] + BW;
+    } else {
+      bands.push([c]);
+      used = BW;
+    }
+  });
+  const X = [], bandOf = [];
+  bands.forEach((band, bi) => band.forEach((c, i) => {
+    X[c] = i ? X[c - 1] + BW + gw[c - 1] : M;
+    bandOf[c] = bi;
+  }));
+  const W = Math.max(...bands.map(b => X[b[b.length - 1]] + BW)) + M;
+  const lane = []; // the free run under each row, where a link goes round
+  let HT = TOP;
+  for (const band of bands) {
+    for (const c of band) for (const s of cols[c]) { s.x = X[c]; s.y = HT + s.dy; }
+    HT += Math.max(...band.map(c => colH[c]));
+    lane.push(HT + 18);
+    HT += FOLD;
+  }
+  HT += TOP - FOLD;
+
+  // A link folded onto the next row, or running back, goes round: down the
+  // gutter after its box, along the lane under the row, up the gutter before
+  // the box it enters -- never through one. Each takes its own track, so two
+  // of them never draw a single line.
+  let track = 0;
+  const around = (p, q) => {
+    const k = track++ % 4, ly = lane[bandOf[p.c]] + k * 6;
+    const xo = bandOf[p.c + 1] === bandOf[p.c] ? X[p.c] + BW + gw[p.c] / 2 + k * 5 : W - 6 - k * 4;
+    const xi = bandOf[q.c - 1] === bandOf[q.c] ? X[q.c] - gw[q.c - 1] / 2 - k * 5 : 6 + k * 4;
+    HT = Math.max(HT, ly + 14);
+    return { d: elbow([[p.x + BW, p.y], [xo, p.y], [xo, ly], [xi, ly], [xi, q.y], [q.x, q.y]]), at: [(xo + xi) / 2, ly] };
+  };
+  const badges = [];
+  // The current path is drawn last, over the dashed ones it may share a run with.
+  const edges = runs.sort((r, s) => !!r.e.current - !!s.e.current).map(({ e, pts, back }) => {
+    const tip = `${shown(e.from)} → ${shown(e.to)} · ${e.seen}×` + (e.ix ? " · " + t("trace.ix_hint", { ix: e.ix }) : "");
+    let d = `M${pts[0].x + BW},${pts[0].y}`, at;
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i - 1], q = pts[i];
+      if (back || bandOf[p.c] !== bandOf[q.c]) {
+        const r = around(p, q);
+        d += r.d;
+        at = at || r.at;
+      } else {
+        const mx = (p.x + BW + q.x) / 2;
+        d += ` C${mx},${p.y} ${mx},${q.y} ${q.x},${q.y}`;
+        at = at || [mx, (p.y + q.y) / 2];
+      }
+      if (q.pass) d += ` L${q.x + BW},${q.y}`;
+    }
+    if (e.ix) badges.push({ at, ix: e.ix, tip, cur: !!e.current });
     return html`<path d="${d}" fill="none" stroke="${e.current ? "var(--accent)" : "var(--ink-3)"}"
       stroke-width="${e.current ? 2 : 1.2}" stroke-dasharray="${e.current ? "none" : "4 4"}"
       opacity="${e.current ? 1 : .6}" marker-end="url(#${e.current ? "asarrow" : "asarrowo"})"
       ><title>${tip}</title></path>`;
   });
+  // Two networks meet somewhere, and the exchange is the one thing a bare
+  // arrow between them never says. It is written on the arrow, in the colour
+  // it carries everywhere else: it is the hop an operator looks for first.
+  // Two badges that would land on each other are stacked, the current
+  // path's keeping its place.
+  const placed = [];
+  const labels = badges.sort((a, b) => b.cur - a.cur).map(({ at: [cx, y0], ix, tip }) => {
+    const w = ixW(ix);
+    let cy = y0;
+    while (placed.some(([x, y, pw]) => Math.abs(x - cx) * 2 < w + pw && Math.abs(y - cy) < 18)) cy += 18;
+    placed.push([cx, cy, w]);
+    HT = Math.max(HT, cy + 12);
+    const s = ix.length > 16 ? ix.slice(0, 15) + "…" : ix;
+    return html`<g class="gixb"><rect x="${cx - w / 2}" y="${cy - 8}" width="${w}" height="16" rx="8"></rect>
+      <text x="${cx}" y="${cy + 3.5}"><tspan class="gixk">IX</tspan><tspan dx="5">${s}</tspan></text>
+      <title>${tip}</title></g>`;
+  });
   const boxes = g.nodes.map(n => {
-    const p = pos[n.asn];
+    const p = slot[n.asn];
     const cls = n.unknown ? "gnode gunknown" : n.origin ? "gnode gself" : n.dest ? "gnode gdest" : "gnode";
     const name = n.unknown ? t("detail.as_gap") : (n.name || "");
-    return html`<g class="${cls}" transform="translate(${p.x},${p.y})">
+    return html`<g class="${cls}" transform="translate(${p.x},${p.y - BH / 2})">
       <rect width="${BW}" height="${BH}" rx="9"></rect>
       <text x="9" y="17" class="gasn">${n.unknown ? "?" : n.asn}</text>
       <text x="9" y="31" class="gname">${name.length > 22 ? name.slice(0, 21) + "…" : name}</text>
       ${n.rtt_ms ? html`<text x="${BW - 9}" y="17" class="grtt">${n2(n.rtt_ms) + " ms"}</text>` : ""}
-      <title>${(n.name || n.asn) + (n.seen ? " · " + n.seen + "/" + g.traces + " traceroutes" : "")}</title></g>`;
+      <title>${(n.unknown ? name : n.name || n.asn) + (n.seen ? " · " + n.seen + "/" + g.traces + " traceroutes" : "")}</title></g>`;
   });
   const marker = (id, fill) => html`<marker id="${id}" viewBox="0 0 8 8" refX="7" refY="4"
     markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="${fill}"></path></marker>`;
