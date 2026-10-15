@@ -102,7 +102,7 @@ Options:
 | `--ip IP` | `127.0.0.1` | Listen IP of the web interface: keep it on localhost behind a reverse proxy; `0.0.0.0` (IPv4) or `::` (IPv4 and IPv6) for all interfaces |
 | `--port PORT` | `8080` | Listen port |
 | `--listen IP:PORT` | — | Older combined form of `--ip` and `--port` |
-| `--public-url URL` | — | Public address, used by federation |
+| `--public-url URL` | — | Public address of this instance. It becomes `federation.base_url`, and **pairing refuses to start without it**: a peer needs an address to reach this instance back. Set it later in `/etc/smokestack/config.json` if you skip it here |
 | `--yes` | — | Never ask questions (automation). Questions are also skipped when the script does not run in a terminal |
 | `--lang CODE` | `en` | Default language of the public pages: `en`, `da`, `de`, `es`, `fr`, `it`, `nb`, `nl`, `pt`, `sv` |
 | `--embedded` | — | Run the probe inside the web service (one process, for very small servers) |
@@ -1269,6 +1269,22 @@ Federation links instances run by different operators, so everything that
 crosses it is treated as hostile input. This section says what each rule
 actually buys, because an operator answering to his own security team needs
 more than "it is signed".
+
+### Before any of it works: your own address
+
+Pairing announces where to reach you, so an instance with no address of its
+own cannot pair. Two settings are required on **your** side before you ask
+anybody:
+
+- **`federation.base_url`** in `/etc/smokestack/config.json`, the public
+  address of this instance. `install.sh` writes it from `--public-url`, so an
+  install done without that flag leaves it empty. Set it and restart the
+  service.
+- **your AS number**, in the *Publisher* page of the back-office.
+
+Each is refused with a message naming it. If a peer's instance answers
+`HTTP 400: incomplete request: url is missing`, that is this setting empty on
+the side that sent the request, not a fault at the other end.
 
 ### Pairing: who you are is not what you claim
 
