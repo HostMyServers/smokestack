@@ -2,6 +2,16 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **Pairing failed with `HTTP 400: incomplete request` when the fault was a setting at home.**
+
+  A pairing request announces where to reach you. An instance whose `federation.base_url` is empty announces nothing, and the instance being asked refuses the request as incomplete — so the operator read a 400 from the far end and went looking for a problem at the other operator's. `install.sh` writes that setting from `--public-url`, so **any install done without that flag had it empty** and every pairing attempt failed this way.
+
+  Checked before anything is sent now, beside the AS number, with a message that names the setting and says to restart. The instance being asked also names the missing field rather than counting it, so a request from a version without this check still produces something its sender can act on.
+
 ## 0.7.1
 
 A private target's measurements could be kept by a cache in front of the instance and handed to a visitor. **An instance behind a CDN or a caching reverse proxy should take this one**; behind nothing it was never exposed, since a browser caches only for the person using it.
