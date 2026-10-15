@@ -2,7 +2,11 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.7.2
+
+One fix, for a wall anybody setting up federation could hit: an instance that had never been given its own public address could not pair, and said so in a way that pointed at the wrong operator.
+
+**Take it if you intend to pair with anyone.** It changes nothing else — same measurements, same pages, no migration — and if your instance already pairs, it had the setting all along and this release only makes the failure legible for the next person.
 
 ### Fixed
 
