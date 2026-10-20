@@ -79,7 +79,13 @@ func defaultConfig() Config {
 	}
 }
 
+// configPath is the file the running service was started with, so that a
+// message about a setting can name the file an operator has to open rather
+// than "the configuration file". Set once, at startup.
+var configPath = "/etc/smokestack/config.json"
+
 func loadConfig(path string) (Config, error) {
+	configPath = path
 	c := defaultConfig()
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {

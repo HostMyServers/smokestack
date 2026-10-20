@@ -243,8 +243,17 @@ func (f *Federation) Profile() FedProfile {
 	if org == "" {
 		org = site.Org
 	}
+	// Same fallback as the AS number and the organisation: the
+	// configuration file wins, and the back-office fills the gap. Without
+	// this, federation.base_url was the only way to set the one thing a
+	// pairing request cannot do without, and an operator who installed
+	// without --public-url had nowhere in the interface to supply it.
+	url := f.baseURL
+	if url == "" {
+		url = strings.TrimSuffix(strings.TrimSpace(site.FedURL), "/")
+	}
 	return FedProfile{
-		ASN: asn, Org: org, URL: f.baseURL,
+		ASN: asn, Org: org, URL: url,
 		PubKey:   base64.StdEncoding.EncodeToString(f.pub),
 		Fprint:   f.Fingerprint(),
 		NOCEmail: site.NOCEmail,

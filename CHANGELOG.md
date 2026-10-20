@@ -2,6 +2,32 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### New
+
+- **The address of this instance is set in the back-office.**
+
+  `federation.base_url` in the configuration file was the only way to give an instance the one thing a pairing request cannot do without, and `install.sh` writes it from `--public-url` — which is optional. An operator who installed without that flag could not pair, and had nowhere in the interface to fix it: 0.7.2 named the setting in the refusal, which is no help if you cannot find it.
+
+  *Publisher → Address of this instance*, beside the AS number, saved without a restart. It is deliberately not the **Website** field next to it: that one is the operator's own site and may be a different domain, and announcing it to peers would send them somewhere they cannot reach. An address that is not plainly `http(s)` is refused when saved rather than at the moment somebody tries to use it.
+
+  The file still wins where both are set, the same order the AS number and the organisation already follow — pin it there to keep it out of the interface's reach.
+
+### Fixed
+
+- **Stopping the service left a `smokestack` process running, and the binary could not be replaced.**
+
+  In the default probe mode there are two systemd units running the same executable. Nothing tied them together, so `systemctl stop smokestack` left `smokestack-probe` running — a `smokestack` process in `ps`, holding the binary open, which reads exactly like a service that restarts itself and makes replacing the file fail with *text file busy*.
+
+  The probe unit is now `PartOf=smokestack.service`: stopping or restarting one does the same to the other, and the probe can still be restarted on its own. An instance installed before this keeps its old unit until `install.sh` is re-run; `systemctl stop smokestack smokestack-probe` stops both in the meantime.
+
+  `DEPLOY.md` says so where the installer is described, along with the thing that makes this moot: releases sit side by side under a `current` symlink switched atomically, so an update never needs the service stopped and never overwrites a running binary.
+
+- **The installer said nothing when it left the instance without an address.**
+
+  `--public-url` is optional, and skipping it silently removed any chance of pairing later. The installer now says so at the end, and names where to set it.
+
 ## 0.7.2
 
 One fix, for a wall anybody setting up federation could hit: an instance that had never been given its own public address could not pair, and said so in a way that pointed at the wrong operator.

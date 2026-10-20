@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ed25519"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -81,4 +83,73 @@ func TestPairingNeedsOurOwnAddress(t *testing.T) {
 		t.Errorf("the refusal should name the missing field: %v", err)
 	}
 	t.Logf("far end says: %v", err)
+}
+
+// federation.base_url in a file was the only way to set the one thing a
+// pairing request cannot do without, so an operator who installed without
+// --public-url could not pair and had nowhere in the interface to fix it.
+// The back-office fills the gap, and the file still wins where both are set
+// — the same order as the AS number and the organisation.
+func TestInstanceAddressComesFromTheBackOfficeToo(t *testing.T) {
+	f := newFed(t, "AS64500", "Mine", "") // no base_url, as a plain install has
+	if u := f.Profile().URL; u != "" {
+		t.Fatalf("URL = %q with no base_url and nothing saved", u)
+	}
+
+	site := f.store.Site()
+	site.FedURL = "https://latency.example.net/"
+	if err := f.store.SetSite(site); err != nil {
+		t.Fatal(err)
+	}
+	// Announced without its trailing slash, like a configured one: the
+	// paths are appended to it.
+	if u := f.Profile().URL; u != "https://latency.example.net" {
+		t.Errorf("URL = %q, want the address saved in the back-office", u)
+	}
+
+	// And the file wins when it is set, so an operator who pins it there
+	// cannot have it changed from the interface.
+	g := newFed(t, "AS64500", "Mine", "https://from-the-file.example.net")
+	gs := g.store.Site()
+	gs.FedURL = "https://from-the-back-office.example.net"
+	if err := g.store.SetSite(gs); err != nil {
+		t.Fatal(err)
+	}
+	if u := g.Profile().URL; u != "https://from-the-file.example.net" {
+		t.Errorf("URL = %q, want the configured one to win", u)
+	}
+}
+
+// An address a peer cannot reach is worse than none: it is announced in a
+// pairing request and fetched back by whoever is asked.
+func TestInstanceAddressIsCheckedWhenSaved(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	api := &API{store: store, token: "secret", probeID: 1}
+
+	save := func(v string) int {
+		body, _ := json.Marshal(Site{Title: "T", FedURL: v})
+		req := httptest.NewRequest("PUT", "/api/v1/site", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer secret")
+		w := httptest.NewRecorder()
+		api.sitePut(w, req)
+		return w.Code
+	}
+	for _, c := range []struct {
+		v    string
+		want int
+	}{
+		{"https://latency.example.net", 200},
+		{"", 200}, // empty is allowed: the file may carry it
+		{"not a url", 400},
+		{"ftp://latency.example.net", 400},
+		{"javascript:alert(1)", 400},
+	} {
+		if got := save(c.v); got != c.want {
+			t.Errorf("saving %q returned %d, want %d", c.v, got, c.want)
+		}
+	}
 }

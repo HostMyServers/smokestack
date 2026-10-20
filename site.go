@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -38,12 +39,22 @@ type Site struct {
 	ShowEmail     bool          `json:"show_email"`
 	ContactNotify string        `json:"contact_notify,omitempty"` // never public
 	URL           string        `json:"url"`
-	PeeringDB     string        `json:"peeringdb"`
-	Location      string        `json:"location"`
-	Description   string        `json:"description"`
-	Legal         string        `json:"legal"`
-	Timezone      string        `json:"timezone"`
-	DefaultLang   string        `json:"default_lang"`
+	// FedURL : l'adresse publique de cette instance, celle qu'un pair doit
+	// pouvoir joindre. Distincte de URL, qui est le site de l'operateur et
+	// peut etre un tout autre domaine.
+	//
+	// It exists because federation.base_url in the configuration file was
+	// the only way to set it: an operator who installed without
+	// --public-url could not pair and had nowhere in the interface to fix
+	// it. The configuration file still wins when both are set, exactly as
+	// it does for the AS number and the organisation.
+	FedURL      string `json:"fed_url"`
+	PeeringDB   string `json:"peeringdb"`
+	Location    string `json:"location"`
+	Description string `json:"description"`
+	Legal       string `json:"legal"`
+	Timezone    string `json:"timezone"`
+	DefaultLang string `json:"default_lang"`
 	// PublicTraceroutes shows anomaly traceroutes on public pages. Off by
 	// default: hops reveal the inside of the operator's network.
 	PublicTraceroutes bool `json:"public_traceroutes"`
@@ -190,6 +201,18 @@ func (a *API) sitePut(w http.ResponseWriter, r *http.Request) {
 	// Des seuils vides ou incoherents reprennent les valeurs livrees plutot
 	// que de rendre chaque cible « ok » en toutes circonstances.
 	v.Thresholds = v.Thresholds.orDefaults()
+	// An address a peer cannot reach is worse than none: it would be
+	// announced in a pairing request and fetched back by whoever is asked.
+	// safeFedURL is the same check the pairing code applies to a peer's.
+	v.FedURL = strings.TrimSpace(v.FedURL)
+	if v.FedURL != "" {
+		clean, err := safeFedURL(v.FedURL)
+		if err != nil {
+			writeErr(w, 400, fmt.Sprintf("instance address: %v", err))
+			return
+		}
+		v.FedURL = clean
+	}
 	if err := a.store.SetSite(v); err != nil {
 		writeErr(w, 500, err.Error())
 		return
