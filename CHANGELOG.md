@@ -2,7 +2,13 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.7.3
+
+Three things an operator ran into on a real instance, which turned out to be three defects rather than three mistakes on his side.
+
+He could not stop the service, so he could not replace the binary; he could not find where to set the address an instance announces to its peers, because there was nowhere to set it but a file; and the installer had said nothing when it left him without one.
+
+**Nothing to reconfigure, and no migration.** An instance installed before this keeps its old probe unit until `install.sh` is re-run — until then, `systemctl stop smokestack smokestack-probe` stops both.
 
 ### New
 
