@@ -424,7 +424,11 @@ if [ -n "$CREDS" ]; then
 fi
 [ -n "$LANGS" ] && echo "    languages      $LANGS"
 [ -n "$DEFLANG" ] && echo "                   public pages default to $DEFLANG (change: smokestack languages -default CODE)"
-echo "    services       smokestack" $( [ "$MODE" = external ] && echo "and smokestack-probe (stopping the first stops both)" )
+SVCS="smokestack"
+if [ "$MODE" = external ]; then
+  SVCS="smokestack and smokestack-probe (stopping the first stops both)"
+fi
+echo "    services       $SVCS"
 echo "    logs           journalctl -u smokestack -u smokestack-probe -f"
 echo "    update         sudo smokestack update smokestack-X.Y.Z-linux-$ARCH.zip   (or from the back-office)"
 if [ -z "$PUBLIC_URL" ] && [ "$FRESH" -eq 1 ]; then
