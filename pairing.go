@@ -238,9 +238,13 @@ func (f *Federation) RequestPairing(in PairingInput) (*PairingRequest, error) {
 	// flag has it empty and every pairing attempt failed with a 400 from
 	// whoever was being asked.
 	if me.URL == "" {
-		return nil, fmt.Errorf("set the public address of this instance before pairing: " +
-			"federation.base_url in the configuration file, then restart the service. " +
-			"A peer needs it to reach this instance back")
+		// The file is named, because "the configuration file" sent the last
+		// operator who met this message looking for a setting he could not
+		// find. The back-office field is named first: it needs no file and
+		// no restart.
+		return nil, fmt.Errorf("set the public address of this instance before pairing: "+
+			"Publisher → Address of this instance, or federation.base_url in %s "+
+			"followed by a restart. A peer needs it to reach this instance back", configPath)
 	}
 	if base == me.URL {
 		return nil, fmt.Errorf("this is the URL of this instance")
@@ -362,7 +366,8 @@ func (f *Federation) HandlePairingRequest(r *http.Request) (*PairingRequest, err
 	}{{"token", in.Token}, {"asn", in.ASN}, {"url", in.URL}, {"pubkey", in.PubKey}} {
 		if m.value == "" {
 			return nil, fmt.Errorf("incomplete request: %s is missing. If this is your "+
-				"instance, check federation.base_url and your AS number", m.field)
+				"instance, set its address in Publisher → Address of this instance, "+
+				"and check your AS number on the same page", m.field)
 		}
 	}
 	just, err := checkJustification(in.Justification)
