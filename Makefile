@@ -41,7 +41,7 @@ STATICCHECK_VERSION ?= v0.8.1
 # The current patch of the 1.26 line. Behind by a patch it reports a standard
 # library fix as still missing, which is a false alarm rather than a silence,
 # so it is worth bumping but not urgent.
-AUDIT_TOOLCHAIN ?= go1.26.9
+AUDIT_TOOLCHAIN ?= go1.26.10
 
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) \
            -X main.OfficialURL=$(OFFICIAL_URL) -X main.RepoURL=$(REPO_URL)

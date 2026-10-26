@@ -2,6 +2,14 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### Fixed
+
+- **The binaries are built with Go 1.26.10, which refuses certificates issued through compromised intermediates.**
+
+  Go verifies certificates against the system's roots, and a system whose trust store has not been updated still accepts the intermediate authorities since found to be untrustworthy. 1.26.10 adds a denylist of them to `crypto/x509` (GO-2026-6809). Every verified TLS connection an instance opens goes through it: the update check and download, federation, the S3 archive, webhooks, SMTP, and the certificate check of HTTPS targets, which would report a certificate chained through one of them as valid. 0.6.13 was built with 1.26.9 and lacks the denylist. The Monday audit is what reported it.
+
 ## 0.6.13
 
 The route map reads right again on targets reached through more than one path. A link that skips a network no longer runs under its box with its exchange written over it, and silent routers on both sides of a transit no longer turn the path into a loop drawn half outside the frame.
