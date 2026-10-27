@@ -169,6 +169,28 @@ func (s *Store) SetProbeEnabled(id int64, on bool) error {
 	return nil
 }
 
+// ProbeByToken resolves a probe from the token it presented. The lookup is on
+// the hash rather than on the token, exactly as a share link resolves: what
+// the database holds is not the secret, so comparing on it gives away nothing
+// worth timing.
+//
+// A disabled probe resolves to nothing, which is what makes disabling it stop
+// the measurements rather than merely hide it. So does the local probe, which
+// has no token and must stay reachable through the socket alone.
+func (s *Store) ProbeByToken(tok string) (int64, bool) {
+	if len(tok) < 16 {
+		return 0, false
+	}
+	var id int64
+	err := s.cfg.QueryRow(
+		`SELECT id FROM probes WHERE token_hash=? AND enabled=1 AND local=0`,
+		hashToken(tok)).Scan(&id)
+	if err != nil {
+		return 0, false
+	}
+	return id, true
+}
+
 // ------------------------------------------------------------------ API
 
 func (a *API) probesGet(w http.ResponseWriter, r *http.Request, u *User) {

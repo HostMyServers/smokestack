@@ -29,6 +29,12 @@ type ProbeConfig struct {
 	// processus (`smokestack probe`), isolee de l'interface web.
 	Mode   string `json:"mode"`
 	Socket string `json:"socket"`
+	// Set on a probe that runs on another machine: the service's base URL
+	// (https only) and the token issued for it by `smokestack probe token`.
+	// Left empty, the probe talks to the service beside it over the socket,
+	// which is what every existing installation does.
+	Server string `json:"server"`
+	Token  string `json:"token"`
 	// Traceroute on anomalies (on by default).
 	Traceroute TracerouteConfig `json:"traceroute"`
 	Slug       string           `json:"slug"`
@@ -325,6 +331,12 @@ func main() {
 	}
 	api.initSetupCode(cfg.DataDir)
 	mux := http.NewServeMux()
+	// The probe protocol, reachable from the network for probes that run
+	// elsewhere. It is the same three endpoints the Unix socket serves, and
+	// every one of them refuses a request whose token resolves to nothing,
+	// so on an instance where no token was ever issued this registers routes
+	// that answer 401 and nothing else.
+	ProbeRoutes(mux, store, targets, writer)
 	api.Routes(mux)
 	api.AuthRoutes(mux)
 	api.FedRoutes(mux)
