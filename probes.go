@@ -18,11 +18,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 )
 
 // A probe as the back-office sees it. Token is filled on the one response
@@ -38,6 +40,30 @@ type Probe struct {
 	LastSeenAt int64  `json:"last_seen_at"`
 	HasToken   bool   `json:"has_token"`
 	Token      string `json:"token,omitempty"`
+
+	// Where it measures from. SeenAddress is observed when the probe
+	// connects; Address is what the operator stated and wins when set.
+	// Address is the repair for the two cases observation gets wrong: a probe
+	// behind NAT, and an instance behind a reverse proxy, where what arrives
+	// is the proxy rather than the probe.
+	Address     string `json:"address"`
+	SeenAddress string `json:"seen_address"`
+	// Derived, never stored: the address actually used, and the AS it falls
+	// in. The AS is resolved from the lookup service's cache at read time, so
+	// it follows a renumbering without a column to keep in step.
+	From string `json:"from,omitempty"`
+	ASN  string `json:"asn,omitempty"`
+}
+
+// EffectiveAddress is the stated address when there is one, the observed
+// address otherwise. Everything that needs to know where a probe measures
+// from asks this rather than picking a column, so the precedence is written
+// once.
+func (p Probe) EffectiveAddress() string {
+	if a := strings.TrimSpace(p.Address); a != "" {
+		return a
+	}
+	return strings.TrimSpace(p.SeenAddress)
 }
 
 // The slug identifies the probe in the ingest body and will end up in URLs
@@ -64,7 +90,8 @@ func validProbeSlug(s string) error {
 func (s *Store) Probes() ([]Probe, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id, slug, name, COALESCE(location,''), local, enabled,
-		        COALESCE(last_seen_at,0), COALESCE(token_hash,'') <> ''
+		        COALESCE(last_seen_at,0), COALESCE(token_hash,'') <> '',
+		        COALESCE(address,''), COALESCE(seen_address,'')
 		   FROM probes ORDER BY local DESC, slug`)
 	if err != nil {
 		return nil, err
@@ -75,10 +102,11 @@ func (s *Store) Probes() ([]Probe, error) {
 		var p Probe
 		var local, enabled, hasTok int
 		if err := rows.Scan(&p.ID, &p.Slug, &p.Name, &p.Location,
-			&local, &enabled, &p.LastSeenAt, &hasTok); err != nil {
+			&local, &enabled, &p.LastSeenAt, &hasTok, &p.Address, &p.SeenAddress); err != nil {
 			return nil, err
 		}
 		p.Local, p.Enabled, p.HasToken = local == 1, enabled == 1, hasTok == 1
+		p.From = p.EffectiveAddress()
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -169,6 +197,37 @@ func (s *Store) SetProbeEnabled(id int64, on bool) error {
 	return nil
 }
 
+// SeenProbeFrom records that a probe just spoke to us, and from where. It is
+// the network path's version of TouchProbe: the local probe reaches the
+// service through a Unix socket and has no remote address worth recording, so
+// its own path is left exactly as it was.
+//
+// The address is written on every call rather than only when it changes,
+// because the row is being updated for last_seen_at regardless and a
+// comparison would cost a read to save nothing.
+func (s *Store) SeenProbeFrom(id int64, addr string) {
+	s.cfg.Exec(`UPDATE probes SET last_seen_at=?, seen_address=? WHERE id=?`,
+		time.Now().Unix(), strings.TrimSpace(addr), id)
+}
+
+// SetProbeAddress states where a probe measures from, overriding what the
+// service observes. An empty value clears the override and hands the question
+// back to observation.
+func (s *Store) SetProbeAddress(id int64, addr string) error {
+	addr = strings.TrimSpace(addr)
+	if addr != "" && net.ParseIP(addr) == nil {
+		return fmt.Errorf("%q is not an IP address", addr)
+	}
+	res, err := s.cfg.Exec(`UPDATE probes SET address=? WHERE id=?`, addr, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("unknown probe")
+	}
+	return nil
+}
+
 // ProbeByToken resolves a probe from the token it presented. The lookup is on
 // the hash rather than on the token, exactly as a share link resolves: what
 // the database holds is not the secret, so comparing on it gives away nothing
@@ -199,6 +258,23 @@ func (a *API) probesGet(w http.ResponseWriter, r *http.Request, u *User) {
 		writeErr(w, 500, err.Error())
 		return
 	}
+	// The AS is read from the lookup service's cache rather than stored, so a
+	// probe that is renumbered is right again on its own. A miss schedules
+	// the lookup and leaves the field empty for now; nothing here waits on
+	// the network while an operator is looking at a page.
+	if a.asn != nil {
+		for i := range list {
+			addr := list[i].From
+			if addr == "" {
+				continue
+			}
+			if as, ok := a.asn.ASNOfIP(addr); ok {
+				list[i].ASN = as
+			} else {
+				go a.asn.RefreshIPASN(addr)
+			}
+		}
+	}
 	writeJSON(w, map[string]any{"probes": list})
 }
 
@@ -207,15 +283,29 @@ func (a *API) probesPost(w http.ResponseWriter, r *http.Request, u *User) {
 		Slug     string `json:"slug"`
 		Name     string `json:"name"`
 		Location string `json:"location"`
+		Address  string `json:"address"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeErr(w, 400, err.Error())
+		return
+	}
+	// Checked before the probe exists rather than after: a malformed address
+	// should not leave a half-made probe behind for the operator to clean up.
+	if addr := strings.TrimSpace(in.Address); addr != "" && net.ParseIP(addr) == nil {
+		writeErr(w, 400, fmt.Sprintf("%q is not an IP address", addr))
 		return
 	}
 	p, err := a.store.CreateProbe(in.Slug, in.Name, in.Location)
 	if err != nil {
 		writeErr(w, 400, err.Error())
 		return
+	}
+	if strings.TrimSpace(in.Address) != "" {
+		if err := a.store.SetProbeAddress(p.ID, in.Address); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		p.Address = strings.TrimSpace(in.Address)
 	}
 	a.store.Audit(u, clientIP(r), "probe_create", "probe", p.Slug)
 	writeJSON(w, p)
@@ -257,25 +347,38 @@ func (a *API) probesPatch(w http.ResponseWriter, r *http.Request, u *User) {
 		return
 	}
 	var in struct {
-		Enabled *bool `json:"enabled"`
+		Enabled *bool   `json:"enabled"`
+		Address *string `json:"address"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
-	if in.Enabled == nil {
+	if in.Enabled == nil && in.Address == nil {
 		writeErr(w, 400, "nothing to change")
 		return
 	}
-	if err := a.store.SetProbeEnabled(id, *in.Enabled); err != nil {
-		writeErr(w, 400, err.Error())
-		return
+	// A pointer rather than a string, so that clearing the override is
+	// expressible: an absent field changes nothing, an empty one hands the
+	// question back to what the service observes.
+	if in.Address != nil {
+		if err := a.store.SetProbeAddress(id, *in.Address); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		a.store.Audit(u, clientIP(r), "probe_address", "probe", strconv.FormatInt(id, 10))
 	}
-	action := "probe_disable"
-	if *in.Enabled {
-		action = "probe_enable"
+	if in.Enabled != nil {
+		if err := a.store.SetProbeEnabled(id, *in.Enabled); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		action := "probe_disable"
+		if *in.Enabled {
+			action = "probe_enable"
+		}
+		a.store.Audit(u, clientIP(r), action, "probe", strconv.FormatInt(id, 10))
 	}
-	a.store.Audit(u, clientIP(r), action, "probe", strconv.FormatInt(id, 10))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -295,6 +398,7 @@ func cmdProbe(args []string) error {
 	slug := fsn.String("slug", "", "probe slug")
 	name := fsn.String("name", "", "display name")
 	location := fsn.String("location", "", "where it measures from")
+	address := fsn.String("address", "", "its public IP, when the observed one would be wrong (NAT, reverse proxy)")
 	withToken := fsn.Bool("token", false, "issue a token straight away (add only)")
 	fsn.Parse(args[1:])
 
@@ -330,7 +434,7 @@ func cmdProbe(args []string) error {
 			return err
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "SLUG\tNAME\tLOCATION\tKIND\tSTATE\tTOKEN")
+		fmt.Fprintln(w, "SLUG\tNAME\tLOCATION\tFROM\tKIND\tSTATE\tTOKEN")
 		for _, p := range list {
 			kind, state, tok := "remote", "disabled", "none"
 			if p.Local {
@@ -344,7 +448,13 @@ func cmdProbe(args []string) error {
 			} else if p.Local {
 				tok = "n/a"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", p.Slug, p.Name, p.Location, kind, state, tok)
+			from := p.From
+			if from == "" {
+				from = "—"
+			} else if p.Address != "" {
+				from += " (stated)"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Slug, p.Name, p.Location, from, kind, state, tok)
 		}
 		return w.Flush()
 
@@ -354,6 +464,11 @@ func cmdProbe(args []string) error {
 			return err
 		}
 		store.Audit(nil, "cli", "probe_create", "probe", p.Slug)
+		if strings.TrimSpace(*address) != "" {
+			if err := store.SetProbeAddress(p.ID, *address); err != nil {
+				return err
+			}
+		}
 		fmt.Printf("probe registered: %s\n", p.Slug)
 		if !*withToken {
 			fmt.Printf("it cannot send anything yet: run `smokestack probe token -slug %s` to issue one\n", p.Slug)

@@ -271,6 +271,15 @@ func OpenStore(dir string) (*Store, error) {
 	} {
 		addColumn(cfg, "categories", c)
 	}
+	// Where a probe measures from, in two columns rather than one. seen_address
+	// is what the service observes when the probe connects, which is right
+	// without anyone filling anything in; address is what the operator states,
+	// for the cases the observation gets wrong — a probe behind NAT, or an
+	// instance behind a reverse proxy, where what arrives is the proxy. The
+	// stated one wins when it is set, so the automatic case stays automatic
+	// and the awkward case stays repairable.
+	addColumn(cfg, "probes", "address TEXT NOT NULL DEFAULT ''")
+	addColumn(cfg, "probes", "seen_address TEXT NOT NULL DEFAULT ''")
 	migrateTCPPorts(cfg)
 	migratePathEventScope(cfg)
 

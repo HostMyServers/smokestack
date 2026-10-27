@@ -154,7 +154,9 @@ func ProbeRoutes(mux *http.ServeMux, store *Store, cache *TargetCache, writer *W
 		}
 		id, ok := store.ProbeByToken(strings.TrimPrefix(auth, "Bearer "))
 		if ok {
-			store.TouchProbe(id)
+			// Records both that it spoke and where from. This is the only
+			// place the service learns a remote probe's address on its own.
+			store.SeenProbeFrom(id, clientIP(r))
 		}
 		return id, ok
 	})
