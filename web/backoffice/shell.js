@@ -18,6 +18,7 @@ const NAV=[
   {id:"certs",  label:"TLS certificates", min:3},
   {id:"channels", label:"Notification channels", min:3},
   {grp:"Instance"},
+  {id:"probes", label:"Probes", min:3},
   {id:"storage",label:"Storage", min:3},
   {id:"site",   label:"Publisher page", min:3},
   {id:"net",    label:"Host network", min:3},
@@ -117,6 +118,6 @@ async function changePassword(){
 function render(){
   const m=$("#main");
   const views={dash:viewDash,dc:viewDC,targets:viewTargets,traces:viewTraces,maint:viewMaint,messages:viewMessages,alerts:viewAlerts,certs:viewCerts,channels:viewChannels,fed:viewFed,notify:viewNotify,
-    break:viewBreak,storage:viewStorage,site:viewSite,net:viewNet,langs:viewLangs,update:viewUpdate,users:viewUsers,shares:viewShares,logs:viewLogs,audit:viewAudit};
+    break:viewBreak,probes:viewProbes,storage:viewStorage,site:viewSite,net:viewNet,langs:viewLangs,update:viewUpdate,users:viewUsers,shares:viewShares,logs:viewLogs,audit:viewAudit};
   return (views[VIEW]||viewDash)(m);
 }
