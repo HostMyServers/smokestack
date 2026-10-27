@@ -191,3 +191,109 @@ func TestProbeListNeverShipsTheHash(t *testing.T) {
 		t.Error("the listing does not say the probe has a token")
 	}
 }
+
+// Where a probe measures from is observed by default and stated when the
+// observation would be wrong. The precedence is the whole feature, so it is
+// pinned in both directions: stating wins, clearing hands it back.
+func TestProbeAddressPrefersWhatTheOperatorStated(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	mux := http.NewServeMux()
+	ProbeRoutes(mux, store, NewTargetCache(store), NewWriter(store, nil))
+
+	p, err := store.CreateProbe("remote-1", "Remote 1", "Lyon, FR")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, err := store.IssueProbeToken(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	only := func() Probe {
+		list, err := store.Probes()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, x := range list {
+			if x.ID == p.ID {
+				return x
+			}
+		}
+		t.Fatal("the probe disappeared from the listing")
+		return Probe{}
+	}
+
+	// Nothing observed and nothing stated: no answer rather than a wrong one.
+	if got := only().From; got != "" {
+		t.Errorf("a probe that never connected reports %q, want empty", got)
+	}
+
+	// Connecting is what teaches the service the address.
+	r := httptest.NewRequest("GET", "/probe/v1/targets", nil)
+	r.Header.Set("Authorization", "Bearer "+tok)
+	r.RemoteAddr = "198.51.100.9:40000"
+	mux.ServeHTTP(httptest.NewRecorder(), r)
+
+	if got := only().SeenAddress; got != "198.51.100.9" {
+		t.Errorf("observed address %q, want 198.51.100.9", got)
+	}
+	if got := only().From; got != "198.51.100.9" {
+		t.Errorf("with nothing stated, from is %q, want the observed address", got)
+	}
+
+	// Stating one overrides it, which is the point: behind NAT, what arrives
+	// is not where the probe measures from.
+	if err := store.SetProbeAddress(p.ID, "203.0.113.4"); err != nil {
+		t.Fatal(err)
+	}
+	if got := only().From; got != "203.0.113.4" {
+		t.Errorf("the stated address did not win: from is %q", got)
+	}
+	if got := only().SeenAddress; got != "198.51.100.9" {
+		t.Errorf("stating an address overwrote the observed one: %q", got)
+	}
+
+	// A later connection still updates what is observed, so clearing the
+	// override later lands on something current rather than something stale.
+	r2 := httptest.NewRequest("GET", "/probe/v1/targets", nil)
+	r2.Header.Set("Authorization", "Bearer "+tok)
+	r2.RemoteAddr = "198.51.100.77:40001"
+	mux.ServeHTTP(httptest.NewRecorder(), r2)
+	if got := only().From; got != "203.0.113.4" {
+		t.Errorf("a new connection overrode the stated address: from is %q", got)
+	}
+
+	// Clearing hands the question back to observation.
+	if err := store.SetProbeAddress(p.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := only().From; got != "198.51.100.77" {
+		t.Errorf("after clearing, from is %q, want the most recent observed address", got)
+	}
+}
+
+func TestProbeAddressMustBeAnAddress(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	p, err := store.CreateProbe("remote-1", "Remote 1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"not-an-ip", "example.org", "203.0.113.999", "203.0.113.4/32", "203.0.113.4:80"} {
+		if err := store.SetProbeAddress(p.ID, bad); err == nil {
+			t.Errorf("%q was accepted as an address", bad)
+		}
+	}
+	for _, ok := range []string{"203.0.113.4", "2001:db8::1", "  203.0.113.5  "} {
+		if err := store.SetProbeAddress(p.ID, ok); err != nil {
+			t.Errorf("%q was refused: %v", ok, err)
+		}
+	}
+}

@@ -11,6 +11,9 @@ async function viewProbes(m){
       <div class="field"><label>Slug</label><input id="pslug" class="mono" placeholder="paris-1" autocomplete="off"></div>
       <div class="field"><label>Name</label><input id="pname" placeholder="Paris 1" autocomplete="off"></div>
       <div class="field"><label>Location</label><input id="ploc" placeholder="Paris, FR" autocomplete="off"></div>
+      <div class="field"><label>Address (optional)</label><input id="paddr" class="mono" placeholder="203.0.113.7" autocomplete="off">
+        <div class="note" style="margin-top:6px">Only needed when the observed address would be wrong: a probe behind NAT, or an instance behind a reverse proxy, where what arrives is the proxy.
+          Leave empty to use the address seen when the probe connects.</div></div>
       <button class="btn p" id="padd">Add probe</button>
       <div class="note" style="margin-top:12px">The slug takes lowercase letters, digits and inner hyphens, 2 to 39 characters.
         A new probe has no token and cannot send anything until you issue one.</div>
@@ -31,21 +34,32 @@ async function viewProbes(m){
     let list;
     try{list=(await api("GET","/api/v1/admin/probes")).probes||[];}
     catch(e){H.render($("#pl"),html`${tokenCard(issued)}<div class="note">${e.message}</div>`);return;}
+    // Where the probe measures from. A non-empty `address` is the operator's statement and overrides what was observed; `from` is already resolved server-side.
+    const fromCell=p=>{
+      const shown=p.from||p.address||p.seen_address;
+      if(!shown) return html`—`;
+      return html`<span class="mono">${shown}</span>${p.asn?html` <span class="badge b-n">${p.asn}</span>`:""}
+        ${p.address?html` <span class="badge b-n">stated</span>`:""}
+        ${p.address&&p.seen_address&&p.seen_address!==p.address?html`<div style="font-size:11.5px;color:var(--ink3)">observed: <span class="mono">${p.seen_address}</span></div>`:""}`;
+    };
     const row=p=>html`<tr>
       <td class="mono">${p.slug}</td><td>${p.name}</td><td>${p.location||"—"}</td>
       <td>${dt(p.last_seen_at)}</td>
+      <td>${fromCell(p)}</td>
       <td>${p.local?html`<span class="badge b-n">local</span> `:""}
         ${p.enabled?html`<span class="badge b-ok">enabled</span>`:html`<span class="badge b-warn">disabled</span>`}
         ${p.local?"":p.has_token?html` <span class="badge b-ok">token set</span>`:html` <span class="badge b-crit">no token</span>`}</td>
       <td class="acts">${p.local?"":html`
         <button class="btn s" data-tok="${p.id}" data-slug="${p.slug}" data-had="${p.has_token?"1":"0"}">${p.has_token?"Rotate token":"Issue token"}</button>
         ${p.has_token?html`<button class="btn d s" data-rev="${p.id}" data-slug="${p.slug}">Revoke token</button>`:""}
+        <button class="btn s" data-addr="${p.id}" data-slug="${p.slug}" data-cur="${p.address||""}">Set address</button>
+        ${p.address?html`<button class="btn s" data-addr-clear="${p.id}" data-slug="${p.slug}">Use observed</button>`:""}
         <button class="btn s" data-en="${p.id}" data-to="${p.enabled?"0":"1"}">${p.enabled?"Disable":"Enable"}</button>`}</td>
       </tr>`;
     H.render($("#pl"),html`
       ${tokenCard(issued)}
       <div class="card"><h3>Registered probes</h3><div class="body">
-        ${list.length?html`<table><thead><tr><th>Slug</th><th>Name</th><th>Location</th><th>Last seen</th><th>State</th><th></th></tr></thead>
+        ${list.length?html`<table><thead><tr><th>Slug</th><th>Name</th><th>Location</th><th>Last seen</th><th>Measures from</th><th>State</th><th></th></tr></thead>
           <tbody>${list.map(row)}</tbody></table>`:html`<div class="empty">No probe.</div>`}
       </div></div>`);
     document.querySelectorAll("[data-tok]").forEach(b=>b.onclick=async()=>{
@@ -60,6 +74,22 @@ async function viewProbes(m){
       try{await api("DELETE","/api/v1/admin/probes/"+b.dataset.rev+"/token");toast("Token revoked");await load();}
       catch(e){toast(e.message,true);}
     });
+    // `address` is sent only when the operator actually edited it: an absent field changes nothing, an empty string clears the override.
+    const patchAddr=async(id,address)=>{
+      try{await api("PATCH","/api/v1/admin/probes/"+id,{address});toast(address===""?"Stated address cleared":"Address saved");await load();}
+      catch(e){toast(e.message,true);}
+    };
+    document.querySelectorAll("[data-addr]").forEach(b=>b.onclick=()=>{
+      const v=prompt("Address of "+b.dataset.slug+" (an IP address). Leave empty to use the observed address.",b.dataset.cur);
+      if(v===null) return; // cancelled: nothing edited, nothing sent
+      const next=v.trim();
+      if(next===b.dataset.cur) return; // unchanged: do not send the field
+      patchAddr(b.dataset.addr,next);
+    });
+    document.querySelectorAll("[data-addr-clear]").forEach(b=>b.onclick=()=>{
+      if(!confirm("Clear the stated address of "+b.dataset.slug+"? The observed address will be used.")) return;
+      patchAddr(b.dataset.addrClear,"");
+    });
     document.querySelectorAll("[data-en]").forEach(b=>b.onclick=async()=>{
       const on=b.dataset.to==="1";
       try{await api("PATCH","/api/v1/admin/probes/"+b.dataset.en,{enabled:on});toast(on?"Probe enabled":"Probe disabled");await load();}
@@ -69,8 +99,11 @@ async function viewProbes(m){
 
   $("#padd").onclick=async()=>{
     try{
-      await api("POST","/api/v1/admin/probes",{slug:$("#pslug").value,name:$("#pname").value,location:$("#ploc").value});
-      ["#pslug","#pname","#ploc"].forEach(s=>$(s).value="");
+      const body={slug:$("#pslug").value,name:$("#pname").value,location:$("#ploc").value};
+      const addr=$("#paddr").value.trim();
+      if(addr) body.address=addr; // optional: omitted when empty
+      await api("POST","/api/v1/admin/probes",body);
+      ["#pslug","#pname","#ploc","#paddr"].forEach(s=>$(s).value="");
       toast("Probe added");await load();
     }catch(e){toast(e.message,true);}
   };

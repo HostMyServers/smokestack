@@ -28,7 +28,7 @@ Usage:
                                                (also SMOKESTACK_LISTEN_IP / SMOKESTACK_LISTEN_PORT)
   smokestack probe [-config FILE]               run the isolated probe (probe.mode "external")
   smokestack probe list                         list the registered probes
-  smokestack probe add -slug S [-name N] [-location L] [-token]   register a remote probe
+  smokestack probe add -slug S [-name N] [-location L] [-address IP] [-token]   register a remote probe
   smokestack probe token -slug S                issue or rotate its token (shown once)
   smokestack probe revoke -slug S               withdraw its token
   smokestack languages [-default CODE] [-names]  list languages, set the public default

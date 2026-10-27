@@ -655,7 +655,7 @@ func (a *API) ingest(w http.ResponseWriter, r *http.Request) {
 		a.writer.Submit(m, "")
 		n++
 	}
-	a.store.TouchProbe(id)
+	a.store.SeenProbeFrom(id, clientIP(r))
 	writeJSON(w, map[string]any{"ack_seq": body.Seq, "accepted": n})
 }
 
