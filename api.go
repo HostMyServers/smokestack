@@ -121,6 +121,14 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/admin/channels/test", a.need(RoleAdmin, a.channelsTest))
 	mux.HandleFunc("GET /api/v1/admin/alerts", a.need(RoleAdmin, a.alertsGet))
 	mux.HandleFunc("PUT /api/v1/admin/alerts", a.need(RoleAdmin, a.alertsPut))
+	// Enrolling a probe hands out a credential that may write into the
+	// public graphs, so it sits at admin and not at editor, next to the
+	// notification channels rather than next to the targets.
+	mux.HandleFunc("GET /api/v1/admin/probes", a.need(RoleAdmin, a.probesGet))
+	mux.HandleFunc("POST /api/v1/admin/probes", a.need(RoleAdmin, a.probesPost))
+	mux.HandleFunc("PATCH /api/v1/admin/probes/{id}", a.need(RoleAdmin, a.probesPatch))
+	mux.HandleFunc("POST /api/v1/admin/probes/{id}/token", a.need(RoleAdmin, a.probeTokenPost))
+	mux.HandleFunc("DELETE /api/v1/admin/probes/{id}/token", a.need(RoleAdmin, a.probeTokenDelete))
 	mux.HandleFunc("POST /api/v1/admin/categories", a.auth(a.categoriesPost))
 	mux.HandleFunc("PATCH /api/v1/admin/categories/{id}", a.auth(a.categoriesPatch))
 	mux.HandleFunc("GET /api/v1/admin/categories/{id}/params", a.auth(a.categoryParamsGet))
