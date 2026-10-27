@@ -596,9 +596,7 @@ func (a *API) live(w http.ResponseWriter, r *http.Request) {
 // discover until a flush the socket accepts is refused over HTTP.
 //
 // A probe that accumulated a backlog while the service was restarting must
-// chunk below maxIngestBatch rather than flush it in one piece. There is no
-// remote probe yet — issuing their tokens is not implemented — so this is
-// written down before there is anything to break.
+// chunk below maxIngestBatch rather than flush it in one piece.
 const (
 	maxIngestBytes int64 = 64 << 20
 	maxIngestBatch       = 20000

@@ -16,10 +16,13 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 )
 
 // A probe as the back-office sees it. Token is filled on the one response
@@ -252,4 +255,129 @@ func (a *API) probesPatch(w http.ResponseWriter, r *http.Request, u *User) {
 	}
 	a.store.Audit(u, clientIP(r), action, "probe", strconv.FormatInt(id, 10))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ------------------------------------------------------------------ CLI
+
+// An operator on the host should not have to open the back-office to enrol a
+// probe, if only because the first probe is often added while setting the
+// machine up. These subcommands sit under "probe" beside the one that runs
+// it, and go through exactly the same store calls as the API.
+func cmdProbe(args []string) error {
+	const usage = "usage: smokestack probe list|add|token|revoke [flags]"
+	if len(args) == 0 {
+		return fmt.Errorf("%s", usage)
+	}
+	fsn := flag.NewFlagSet("probe "+args[0], flag.ExitOnError)
+	cfgPath := cliConfig(fsn)
+	slug := fsn.String("slug", "", "probe slug")
+	name := fsn.String("name", "", "display name")
+	location := fsn.String("location", "", "where it measures from")
+	withToken := fsn.Bool("token", false, "issue a token straight away (add only)")
+	fsn.Parse(args[1:])
+
+	cfg, err := loadConfig(*cfgPath)
+	if err != nil {
+		return err
+	}
+	store, err := OpenStore(cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	// Resolving the slug here rather than in each branch keeps the three
+	// commands that need an existing probe from repeating the lookup, and
+	// gives all of them the same error for a slug nobody registered.
+	bySlug := func() (int64, error) {
+		if *slug == "" {
+			return 0, fmt.Errorf("-slug is required")
+		}
+		var id int64
+		err := store.cfg.QueryRow(`SELECT id FROM probes WHERE slug=?`, strings.TrimSpace(*slug)).Scan(&id)
+		if err == sql.ErrNoRows {
+			return 0, fmt.Errorf("no probe with slug %q", *slug)
+		}
+		return id, err
+	}
+
+	switch args[0] {
+	case "list":
+		list, err := store.Probes()
+		if err != nil {
+			return err
+		}
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "SLUG\tNAME\tLOCATION\tKIND\tSTATE\tTOKEN")
+		for _, p := range list {
+			kind, state, tok := "remote", "disabled", "none"
+			if p.Local {
+				kind = "local"
+			}
+			if p.Enabled {
+				state = "enabled"
+			}
+			if p.HasToken {
+				tok = "set"
+			} else if p.Local {
+				tok = "n/a"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", p.Slug, p.Name, p.Location, kind, state, tok)
+		}
+		return w.Flush()
+
+	case "add":
+		p, err := store.CreateProbe(*slug, *name, *location)
+		if err != nil {
+			return err
+		}
+		store.Audit(nil, "cli", "probe_create", "probe", p.Slug)
+		fmt.Printf("probe registered: %s\n", p.Slug)
+		if !*withToken {
+			fmt.Printf("it cannot send anything yet: run `smokestack probe token -slug %s` to issue one\n", p.Slug)
+			return nil
+		}
+		tok, err := store.IssueProbeToken(p.ID)
+		if err != nil {
+			return err
+		}
+		store.Audit(nil, "cli", "probe_token_issue", "probe", strconv.FormatInt(p.ID, 10))
+		printProbeToken(tok)
+		return nil
+
+	case "token":
+		id, err := bySlug()
+		if err != nil {
+			return err
+		}
+		tok, err := store.IssueProbeToken(id)
+		if err != nil {
+			return err
+		}
+		store.Audit(nil, "cli", "probe_token_issue", "probe", strconv.FormatInt(id, 10))
+		printProbeToken(tok)
+		return nil
+
+	case "revoke":
+		id, err := bySlug()
+		if err != nil {
+			return err
+		}
+		if err := store.RevokeProbeToken(id); err != nil {
+			return err
+		}
+		store.Audit(nil, "cli", "probe_token_revoke", "probe", strconv.FormatInt(id, 10))
+		fmt.Printf("token revoked: %s can no longer send measurements\n", *slug)
+		return nil
+	}
+	return fmt.Errorf("%s", usage)
+}
+
+// The token goes to stdout alone on its line, so that piping the command into
+// a file or a secret store captures the token and nothing else. Everything
+// said about it goes to stderr for the same reason.
+func printProbeToken(tok string) {
+	fmt.Fprintln(os.Stderr, "token issued. It is shown once and only its hash is stored, so copy it now:")
+	fmt.Println(tok)
+	fmt.Fprintln(os.Stderr, "set it as probe.token in the probe's configuration file.")
 }
