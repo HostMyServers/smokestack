@@ -127,6 +127,8 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/admin/probes", a.need(RoleAdmin, a.probesGet))
 	mux.HandleFunc("POST /api/v1/admin/probes", a.need(RoleAdmin, a.probesPost))
 	mux.HandleFunc("PATCH /api/v1/admin/probes/{id}", a.need(RoleAdmin, a.probesPatch))
+	mux.HandleFunc("GET /api/v1/admin/probes/{id}/targets", a.need(RoleAdmin, a.probeTargetsGet))
+	mux.HandleFunc("PUT /api/v1/admin/probes/{id}/targets", a.need(RoleAdmin, a.probeTargetsPut))
 	mux.HandleFunc("POST /api/v1/admin/probes/{id}/token", a.need(RoleAdmin, a.probeTokenPost))
 	mux.HandleFunc("DELETE /api/v1/admin/probes/{id}/token", a.need(RoleAdmin, a.probeTokenDelete))
 	mux.HandleFunc("POST /api/v1/admin/categories", a.auth(a.categoriesPost))
@@ -649,14 +651,27 @@ func (a *API) ingest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 401, "invalid probe token")
 		return
 	}
-	n := 0
+	// The same assignment that bounds what this probe may read bounds what it
+	// may write. Restricting one without the other would leave the
+	// restriction decorative: a probe could still move any graph by naming
+	// the target it wanted.
+	allowed, err := a.store.ProbeTargetIDs(id)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	n, refused := 0, 0
 	for _, m := range body.Batch {
+		if !allowed[m.TargetID] {
+			refused++
+			continue
+		}
 		m.ProbeID = id
 		a.writer.Submit(m, "")
 		n++
 	}
 	a.store.SeenProbeFrom(id, clientIP(r))
-	writeJSON(w, map[string]any{"ack_seq": body.Seq, "accepted": n})
+	writeJSON(w, map[string]any{"ack_seq": body.Seq, "accepted": n, "refused": refused})
 }
 
 // -------------------------------------------------------------- admin

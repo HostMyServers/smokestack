@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -197,6 +198,81 @@ func (s *Store) SetProbeEnabled(id int64, on bool) error {
 	return nil
 }
 
+// ProbeTargetIDs is the set of targets a probe may measure. It is consulted
+// on the probe's own hot path, so it returns a set rather than a list.
+//
+// A probe with no assignment gets an empty set, and an empty set means an
+// empty target list. That is the safe way round: a probe enrolled today
+// measures nothing until someone says what it should measure, rather than
+// everything until someone says otherwise.
+func (s *Store) ProbeTargetIDs(probeID int64) (map[int64]bool, error) {
+	rows, err := s.cfg.Query(`SELECT target_id FROM probe_targets WHERE probe_id=?`, probeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// SetProbeTargets replaces a probe's assignment with exactly this set. It is
+// a replacement rather than an add, because the operator edits a list and
+// expects what they left to be what the probe gets; reconciling additions and
+// removals at the caller would be the same work done less reliably.
+//
+// It refuses the local probe. That probe measures everything by construction
+// and is never read from this table, so an assignment for it would be a row
+// that looks meaningful and changes nothing.
+func (s *Store) SetProbeTargets(probeID int64, ids []int64) error {
+	var local int
+	if err := s.cfg.QueryRow(`SELECT local FROM probes WHERE id=?`, probeID).Scan(&local); err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("unknown probe")
+		}
+		return err
+	}
+	if local == 1 {
+		return fmt.Errorf("the local probe measures every target and takes no assignment")
+	}
+	tx, err := s.cfg.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM probe_targets WHERE probe_id=?`, probeID); err != nil {
+		return err
+	}
+	ins, err := tx.Prepare(`INSERT INTO probe_targets(probe_id,target_id) VALUES(?,?)
+	                        ON CONFLICT(probe_id,target_id) DO NOTHING`)
+	if err != nil {
+		return err
+	}
+	defer ins.Close()
+	for _, id := range ids {
+		// A target that does not exist would be a row nothing ever reads and
+		// a silent typo in an operator's list, so it is refused rather than
+		// stored.
+		var n int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM targets WHERE id=?`, id).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("no target with id %d", id)
+		}
+		if _, err := ins.Exec(probeID, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // SeenProbeFrom records that a probe just spoke to us, and from where. It is
 // the network path's version of TouchProbe: the local probe reaches the
 // service through a Unix socket and has no remote address worth recording, so
@@ -340,6 +416,46 @@ func (a *API) probeTokenDelete(w http.ResponseWriter, r *http.Request, u *User) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (a *API) probeTargetsGet(w http.ResponseWriter, r *http.Request, u *User) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "bad probe id")
+		return
+	}
+	set, err := a.store.ProbeTargetIDs(id)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	ids := make([]int64, 0, len(set))
+	for tid := range set {
+		ids = append(ids, tid)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	writeJSON(w, map[string]any{"targets": ids})
+}
+
+func (a *API) probeTargetsPut(w http.ResponseWriter, r *http.Request, u *User) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "bad probe id")
+		return
+	}
+	var in struct {
+		Targets []int64 `json:"targets"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	if err := a.store.SetProbeTargets(id, in.Targets); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	a.store.Audit(u, clientIP(r), "probe_targets", "probe", strconv.FormatInt(id, 10))
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (a *API) probesPatch(w http.ResponseWriter, r *http.Request, u *User) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -399,6 +515,7 @@ func cmdProbe(args []string) error {
 	name := fsn.String("name", "", "display name")
 	location := fsn.String("location", "", "where it measures from")
 	address := fsn.String("address", "", "its public IP, when the observed one would be wrong (NAT, reverse proxy)")
+	targets := fsn.String("targets", "", "comma-separated target ids this probe measures (targets only)")
 	withToken := fsn.Bool("token", false, "issue a token straight away (add only)")
 	fsn.Parse(args[1:])
 
@@ -493,6 +610,36 @@ func cmdProbe(args []string) error {
 		}
 		store.Audit(nil, "cli", "probe_token_issue", "probe", strconv.FormatInt(id, 10))
 		printProbeToken(tok)
+		return nil
+
+	case "targets":
+		id, err := bySlug()
+		if err != nil {
+			return err
+		}
+		// An empty -targets clears the assignment, which is the same thing
+		// the API means by an empty list: this probe measures nothing.
+		ids := []int64{}
+		for _, part := range strings.Split(*targets, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			n, err := strconv.ParseInt(part, 10, 64)
+			if err != nil {
+				return fmt.Errorf("%q is not a target id", part)
+			}
+			ids = append(ids, n)
+		}
+		if err := store.SetProbeTargets(id, ids); err != nil {
+			return err
+		}
+		store.Audit(nil, "cli", "probe_targets", "probe", strconv.FormatInt(id, 10))
+		if len(ids) == 0 {
+			fmt.Printf("%s now measures nothing\n", *slug)
+			return nil
+		}
+		fmt.Printf("%s now measures %d target(s)\n", *slug, len(ids))
 		return nil
 
 	case "revoke":

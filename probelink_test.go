@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -138,10 +140,14 @@ func TestProbeMeasurementsCarryTheCallersIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	tid := mkTarget(t, store, "one")
+	if err := store.SetProbeTargets(p.ID, []int64{tid}); err != nil {
+		t.Fatal(err)
+	}
 
 	// The body claims a probe id that is not the caller's.
 	const other = 4242
-	body := `[{"target_id":1,"probe_id":4242,"ts":100,"sent":1,"lost":0,"host":"h"}]`
+	body := fmt.Sprintf(`[{"target_id":%d,"probe_id":4242,"ts":100,"sent":1,"lost":0,"host":"h"}]`, tid)
 	r := httptest.NewRequest("POST", "/probe/v1/measurements", strings.NewReader(body))
 	r.Header.Set("Authorization", "Bearer "+tok)
 	w := httptest.NewRecorder()
@@ -189,5 +195,170 @@ func TestRemoteLinkRefusesAnUnsafeService(t *testing.T) {
 	}
 	if l.token != tok {
 		t.Errorf("token %q, want it trimmed", l.token)
+	}
+}
+
+// mkTarget creates a target to assign. The assignment refuses ids that do not
+// exist, so these tests need real ones rather than invented numbers.
+func mkTarget(t *testing.T, store *Store, slug string) int64 {
+	t.Helper()
+	cat, err := store.CreateCategory("c-"+slug, "Catégorie", "Category", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := store.CreateTarget(&Target{CategoryID: cat, Slug: slug, Title: slug,
+		Host: "198.51.100.1", Proto: "icmp", IntervalS: 60, Packets: 10,
+		SpacingMs: 100, TimeoutMs: 1000, Public: true, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// Enrolling a probe must not hand it the whole target list. It sees what it
+// was assigned and nothing else, and a probe assigned nothing sees nothing —
+// the safe way round for something just enrolled.
+func TestARemoteProbeSeesOnlyItsAssignedTargets(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	mine := mkTarget(t, store, "mine")
+	theirs := mkTarget(t, store, "theirs")
+
+	cache := NewTargetCache(store)
+	writer := NewWriter(store, nil)
+	mux := http.NewServeMux()
+	ProbeRoutes(mux, store, cache, writer)
+
+	p, err := store.CreateProbe("remote-1", "Remote 1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, err := store.IssueProbeToken(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list := func() []*Target {
+		r := httptest.NewRequest("GET", "/probe/v1/targets", nil)
+		r.Header.Set("Authorization", "Bearer "+tok)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("fetching targets: got %d", w.Code)
+		}
+		var resp probeTargetsResp
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		return resp.Targets
+	}
+
+	if got := list(); len(got) != 0 {
+		t.Fatalf("a probe assigned nothing was given %d targets", len(got))
+	}
+	if err := store.SetProbeTargets(p.ID, []int64{mine}); err != nil {
+		t.Fatal(err)
+	}
+	got := list()
+	if len(got) != 1 || got[0].ID != mine {
+		t.Fatalf("assigned one target, was given %d", len(got))
+	}
+	for _, x := range got {
+		if x.ID == theirs {
+			t.Fatal("a target it was not assigned leaked into the list")
+		}
+	}
+
+	// Reading is bounded, so writing has to be too, or the restriction is
+	// decorative: a probe could move any graph by naming the target.
+	post := func(path string, body string) map[string]int {
+		r := httptest.NewRequest("POST", path, strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer "+tok)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: got %d", path, w.Code)
+		}
+		var out map[string]int
+		json.Unmarshal(w.Body.Bytes(), &out)
+		return out
+	}
+	out := post("/probe/v1/measurements",
+		fmt.Sprintf(`[{"target_id":%d,"ts":1,"sent":1,"lost":0},{"target_id":%d,"ts":1,"sent":1,"lost":0}]`, mine, theirs))
+	if out["accepted"] != 1 || out["refused"] != 1 {
+		t.Errorf("measurements: accepted=%d refused=%d, want 1 and 1", out["accepted"], out["refused"])
+	}
+	out = post("/probe/v1/traceroutes",
+		fmt.Sprintf(`[{"target_id":%d,"ts":1},{"target_id":%d,"ts":1}]`, mine, theirs))
+	if out["accepted"] != 1 || out["refused"] != 1 {
+		t.Errorf("traceroutes: accepted=%d refused=%d, want 1 and 1", out["accepted"], out["refused"])
+	}
+}
+
+// The restriction must not reach the local probe. It measures everything by
+// construction, through a socket only a process on the host can open, and
+// restricting it would stop every existing instance measuring anything.
+func TestTheLocalProbeKeepsEveryTarget(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	a := mkTarget(t, store, "a")
+	mkTarget(t, store, "b")
+
+	id, err := store.ProbeID("local", "Local", "here", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := NewTargetCache(store)
+	mux := http.NewServeMux()
+	// The socket's resolver, which is what ServeProbeSocket installs.
+	probeEndpoints(mux, cache, NewWriter(store, nil), func(*http.Request) (probeCaller, bool) {
+		return probeCaller{id: id}, true
+	})
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("GET", "/probe/v1/targets", nil))
+	var resp probeTargetsResp
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Targets) != 2 {
+		t.Fatalf("the local probe was given %d targets, want both", len(resp.Targets))
+	}
+
+	// And it takes no assignment at all, rather than accepting one that would
+	// look meaningful and change nothing.
+	if err := store.SetProbeTargets(id, []int64{a}); err == nil {
+		t.Error("the local probe accepted an assignment")
+	}
+}
+
+func TestAssignmentRefusesATargetThatDoesNotExist(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	real := mkTarget(t, store, "real")
+	p, err := store.CreateProbe("remote-1", "Remote 1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetProbeTargets(p.ID, []int64{real, 999999}); err == nil {
+		t.Fatal("an unknown target id was accepted")
+	}
+	// Refused as a whole: a partially applied list would be worse than none,
+	// because the operator would believe they saved what they typed.
+	set, err := store.ProbeTargetIDs(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set) != 0 {
+		t.Errorf("a refused assignment left %d rows behind", len(set))
 	}
 }
