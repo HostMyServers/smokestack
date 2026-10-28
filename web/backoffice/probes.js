@@ -34,6 +34,13 @@ async function viewProbes(m){
     let list;
     try{list=(await api("GET","/api/v1/admin/probes")).probes||[];}
     catch(e){H.render($("#pl"),html`${tokenCard(issued)}<div class="note">${e.message}</div>`);return;}
+    // Assigned-target count per non-local probe. The list endpoint does not return it, so it is one GET per probe (a handful at most).
+    // A failed fetch leaves null: the button then shows no count and the "no targets" badge is not claimed, since we do not know.
+    const counts={};
+    await Promise.all(list.filter(p=>!p.local).map(async p=>{
+      try{counts[p.id]=((await api("GET","/api/v1/admin/probes/"+p.id+"/targets")).targets||[]).length;}
+      catch(e){counts[p.id]=null;}
+    }));
     // Where the probe measures from. A non-empty `address` is the operator's statement and overrides what was observed; `from` is already resolved server-side.
     const fromCell=p=>{
       const shown=p.from||p.address||p.seen_address;
@@ -48,10 +55,12 @@ async function viewProbes(m){
       <td>${fromCell(p)}</td>
       <td>${p.local?html`<span class="badge b-n">local</span> `:""}
         ${p.enabled?html`<span class="badge b-ok">enabled</span>`:html`<span class="badge b-warn">disabled</span>`}
-        ${p.local?"":p.has_token?html` <span class="badge b-ok">token set</span>`:html` <span class="badge b-crit">no token</span>`}</td>
+        ${p.local?"":p.has_token?html` <span class="badge b-ok">token set</span>`:html` <span class="badge b-crit">no token</span>`}
+        ${p.local||counts[p.id]!==0?"":html` <span class="badge b-warn" title="This probe has no assigned target, so it measures nothing">no targets</span>`}</td>
       <td class="acts">${p.local?"":html`
         <button class="btn s" data-tok="${p.id}" data-slug="${p.slug}" data-had="${p.has_token?"1":"0"}">${p.has_token?"Rotate token":"Issue token"}</button>
         ${p.has_token?html`<button class="btn d s" data-rev="${p.id}" data-slug="${p.slug}">Revoke token</button>`:""}
+        <button class="btn s" data-tg="${p.id}" data-slug="${p.slug}">${counts[p.id]==null?"Targets":"Targets ("+counts[p.id]+")"}</button>
         <button class="btn s" data-addr="${p.id}" data-slug="${p.slug}" data-cur="${p.address||""}">Set address</button>
         ${p.address?html`<button class="btn s" data-addr-clear="${p.id}" data-slug="${p.slug}">Use observed</button>`:""}
         <button class="btn s" data-en="${p.id}" data-to="${p.enabled?"0":"1"}">${p.enabled?"Disable":"Enable"}</button>`}</td>
@@ -61,7 +70,29 @@ async function viewProbes(m){
       <div class="card"><h3>Registered probes</h3><div class="body">
         ${list.length?html`<table><thead><tr><th>Slug</th><th>Name</th><th>Location</th><th>Last seen</th><th>Measures from</th><th>State</th><th></th></tr></thead>
           <tbody>${list.map(row)}</tbody></table>`:html`<div class="empty">No probe.</div>`}
-      </div></div>`);
+      </div></div>
+      <div id="pe"></div>`);
+    // The assignment editor renders into its own block under the table, so opening or cancelling it never re-renders the list or drops a token shown above.
+    document.querySelectorAll("[data-tg]").forEach(b=>b.onclick=async()=>{
+      try{
+        const [all,cur]=await Promise.all([api("GET","/api/v1/admin/targets"),api("GET","/api/v1/admin/probes/"+b.dataset.tg+"/targets")]);
+        const targets=Array.isArray(all)?all:[]; // /admin/targets returns a bare array of targets, as targets.js reads it
+        const on=new Set(cur.targets||[]);
+        // A boolean prints nothing in the template engine, so the attribute is spelled out as a string.
+        H.render($("#pe"),html`<div class="card"><h3>Targets measured by ${b.dataset.slug}</h3><div class="body">
+          <p style="margin:0 0 10px">A probe measures only the targets ticked here. With none ticked it measures nothing.</p>
+          ${targets.length?targets.map(t=>html`<label class="chk"><input type="checkbox" data-tid="${t.id}" ${on.has(t.id)?"checked":""}>
+            <span>${t.title}<small class="mono">${t.host}${t.port?":"+t.port:""}</small></span></label>`):html`<div class="empty">No target.</div>`}
+          <div class="acts"><button class="btn p" id="tgsave">Save</button><button class="btn" id="tgcancel">Cancel</button></div>
+        </div></div>`);
+        $("#tgcancel").onclick=()=>H.render($("#pe"),""); // nothing sent
+        $("#tgsave").onclick=async()=>{
+          const ids=[...document.querySelectorAll("#pe [data-tid]")].filter(c=>c.checked).map(c=>Number(c.dataset.tid));
+          try{await api("PUT","/api/v1/admin/probes/"+b.dataset.tg+"/targets",{targets:ids});toast("Targets saved");await load();}
+          catch(e){toast(e.message,true);}
+        };
+      }catch(e){toast(e.message,true);}
+    });
     document.querySelectorAll("[data-tok]").forEach(b=>b.onclick=async()=>{
       if(b.dataset.had==="1"&&!confirm("Rotate the token of "+b.dataset.slug+"? The current token stops working immediately.")) return;
       try{

@@ -2,6 +2,52 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+**An instance can now be measured from several places at once.** Until this batch, one instance meant one probe, running on the instance's own machine: every graph described the path from that one machine to the target, and a loss of packets looked the same whether the target was down or the path from that single vantage point was. Probes can now run on other machines, report to the instance over HTTPS, and measure alongside the local one.
+
+**Nothing changes for an instance that does not want this.** The local probe still reaches the service through its Unix socket, still measures every active target, and is not affected by anything below. There is no migration, and no setting to revisit.
+
+### New
+
+- **An operator can enrol a probe and issue it a token.**
+
+  The ingestion endpoint has always authenticated remote probes — it reads a stored hash, compares it in constant time and refuses an empty one — but nothing could ever issue a token, so the remote mode could not be used at all. The missing half is here, in the back-office under *Instance → Probes* and as `smokestack probe add`, `probe token`, `probe revoke` and `probe list`.
+
+  Only the hash is stored, so a token is shown once when it is issued and cannot be recovered afterwards. Rotating issues a new one and the previous one stops working immediately; revoking withdraws it without issuing a replacement, which is what a probe decommissioned in a hurry needs.
+
+  The local probe is deliberately refused a token. It writes through a socket only a process on the host can open, and an HTTP credential as well would widen the surface for nothing.
+
+  There is no way to delete a probe, only to disable it. Measurements are stored against the probe that made them, in a separate database, so removing the probe would orphan every measurement it ever sent with no way to attribute them again. Disabling stops it at the door and keeps its history readable.
+
+- **The probe protocol is served over the network, not only on the socket.**
+
+  A remote probe speaks exactly the protocol the local one speaks — the same three endpoints, the same payloads — and the two differ only in how the service decides who is calling. On the socket, being able to connect is the authentication, as it always has been. Over the network, the caller is whatever its token resolves to, and nothing otherwise.
+
+  Set `probe.server` to the instance's base URL and `probe.token` to the issued token in the probe's configuration file. The URL must be `https`: a token travels on every request and the target list comes back on the same connection, so the probe refuses to start on plain HTTP rather than warning in a log nobody reads.
+
+  A remote probe does not follow the service's version. It has its own release tree on its own update cadence, so it stays where it is rather than restarting itself to chase a number it cannot reach.
+
+- **A remote probe measures only the targets it was assigned.**
+
+  Enrolling a probe does not hand it the instance's target list. Each probe is given an explicit set of targets, in the back-office beside the probe, and it sees and writes those and nothing else — a measurement or a traceroute naming any other target is refused rather than quietly filed.
+
+  A probe that has just been enrolled is assigned nothing, and therefore measures nothing until someone says what it should measure. That is the deliberate way round: the alternative is a probe that measures everything from the moment it exists, which is a decision nobody made.
+
+  The local probe takes no assignment at all and keeps measuring every active target.
+
+- **The instance records where each probe measures from.**
+
+  The address a probe connects from is recorded automatically, and the AS it falls in is resolved from the same lookup service the Host network page uses. Both appear beside the probe in the back-office.
+
+  Where the observed address would be wrong — a probe behind NAT, or an instance behind a reverse proxy that does not pass the original address on — an address can be stated by hand and takes precedence. Clearing it hands the question back to what the service observes, which keeps being recorded in the meantime, so clearing it lands on something current rather than something stale.
+
+### Known limitation
+
+Requests for a traceroute, and the immediate check a freshly created target gets, are handed to whichever probe asks for work first. With a single probe that is always the probe. With several, an anomaly on one probe's target may be traced from another, which is misleading rather than wrong — the traceroute is real, it just starts somewhere else.
+
+Routing those requests to a particular probe belongs with the notion of a target having a probe that decides its status, which is a separate piece of work. It is noted here rather than half-solved now.
+
 ## 0.7.3
 
 Three things an operator ran into on a real instance, which turned out to be three defects rather than three mistakes on his side.

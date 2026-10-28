@@ -76,13 +76,51 @@ func probeSocketPath(cfg Config) string {
 // endpoint exists for anything speaking to us from outside and carries no
 // host field and no way to learn a target list, so a probe built on it would
 // have been a second, poorer dialect of this one.
+// probeCaller is who is on the other end of a probe request. allowed is the
+// set of targets that caller may see and write, or nil for no restriction at
+// all — which is the local probe, reached through a socket only a process on
+// the host can open.
+type probeCaller struct {
+	id      int64
+	allowed func() (map[int64]bool, error)
+}
+
 func probeEndpoints(mux *http.ServeMux, cache *TargetCache, writer *Writer,
-	who func(*http.Request) (int64, bool)) {
+	who func(*http.Request) (probeCaller, bool)) {
+	// Resolves the caller's assignment once per request. Returning nil means
+	// no restriction rather than an empty set, and the two must not be
+	// confused: an empty set is a probe that may measure nothing.
+	permit := func(w http.ResponseWriter, c probeCaller) (map[int64]bool, bool) {
+		if c.allowed == nil {
+			return nil, true
+		}
+		set, err := c.allowed()
+		if err != nil {
+			writeErr(w, 500, err.Error())
+			return nil, false
+		}
+		return set, true
+	}
 	mux.HandleFunc("GET /probe/v1/targets", func(w http.ResponseWriter, r *http.Request) {
-		probeID, ok := who(r)
+		c, ok := who(r)
 		if !ok {
 			writeErr(w, http.StatusUnauthorized, "a probe token is required")
 			return
+		}
+		probeID := c.id
+		allowed, ok := permit(w, c)
+		if !ok {
+			return
+		}
+		targets := cache.Targets()
+		if allowed != nil {
+			kept := make([]*Target, 0, len(allowed))
+			for _, t := range targets {
+				if allowed[t.ID] {
+					kept = append(kept, t)
+				}
+			}
+			targets = kept
 		}
 		// This answer carries every active target, private ones included,
 		// because a probe has to measure them. Nothing between a probe and
@@ -95,13 +133,17 @@ func probeEndpoints(mux *http.ServeMux, cache *TargetCache, writer *Writer,
 		// Routing these per probe belongs with the per-target primary probe,
 		// which is a separate decision, so this stays as it is rather than
 		// growing a half-rule now.
-		writeJSON(w, probeTargetsResp{Version: Version, ProbeID: probeID, Targets: cache.Targets(),
+		writeJSON(w, probeTargetsResp{Version: Version, ProbeID: probeID, Targets: targets,
 			TraceRequests: traceRequests.Pop(), CheckRequests: checkRequests.Pop()})
 	})
 	mux.HandleFunc("POST /probe/v1/traceroutes", func(w http.ResponseWriter, r *http.Request) {
-		probeID, ok := who(r)
+		c, ok := who(r)
 		if !ok {
 			writeErr(w, http.StatusUnauthorized, "a probe token is required")
+			return
+		}
+		allowed, ok := permit(w, c)
+		if !ok {
 			return
 		}
 		var list []*Traceroute
@@ -109,18 +151,32 @@ func probeEndpoints(mux *http.ServeMux, cache *TargetCache, writer *Writer,
 			writeErr(w, 400, err.Error())
 			return
 		}
+		n, refused := 0, 0
 		for _, tr := range list {
+			// Restricting what a probe reads without restricting what it
+			// writes would leave the restriction decorative: it could still
+			// file against any target by naming one.
+			if allowed != nil && !allowed[tr.TargetID] {
+				refused++
+				continue
+			}
 			// Forced from the caller's identity, never read from the body:
 			// otherwise a probe could file its traceroutes under another.
-			tr.ProbeID = probeID
+			tr.ProbeID = c.id
 			writer.SubmitTrace(tr)
+			n++
 		}
-		writeJSON(w, map[string]int{"accepted": len(list)})
+		writeJSON(w, map[string]int{"accepted": n, "refused": refused})
 	})
 	mux.HandleFunc("POST /probe/v1/measurements", func(w http.ResponseWriter, r *http.Request) {
-		probeID, ok := who(r)
+		c, ok := who(r)
 		if !ok {
 			writeErr(w, http.StatusUnauthorized, "a probe token is required")
+			return
+		}
+		probeID := c.id
+		allowed, ok := permit(w, c)
+		if !ok {
 			return
 		}
 		var batch []wireMeasure
@@ -134,11 +190,17 @@ func probeEndpoints(mux *http.ServeMux, cache *TargetCache, writer *Writer,
 			writeErr(w, http.StatusRequestEntityTooLarge, "too many measurements in one batch")
 			return
 		}
+		n, refused := 0, 0
 		for _, b := range batch {
+			if allowed != nil && !allowed[b.Measurement.TargetID] {
+				refused++
+				continue
+			}
 			b.Measurement.ProbeID = probeID
 			writer.Submit(b.Measurement, b.Host)
+			n++
 		}
-		writeJSON(w, map[string]int{"accepted": len(batch)})
+		writeJSON(w, map[string]int{"accepted": n, "refused": refused})
 	})
 }
 
@@ -147,18 +209,21 @@ func probeEndpoints(mux *http.ServeMux, cache *TargetCache, writer *Writer,
 // possibility of one: with no token issued anywhere, every request here is
 // refused, which is the same thing as the endpoints not existing.
 func ProbeRoutes(mux *http.ServeMux, store *Store, cache *TargetCache, writer *Writer) {
-	probeEndpoints(mux, cache, writer, func(r *http.Request) (int64, bool) {
+	probeEndpoints(mux, cache, writer, func(r *http.Request) (probeCaller, bool) {
 		auth := r.Header.Get("Authorization")
 		if !strings.HasPrefix(auth, "Bearer ") {
-			return 0, false
+			return probeCaller{}, false
 		}
 		id, ok := store.ProbeByToken(strings.TrimPrefix(auth, "Bearer "))
-		if ok {
-			// Records both that it spoke and where from. This is the only
-			// place the service learns a remote probe's address on its own.
-			store.SeenProbeFrom(id, clientIP(r))
+		if !ok {
+			return probeCaller{}, false
 		}
-		return id, ok
+		// Records both that it spoke and where from. This is the only place
+		// the service learns a remote probe's address on its own.
+		store.SeenProbeFrom(id, clientIP(r))
+		return probeCaller{id: id, allowed: func() (map[int64]bool, error) {
+			return store.ProbeTargetIDs(id)
+		}}, true
 	})
 }
 
@@ -172,7 +237,11 @@ func ServeProbeSocket(path string, cache *TargetCache, writer *Writer, probeID i
 	mux := http.NewServeMux()
 	// Reaching this socket already means being a process on the host under
 	// the service's group, which is the whole authentication it has ever had.
-	probeEndpoints(mux, cache, writer, func(*http.Request) (int64, bool) { return probeID, true })
+	// A nil assignment means no restriction: this probe measures every active
+	// target, as it always has.
+	probeEndpoints(mux, cache, writer, func(*http.Request) (probeCaller, bool) {
+		return probeCaller{id: probeID}, true
+	})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		<-stop

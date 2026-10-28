@@ -84,6 +84,20 @@ CREATE TABLE IF NOT EXISTS probes (
   enabled      INTEGER NOT NULL DEFAULT 1,
   last_seen_at INTEGER
 );
+-- Which targets a remote probe may measure. A probe that authenticates with
+-- a token sees and writes these and nothing else, so enrolling one does not
+-- hand it the whole target list. An empty assignment means an empty list,
+-- which is the safe way round for something newly enrolled.
+--
+-- The local probe is deliberately absent from this table and unaffected by
+-- it: it reaches the service through a Unix socket only a process on the
+-- host can open, and restricting it would stop every existing instance
+-- measuring anything.
+CREATE TABLE IF NOT EXISTS probe_targets (
+  probe_id  INTEGER NOT NULL,
+  target_id INTEGER NOT NULL,
+  PRIMARY KEY (probe_id, target_id)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS categories (
   id        INTEGER PRIMARY KEY,
   parent_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
