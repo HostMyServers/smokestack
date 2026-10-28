@@ -269,11 +269,12 @@ func main() {
 	writer := NewWriter(store, archive)
 	go writer.Loop(stop)
 	targets := NewTargetCache(store)
+	targets.SetProbe(probeID)
 	go targets.Loop(stop)
 
 	if cfg.Probe.Enabled {
 		if cfg.Probe.Mode == "external" {
-			if err := ServeProbeSocket(probeSocketPath(cfg), targets, writer, probeID, stop); err != nil {
+			if err := ServeProbeSocket(probeSocketPath(cfg), store, targets, writer, probeID, stop); err != nil {
 				log.Fatalf("probe socket: %v", err)
 			}
 		} else {

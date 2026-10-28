@@ -42,11 +42,13 @@ Versions are published as signed releases; servers with automatic updates instal
 
   Where the observed address would be wrong — a probe behind NAT, or an instance behind a reverse proxy that does not pass the original address on — an address can be stated by hand and takes precedence. Clearing it hands the question back to what the service observes, which keeps being recorded in the meantime, so clearing it lands on something current rather than something stale.
 
-### Known limitation
+- **A target names the probe that decides its status.**
 
-Requests for a traceroute, and the immediate check a freshly created target gets, are handed to whichever probe asks for work first. With a single probe that is always the probe. With several, an anomaly on one probe's target may be traced from another, which is misleading rather than wrong — the traceroute is real, it just starts somewhere else.
+  With several probes measuring the same target, something has to say which one the target's status follows and which one runs its traceroutes. That is the target's primary probe, chosen among the probes it is assigned to, in the target's own form.
 
-Routing those requests to a particular probe belongs with the notion of a target having a probe that decides its status, which is a separate piece of work. It is noted here rather than half-solved now.
+  Leaving it unset means the instance's own local probe, which is what every target has and what every existing instance keeps. A probe cannot be made primary for a target it is not assigned, because that would produce a target whose status nobody is able to report.
+
+  Traceroute and immediate-check requests now go to that probe rather than to whichever probe asks for work first, so an anomaly is traced from the vantage point it was seen from. A request its probe has not collected within two minutes may be run by any probe: a primary that is not answering is itself something worth a traceroute, and running it elsewhere says more than not running it at all.
 
 ## 0.7.3
 
