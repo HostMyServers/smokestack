@@ -273,6 +273,78 @@ func (s *Store) SetProbeTargets(probeID int64, ids []int64) error {
 	return tx.Commit()
 }
 
+// PrimaryTargets is the set of targets this probe decides for: the ones whose
+// primary it is, plus — when it is the local probe — every target that has
+// chosen nobody. That second half is what keeps an instance with no remote
+// probe behaving as it always did.
+func (s *Store) PrimaryTargets(probeID int64) (map[int64]bool, error) {
+	var local int
+	if err := s.cfg.QueryRow(`SELECT local FROM probes WHERE id=?`, probeID).Scan(&local); err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	q := `SELECT id FROM targets WHERE primary_probe_id=?`
+	if local == 1 {
+		q = `SELECT id FROM targets WHERE primary_probe_id=? OR primary_probe_id=0`
+	}
+	rows, err := s.cfg.Query(q, probeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// SetTargetPrimaryProbe chooses which probe decides a target's status. Zero
+// hands it back to the local probe.
+//
+// The chosen probe must already be assigned this target. Pointing a target at
+// a probe that is not allowed to measure it would produce a target whose
+// status nobody can ever report, and the operator would have no way of seeing
+// why from the page that sets it.
+func (s *Store) SetTargetPrimaryProbe(targetID, probeID int64) error {
+	if probeID != 0 {
+		var local, enabled int
+		err := s.cfg.QueryRow(`SELECT local, enabled FROM probes WHERE id=?`, probeID).Scan(&local, &enabled)
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("unknown probe")
+		}
+		if err != nil {
+			return err
+		}
+		if local == 1 {
+			return fmt.Errorf("the local probe is chosen by leaving the primary unset")
+		}
+		if enabled != 1 {
+			return fmt.Errorf("that probe is disabled")
+		}
+		var n int
+		if err := s.cfg.QueryRow(
+			`SELECT COUNT(*) FROM probe_targets WHERE probe_id=? AND target_id=?`,
+			probeID, targetID).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("that probe is not assigned this target, so it cannot be its primary")
+		}
+	}
+	res, err := s.cfg.Exec(`UPDATE targets SET primary_probe_id=? WHERE id=?`, probeID, targetID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("unknown target")
+	}
+	return nil
+}
+
 // SeenProbeFrom records that a probe just spoke to us, and from where. It is
 // the network path's version of TouchProbe: the local probe reaches the
 // service through a Unix socket and has no remote address worth recording, so
@@ -453,6 +525,31 @@ func (a *API) probeTargetsPut(w http.ResponseWriter, r *http.Request, u *User) {
 		return
 	}
 	a.store.Audit(u, clientIP(r), "probe_targets", "probe", strconv.FormatInt(id, 10))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// targetPrimaryPut chooses the probe that decides a target's status. It is a
+// route of its own rather than a field on the target patch: it is a statement
+// about probes, it is validated against the assignment table, and burying it
+// among thirty measurement parameters would make it invisible.
+func (a *API) targetPrimaryPut(w http.ResponseWriter, r *http.Request, u *User) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "bad target id")
+		return
+	}
+	var in struct {
+		ProbeID int64 `json:"probe_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	if err := a.store.SetTargetPrimaryProbe(id, in.ProbeID); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	a.store.Audit(u, clientIP(r), "target_primary_probe", "target", strconv.FormatInt(id, 10))
 	w.WriteHeader(http.StatusNoContent)
 }
 

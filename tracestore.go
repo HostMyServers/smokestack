@@ -236,8 +236,23 @@ func (s *Store) PurgeTraceroutes(now int64) {
 // probe picks them up (immediately when embedded, within 5 s otherwise).
 type traceQueue struct {
 	mu  sync.Mutex
-	ids []int64
+	ids []queued
 }
+
+// A queued request remembers when it was made, so that one aimed at a probe
+// that never comes back does not sit here forever. See traceClaimGrace.
+type queued struct {
+	id int64
+	at int64
+}
+
+// How long a request waits for the probe that should run it before any probe
+// may. A traceroute is wanted because something looked wrong, and a primary
+// probe that is not answering is itself something wrong — running it from
+// elsewhere then says more than not running it at all. Probes ask for work
+// every five seconds, so a primary that is up claims its requests long before
+// this.
+const traceClaimGrace = 120
 
 var (
 	traceRequests traceQueue
@@ -250,22 +265,46 @@ func (q *traceQueue) Push(id int64) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for _, x := range q.ids {
-		if x == id {
+		if x.id == id {
 			return
 		}
 	}
 	if len(q.ids) < 100 {
-		q.ids = append(q.ids, id)
+		q.ids = append(q.ids, queued{id: id, at: time.Now().Unix()})
 	}
 }
 
-func (q *traceQueue) Pop() []int64 {
+// PopFor hands a probe the requests it should run: the targets it is primary
+// for, plus anything the primary has left waiting past the grace period.
+// Everything else stays queued for the probe it belongs to.
+//
+// mine is nil for a caller with no routing at all, which takes everything —
+// that is the shape the queue had before targets had a primary probe, and it
+// is what the tests of everything else still expect.
+func (q *traceQueue) PopFor(mine map[int64]bool, now int64) []int64 {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	out := q.ids
-	q.ids = nil
+	if mine == nil {
+		out := make([]int64, 0, len(q.ids))
+		for _, x := range q.ids {
+			out = append(out, x.id)
+		}
+		q.ids = nil
+		return out
+	}
+	out, kept := []int64{}, q.ids[:0]
+	for _, x := range q.ids {
+		if mine[x.id] || now-x.at >= traceClaimGrace {
+			out = append(out, x.id)
+			continue
+		}
+		kept = append(kept, x)
+	}
+	q.ids = kept
 	return out
 }
+
+func (q *traceQueue) Pop() []int64 { return q.PopFor(nil, 0) }
 
 // ------------------------------------------------------------------ routes
 

@@ -292,6 +292,12 @@ func OpenStore(dir string) (*Store, error) {
 	// instance behind a reverse proxy, where what arrives is the proxy. The
 	// stated one wins when it is set, so the automatic case stays automatic
 	// and the awkward case stays repairable.
+	// Which probe decides this target's status, and receives the traceroute
+	// and immediate-check requests made for it. Zero means the instance's own
+	// local probe, which is what every target has until someone chooses
+	// otherwise — so an instance that never enrols a remote probe behaves
+	// exactly as it did before this column existed.
+	addColumn(cfg, "targets", "primary_probe_id INTEGER NOT NULL DEFAULT 0")
 	addColumn(cfg, "probes", "address TEXT NOT NULL DEFAULT ''")
 	addColumn(cfg, "probes", "seen_address TEXT NOT NULL DEFAULT ''")
 	migrateTCPPorts(cfg)
@@ -401,6 +407,12 @@ type Target struct {
 	// DCCheck is the id of the peer double-check this target exists for.
 	// Empty for every ordinary target.
 	DCCheck string `json:"dc_check,omitempty"`
+	// PrimaryProbeID is the probe that decides this target's status and runs
+	// its traceroutes. Zero is the instance's own local probe, which is what
+	// every target has until someone chooses otherwise. It is set through its
+	// own route rather than with the rest of these, because it is a statement
+	// about probes and is validated against what each probe may measure.
+	PrimaryProbeID int64 `json:"primary_probe_id"`
 }
 
 type Category struct {
@@ -487,7 +499,7 @@ func (s *Store) SetCategoryParams(id int64, p TargetParams) error {
 // targetCols is the column list every target query shares, so adding a
 // column is one edit rather than five.
 const targetCols = `id,category_id,slug,title,host,proto,interval_s,packets,
-	        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check`
+	        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id`
 
 // inheritableFields maps the name the interface uses to the column it
 // clears. Only these can be inherited; the host, the protocol, the port and
@@ -648,7 +660,7 @@ func (s *Store) TouchProbe(id int64) {
 func (s *Store) ActiveTargets() ([]*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id
 		   FROM targets WHERE enabled=1 AND archived_at=0 ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -671,7 +683,7 @@ func scanTargets(rows *sql.Rows) ([]*Target, error) {
 		if err := rows.Scan(&t.ID, &t.CategoryID, &t.Slug, &t.Title, &t.Host,
 			&t.Proto, &t.IntervalS, &t.Packets, &t.SpacingMs, &t.TimeoutMs,
 			&pub, &en, &t.Family, &t.Port, &t.PinIP, &off, &t.ArchivedAt, &t.TraceHours, &hide, &t.KeepDays,
-			&t.LossWarn, &t.LossCrit, &t.LatFactor, &certOff, &t.DCCheck); err != nil {
+			&t.LossWarn, &t.LossCrit, &t.LatFactor, &certOff, &t.DCCheck, &t.PrimaryProbeID); err != nil {
 			return nil, err
 		}
 		t.Public, t.Enabled, t.AlertsOff = pub == 1, en == 1, off == 1
@@ -719,7 +731,7 @@ func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 
 	trows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id
 		   FROM targets WHERE archived_at=0 AND dc_check='' ORDER BY title`)
 	if err != nil {
 		return nil, err
@@ -751,7 +763,7 @@ func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 func (s *Store) TargetByID(id int64) (*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id
 		   FROM targets WHERE id=?`, id)
 	if err != nil {
 		return nil, err
@@ -1462,7 +1474,7 @@ func (s *Store) ArchiveTarget(id int64) error {
 func (s *Store) ArchivedTargets() ([]*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id
 		   FROM targets WHERE archived_at>0 ORDER BY archived_at DESC`)
 	if err != nil {
 		return nil, err

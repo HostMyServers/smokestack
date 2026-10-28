@@ -83,6 +83,11 @@ func probeSocketPath(cfg Config) string {
 type probeCaller struct {
 	id      int64
 	allowed func() (map[int64]bool, error)
+	// primary is the set of targets this caller decides for, and therefore
+	// the traceroute and immediate-check requests it should run. Both probes
+	// resolve it; it is the queue, not the caller, that treats nil as "no
+	// routing".
+	primary func() (map[int64]bool, error)
 }
 
 func probeEndpoints(mux *http.ServeMux, cache *TargetCache, writer *Writer,
@@ -133,8 +138,23 @@ func probeEndpoints(mux *http.ServeMux, cache *TargetCache, writer *Writer,
 		// Routing these per probe belongs with the per-target primary probe,
 		// which is a separate decision, so this stays as it is rather than
 		// growing a half-rule now.
+		// Requests are routed to the probe that decides the target, so that an
+		// anomaly on a target is traced from where the anomaly was seen. A
+		// failure to resolve that takes nothing rather than taking
+		// everything: wrongly claiming another probe's work is worse than
+		// leaving it for the next poll, five seconds later.
+		var mine map[int64]bool
+		if c.primary != nil {
+			m, err := c.primary()
+			if err != nil {
+				writeErr(w, 500, err.Error())
+				return
+			}
+			mine = m
+		}
+		now := time.Now().Unix()
 		writeJSON(w, probeTargetsResp{Version: Version, ProbeID: probeID, Targets: targets,
-			TraceRequests: traceRequests.Pop(), CheckRequests: checkRequests.Pop()})
+			TraceRequests: traceRequests.PopFor(mine, now), CheckRequests: checkRequests.PopFor(mine, now)})
 	})
 	mux.HandleFunc("POST /probe/v1/traceroutes", func(w http.ResponseWriter, r *http.Request) {
 		c, ok := who(r)
@@ -221,13 +241,14 @@ func ProbeRoutes(mux *http.ServeMux, store *Store, cache *TargetCache, writer *W
 		// Records both that it spoke and where from. This is the only place
 		// the service learns a remote probe's address on its own.
 		store.SeenProbeFrom(id, clientIP(r))
-		return probeCaller{id: id, allowed: func() (map[int64]bool, error) {
-			return store.ProbeTargetIDs(id)
-		}}, true
+		return probeCaller{id: id,
+			allowed: func() (map[int64]bool, error) { return store.ProbeTargetIDs(id) },
+			primary: func() (map[int64]bool, error) { return store.PrimaryTargets(id) },
+		}, true
 	})
 }
 
-func ServeProbeSocket(path string, cache *TargetCache, writer *Writer, probeID int64, stop <-chan struct{}) error {
+func ServeProbeSocket(path string, store *Store, cache *TargetCache, writer *Writer, probeID int64, stop <-chan struct{}) error {
 	os.Remove(path)
 	l, err := net.Listen("unix", path)
 	if err != nil {
@@ -238,9 +259,13 @@ func ServeProbeSocket(path string, cache *TargetCache, writer *Writer, probeID i
 	// Reaching this socket already means being a process on the host under
 	// the service's group, which is the whole authentication it has ever had.
 	// A nil assignment means no restriction: this probe measures every active
-	// target, as it always has.
+	// target, as it always has. It is still routed, though — a target whose
+	// primary is a remote probe should have its traceroutes run there, not
+	// here as well.
 	probeEndpoints(mux, cache, writer, func(*http.Request) (probeCaller, bool) {
-		return probeCaller{id: probeID}, true
+		return probeCaller{id: probeID,
+			primary: func() (map[int64]bool, error) { return store.PrimaryTargets(probeID) },
+		}, true
 	})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() {
