@@ -48,6 +48,15 @@
       </div></div>
     </div>
   </section>
+  <section class="section" id="apiSec">
+    <div class="section-h"><h2 data-i18n="about.api"></h2></div>
+    <p class="muted" style="font-size:13px" data-i18n="about.api_lead"></p>
+    <ul class="apilist">
+      <li><a class="mono" href="/api/v1/overview">/api/v1/overview</a> <span class="faint" data-i18n="about.api_overview"></span></li>
+      <li><a class="mono" href="/api/v1/version">/api/v1/version</a> <span class="faint" data-i18n="about.api_version"></span></li>
+      <li><a class="mono" href="/healthz">/healthz</a> <span class="faint" data-i18n="about.api_health"></span></li>
+    </ul>
+  </section>
   <section class="section" id="legalSec">
     <div class="section-h"><h2 data-i18n="about.legal"></h2></div>
     <p class="muted" style="font-size:13px" id="legal"></p>
@@ -64,9 +73,15 @@ const kv = rows => html`<div class="kv">${rows.filter(r => r[1]).map(r =>
   html`<div class="k">${I18N.t(r[0])}</div><div class="v">${r[1]}</div>`)}</div>`;
 
 const mailto = addr => addr && html`<a href="mailto:${addr}">${addr}</a>`;
-const out = (href, label) => {
+// rel is a parameter because the two kinds of outbound link here do not want
+// the same one. The operator's own website and PeeringDB page want noopener;
+// the contact links, which are arbitrary addresses the operator typed, were
+// noreferrer before this page moved onto the template and stay noreferrer —
+// noreferrer implies noopener, so naming only the latter would have quietly
+// started leaking the referrer to them.
+const out = (href, label, rel = "noopener") => {
   const u = url(href);
-  return u && html`<a href="${u}" rel="noopener">${label}</a>`;
+  return u && html`<a href="${u}" rel="${rel}">${label}</a>`;
 };
 
 function render(s) {
@@ -188,7 +203,7 @@ function contactAlternatives(site) {
     H.render(box, html`<div class="card" style="margin-top:14px"><div class="card-b">
       <h3 style="margin:0 0 8px;font-size:15px">${t("contact.other_ways")}</h3>
       <ul style="margin:0;padding-left:18px">${site.contact_links.map(l =>
-        html`<li>${out(l.url, l.label || l.url)}</li>`)}</ul>
+        html`<li>${out(l.url, l.label || l.url, "noopener noreferrer")}</li>`)}</ul>
       </div></div>`);
   }
 }

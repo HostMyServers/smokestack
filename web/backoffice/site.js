@@ -48,7 +48,12 @@ Mastodon | https://mastodon.example/@noc">${(s.contact_links||[]).map(l=>`${l.la
       ${f("noc_phone","NOC phone",s.noc_phone)}
       ${f("url","Website",s.url)}
       ${f("peeringdb","PeeringDB record",s.peeringdb)}
+      ${f("fed_url","Address of this instance",s.fed_url,"https://latency.example.net")}
       </div>
+      <div class="note" style="margin:10px 0 0"><b>Address of this instance</b> is what a peer uses to
+        reach it back, and pairing refuses to start without it. It is not the same as <b>Website</b>,
+        which is your own site and may be a different domain. If <span class="mono">federation.base_url</span>
+        is set in the configuration file, that value wins over this one.</div>
       <div class="note" style="margin:10px 0 0">The notification address is never shown publicly. It is
         used only if SMTP is configured in <a href="${pathOf("notify")}" data-goto="notify">NOC alerting</a>; otherwise
         messages simply wait in Messages.</div>
@@ -115,7 +120,7 @@ Mastodon | https://mastodon.example/@noc">${(s.contact_links||[]).map(l=>`${l.la
     document.querySelectorAll("[data-goto]").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.goto);});
     $("#save").onclick=async()=>{
       const ids=["title","org","asn","owner","location","timezone","email",
-                 "noc_email","noc_phone","url","peeringdb","description","legal","default_lang",
+                 "noc_email","noc_phone","url","fed_url","peeringdb","description","legal","default_lang",
                  "contact_notify"];
       const body={};ids.forEach(k=>body[k]=$("#"+k).value);
       body.public_traceroutes=$("#public_traceroutes").checked;

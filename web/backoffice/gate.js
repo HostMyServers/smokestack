@@ -2,6 +2,22 @@
  * Charge par admin.html, dans l'ordre : ces fichiers partagent une
  * portee globale, comme app.js et i18n.js du site public. */
 /* --------------------------------------------------- entry screens */
+
+// Both entry screens end here. The address decides the view, exactly as it
+// does on a refresh in startup.js: signing in at /admin/traces has to land
+// on the traceroutes, not on the dashboard with the address still claiming
+// otherwise. Without this VIEW keeps the "dash" it was initialised with in
+// core.js, because only startup.js and popstate ever consulted the path.
+//
+// viewFromPath reads ME for its role check, so ME is set first. Both live in
+// shell.js, which loads after this file but long before either is called.
+function enterShell(r){
+  CSRF=r.csrf; ME=r.user;
+  VIEW=viewFromPath();
+  history.replaceState(null,"",pathOf(VIEW)+location.search);
+  shell();
+}
+
 function gateSetup(){
   H.render($("#app"),html`<div class="gate"><div class="gatebox">
     <div class="logo">S</div>
@@ -21,7 +37,7 @@ function gateSetup(){
     try{
       const r=await api("POST","/api/v1/auth/setup",
         {setup_code:$("#c").value,email:$("#e").value,name:$("#n").value,password:$("#p").value});
-      CSRF=r.csrf;ME=r.user;shell();
+      enterShell(r);
     }catch(e){toast(e.message,true);}
   };
   $("#go").onclick=go;
@@ -41,7 +57,7 @@ function gateLogin(){
   const go=async()=>{
     try{
       const r=await api("POST","/api/v1/auth/login",{email:$("#e").value,password:$("#p").value});
-      CSRF=r.csrf;ME=r.user;shell();
+      enterShell(r);
     }catch(e){toast(e.message,true);}
   };
   $("#go").onclick=go;

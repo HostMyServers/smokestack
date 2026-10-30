@@ -235,7 +235,12 @@
     "cores": "núcleos",
     "ram": "Memoria",
     "uptime": "En servicio desde hace",
-    "platform_k": "Sistema"
+    "platform_k": "Sistema",
+    "api": "Datos abiertos",
+    "api_lead": "Todo lo que muestra esta página se sirve también en JSON, sin clave y sin límite de peticiones. Los objetivos privados no aparecen, salvo para quien haya iniciado sesión.",
+    "api_overview": "estado de cada objetivo público",
+    "api_version": "versión, fecha de compilación y plataforma",
+    "api_health": "comprobación de estado"
   },
   "pairing": {
     "title": "Emparejamiento de federación",
@@ -264,8 +269,7 @@
     "tech_body": "Firmas Ed25519 a nivel de mensaje, tolerancia de reloj de 5 minutos, protección contra repetición mediante caché de nonces."
   },
   "footer": {
-    "powered": "Funciona con smokestack",
-    "rights": "Las medidas se publican tal cual, sin garantía."
+    "powered": "Funciona con smokestack"
   },
   "trace": {
     "title": "Traceroutes",

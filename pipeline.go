@@ -248,9 +248,10 @@ func (s *Store) RecordBatch(batch []queuedMeasure) error {
 // memoire. Elle est rafraichie en tache de fond toutes les 10 s, et tout
 // de suite apres une creation ou une suppression de cible.
 type TargetCache struct {
-	store *Store
-	mu    sync.RWMutex
-	list  []*Target
+	store   *Store
+	mu      sync.RWMutex
+	list    []*Target
+	probeID int64
 }
 
 func NewTargetCache(store *Store) *TargetCache {
@@ -286,13 +287,45 @@ func (c *TargetCache) refresh() {
 	c.mu.Unlock()
 }
 
+// SetProbe tells the cache which probe is reading it, so that the request
+// queues can be routed the same way they are for a probe in its own process.
+// Left unset, the cache takes every request, which is what it did before
+// targets had a primary probe.
+func (c *TargetCache) SetProbe(id int64) {
+	c.mu.Lock()
+	c.probeID = id
+	c.mu.Unlock()
+}
+
+func (c *TargetCache) mine() map[int64]bool {
+	c.mu.RLock()
+	id := c.probeID
+	c.mu.RUnlock()
+	if id == 0 {
+		return nil
+	}
+	set, err := c.store.PrimaryTargets(id)
+	if err != nil {
+		// Taking nothing rather than everything: claiming another probe's
+		// work on the strength of a failed query would be worse than waiting
+		// for the next pass.
+		log.Printf("primary targets: %v", err)
+		return map[int64]bool{}
+	}
+	return set
+}
+
 // TraceRequests hands traceroutes requested from the back-office to the
-// embedded probe.
-func (c *TargetCache) TraceRequests() []int64 { return traceRequests.Pop() }
+// embedded probe, for the targets this probe decides.
+func (c *TargetCache) TraceRequests() []int64 {
+	return traceRequests.PopFor(c.mine(), time.Now().Unix())
+}
 
 // CheckRequests hands over targets to measure right away: a target just
 // created should not wait a whole interval for its first result.
-func (c *TargetCache) CheckRequests() []int64 { return checkRequests.Pop() }
+func (c *TargetCache) CheckRequests() []int64 {
+	return checkRequests.PopFor(c.mine(), time.Now().Unix())
+}
 
 func (c *TargetCache) Targets() []*Target {
 	c.mu.RLock()

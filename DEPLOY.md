@@ -89,9 +89,27 @@ sudo sh install.sh --package dist/smokestack --admin-email noc@example.net
 | Creates a system user | `smokestack`, no shell, no home |
 | Lays out the files | `/opt/smokestack/releases/<version>/` + `current` symlink |
 | Writes the configuration | `/etc/smokestack/config.json`, **only if it does not exist yet** |
-| Installs two systemd units | `smokestack` (web) and `smokestack-probe` (probe), hardened, see [section 10](#10-probe-isolation-and-performance) |
+| Installs two systemd units | `smokestack` (web) and `smokestack-probe` (probe), hardened, see [section 10](#10-probe-isolation-and-performance). The probe is `PartOf=` the web service, so stopping or restarting one does the same to the other |
 | Creates the master account | And prints its password |
 | Adds a `smokestack` command | Always runs as the service user, even under `sudo` |
+
+**Two services, one executable.** In the default `external` probe mode there
+are two units running the same binary, so a `smokestack` process in `ps`
+after you stopped `smokestack.service` is the probe, not the web service
+coming back. `PartOf=` makes `systemctl stop smokestack` stop both; on an
+instance installed before that, stop them together:
+
+```sh
+systemctl stop smokestack smokestack-probe
+systemctl status smokestack smokestack-probe      # both inactive
+```
+
+**Do not replace the binary in place.** A running process holds it open, so
+overwriting `/opt/smokestack/releases/<version>/smokestack` fails with *text
+file busy*. Releases sit side by side and `current` is a symlink switched
+atomically — `smokestack update <package>.zip`, the back-office, or re-running
+`install.sh --package` all do that, and none of them need the service stopped
+first.
 
 Options:
 
@@ -102,7 +120,7 @@ Options:
 | `--ip IP` | `127.0.0.1` | Listen IP of the web interface: keep it on localhost behind a reverse proxy; `0.0.0.0` (IPv4) or `::` (IPv4 and IPv6) for all interfaces |
 | `--port PORT` | `8080` | Listen port |
 | `--listen IP:PORT` | — | Older combined form of `--ip` and `--port` |
-| `--public-url URL` | — | Public address, used by federation |
+| `--public-url URL` | — | Public address of this instance. It becomes `federation.base_url`, and **pairing refuses to start without it**: a peer needs an address to reach this instance back. Set it later in `/etc/smokestack/config.json` if you skip it here |
 | `--yes` | — | Never ask questions (automation). Questions are also skipped when the script does not run in a terminal |
 | `--lang CODE` | `en` | Default language of the public pages: `en`, `da`, `de`, `es`, `fr`, `it`, `nb`, `nl`, `pt`, `sv` |
 | `--embedded` | — | Run the probe inside the web service (one process, for very small servers) |
@@ -1269,6 +1287,28 @@ Federation links instances run by different operators, so everything that
 crosses it is treated as hostile input. This section says what each rule
 actually buys, because an operator answering to his own security team needs
 more than "it is signed".
+
+### Before any of it works: your own address
+
+Pairing announces where to reach you, so an instance with no address of its
+own cannot pair. Two settings are required on **your** side before you ask
+anybody, both in the *Publisher* page of the back-office:
+
+- **Address of this instance** — the public address a peer uses to reach it
+  back. It is not the same field as **Website**, which is your own site and
+  may be a different domain.
+- **your AS number**.
+
+`install.sh` also writes the address into `federation.base_url` from
+`--public-url`, and **the file wins where both are set**: pin it there if you
+do not want it changed from the interface, and leave it out to manage it from
+the back-office, which needs no restart.
+
+An install done without `--public-url` leaves the file empty, which is why
+the back-office field exists. Each setting is refused with a message naming
+it. If a peer's instance answers `HTTP 400: incomplete request: url is
+missing`, that is the address empty on the side that **sent** the request,
+not a fault at the other end.
 
 ### Pairing: who you are is not what you claim
 

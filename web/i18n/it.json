@@ -235,7 +235,12 @@
     "cores": "core",
     "ram": "Memoria",
     "uptime": "In servizio da",
-    "platform_k": "Sistema"
+    "platform_k": "Sistema",
+    "api": "Dati aperti",
+    "api_lead": "Tutto ciò che questa pagina mostra è servito anche in JSON, senza chiave e senza limite di richieste. I bersagli privati non compaiono, salvo per un chiamante autenticato.",
+    "api_overview": "stato di ogni bersaglio pubblico",
+    "api_version": "versione, data di build e piattaforma",
+    "api_health": "controllo di salute"
   },
   "pairing": {
     "title": "Abbinamento di federazione",
@@ -264,8 +269,7 @@
     "tech_body": "Firme Ed25519 a livello di messaggio, tolleranza dell'orologio di 5 minuti, protezione dal replay tramite cache dei nonce."
   },
   "footer": {
-    "powered": "Realizzato con smokestack",
-    "rights": "Tutte le misure sono pubblicate così come sono, senza garanzia."
+    "powered": "Realizzato con smokestack"
   },
   "trace": {
     "title": "Traceroute",

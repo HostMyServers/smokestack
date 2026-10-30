@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -53,11 +56,54 @@ type ixStored struct {
 	Nets map[string]string `json:"nets"`
 }
 
+// The widest prefix a peering LAN is allowed to claim. PeeringDB is a third
+// party that anyone with a member account writes to, and a prefix from it
+// decides what every hop of every traceroute is labelled with. A single
+// 0.0.0.0/0 or ::/0 row would put one exchange's name on the whole product —
+// ::/0 on every IPv6 hop in it, since the v6 list is consulted in full.
+//
+// Real peering LANs are /21 to /26 in IPv4 and /64, occasionally /48, in
+// IPv6. The bounds here are far wider than that on purpose: they exist to
+// refuse the impossible, not to second-guess an exchange that publishes an
+// unusual size. Anything rejected is logged, so a legitimate prefix that
+// trips a bound says so rather than disappearing.
+//
+// The v4 floor earns one more thing. A prefix wider than /8 spans several
+// first octets, and the v4 index files each prefix under the one octet of
+// its network address — so such a prefix was only ever found for addresses
+// starting with that octet. At /16 and narrower, every prefix sits inside a
+// single octet and the index is right by construction.
+const (
+	ixMinBitsV4 = 16
+	ixMinBitsV6 = 32
+)
+
+// ixPrefixOK reports whether a prefix is plausibly a peering LAN.
+func ixPrefixOK(n *net.IPNet) bool {
+	if n == nil {
+		return false
+	}
+	ones, bits := n.Mask.Size()
+	if bits == 0 { // non-contiguous mask: Size returns 0, 0
+		return false
+	}
+	if n.IP.To4() != nil {
+		return ones >= ixMinBitsV4 && ones <= 32
+	}
+	return ones >= ixMinBitsV6 && ones <= 128
+}
+
 func buildIXTable(st ixStored) *ixTable {
 	t := &ixTable{v4: map[byte][]ixNet{}, at: st.At}
 	for p, name := range st.Nets {
 		_, n, err := net.ParseCIDR(p)
 		if err != nil || name == "" {
+			continue
+		}
+		// Checked here as well as on the way in: a table stored by an
+		// earlier version is read straight off config.db at startup, and
+		// nothing else would ever look at it again.
+		if !ixPrefixOK(n) {
 			continue
 		}
 		e := ixNet{net: n, ix: name}
@@ -67,7 +113,33 @@ func buildIXTable(st ixStored) *ixTable {
 			t.v6 = append(t.v6, e)
 		}
 	}
+	// Longest prefix first. IXAt returns the first entry that contains the
+	// address, and the loop above walks a Go map, whose order is deliberately
+	// random: two overlapping prefixes would otherwise give an answer that
+	// differs between restarts of the same binary on the same table. Sorting
+	// makes the lookup both deterministic and the right way round, since the
+	// more specific prefix is the one that describes the address.
+	for k := range t.v4 {
+		sortIXNets(t.v4[k])
+	}
+	sortIXNets(t.v6)
 	return t
+}
+
+// sortIXNets orders by descending prefix length, then by network address and
+// name so that equal-length prefixes keep a stable order too.
+func sortIXNets(ns []ixNet) {
+	sort.Slice(ns, func(i, j int) bool {
+		oi, _ := ns[i].net.Mask.Size()
+		oj, _ := ns[j].net.Mask.Size()
+		if oi != oj {
+			return oi > oj
+		}
+		if c := bytes.Compare(ns[i].net.IP, ns[j].net.IP); c != 0 {
+			return c < 0
+		}
+		return ns[i].ix < ns[j].ix
+	})
 }
 
 // loadIXTable reads the table config.db holds, if it holds one.
@@ -189,15 +261,29 @@ func (s *ASNService) refreshIXPrefixes() error {
 		ofLan[l.ID] = l.IXID
 	}
 	nets := map[string]string{}
+	refused := 0
 	for _, p := range pfx.Data {
 		n := name[ofLan[p.LanID]]
 		if n == "" {
 			continue
 		}
-		if _, _, err := net.ParseCIDR(p.Prefix); err != nil {
+		_, cidr, err := net.ParseCIDR(p.Prefix)
+		if err != nil {
+			continue
+		}
+		if !ixPrefixOK(cidr) {
+			// Logged rather than dropped silently: this is a third party's
+			// data deciding how hops are labelled, and a refusal is worth
+			// seeing — whether it is a mistake upstream or a prefix that is
+			// legitimate and wider than the bound expects.
+			log.Printf("ixp: refusing peering LAN %s for %q: wider than a peering LAN can be", p.Prefix, n)
+			refused++
 			continue
 		}
 		nets[p.Prefix] = n
+	}
+	if refused > 0 {
+		log.Printf("ixp: %d peering LAN(s) refused, %d kept", refused, len(nets))
 	}
 	// A truncated answer must not replace a table that works.
 	if len(nets) < 500 {

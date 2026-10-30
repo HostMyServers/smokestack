@@ -29,6 +29,12 @@ type ProbeConfig struct {
 	// processus (`smokestack probe`), isolee de l'interface web.
 	Mode   string `json:"mode"`
 	Socket string `json:"socket"`
+	// Set on a probe that runs on another machine: the service's base URL
+	// (https only) and the token issued for it by `smokestack probe token`.
+	// Left empty, the probe talks to the service beside it over the socket,
+	// which is what every existing installation does.
+	Server string `json:"server"`
+	Token  string `json:"token"`
 	// Traceroute on anomalies (on by default).
 	Traceroute TracerouteConfig `json:"traceroute"`
 	Slug       string           `json:"slug"`
@@ -79,7 +85,13 @@ func defaultConfig() Config {
 	}
 }
 
+// configPath is the file the running service was started with, so that a
+// message about a setting can name the file an operator has to open rather
+// than "the configuration file". Set once, at startup.
+var configPath = "/etc/smokestack/config.json"
+
 func loadConfig(path string) (Config, error) {
+	configPath = path
 	c := defaultConfig()
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -257,11 +269,12 @@ func main() {
 	writer := NewWriter(store, archive)
 	go writer.Loop(stop)
 	targets := NewTargetCache(store)
+	targets.SetProbe(probeID)
 	go targets.Loop(stop)
 
 	if cfg.Probe.Enabled {
 		if cfg.Probe.Mode == "external" {
-			if err := ServeProbeSocket(probeSocketPath(cfg), targets, writer, probeID, stop); err != nil {
+			if err := ServeProbeSocket(probeSocketPath(cfg), store, targets, writer, probeID, stop); err != nil {
 				log.Fatalf("probe socket: %v", err)
 			}
 		} else {
@@ -319,6 +332,12 @@ func main() {
 	}
 	api.initSetupCode(cfg.DataDir)
 	mux := http.NewServeMux()
+	// The probe protocol, reachable from the network for probes that run
+	// elsewhere. It is the same three endpoints the Unix socket serves, and
+	// every one of them refuses a request whose token resolves to nothing,
+	// so on an instance where no token was ever issued this registers routes
+	// that answer 401 and nothing else.
+	ProbeRoutes(mux, store, targets, writer)
 	api.Routes(mux)
 	api.AuthRoutes(mux)
 	api.FedRoutes(mux)
@@ -484,21 +503,17 @@ func execBinary(path string) {
 }
 
 func backgroundLoop(store *Store, stop <-chan struct{}) {
-	// Up to 0.6.11 the sliding window erased the aggregates behind it:
-	// rebuild them once from what the lower levels still hold.
-	if store.Setting("rollups_rebuilt", "") == "" {
-		start := time.Now()
-		if err := store.RebuildRollups(start.Unix()); err != nil {
-			log.Printf("rebuilding the aggregates: %v", err)
-		} else {
-			store.SetSetting("rollups_rebuilt", Version)
-			log.Printf("aggregates rebuilt in %v", time.Since(start).Round(time.Millisecond))
-		}
-	}
 	rollup := time.NewTicker(30 * time.Second)
 	purge := time.NewTicker(6 * time.Hour)
+	// Catching up on history is not the same job as keeping up with the
+	// present. One chunk at a time, slowly, so an instance with months of
+	// fine-grained data recovers its long views without the start-up doing
+	// anything but measuring.
+	backfill := time.NewTicker(20 * time.Second)
 	defer rollup.Stop()
 	defer purge.Stop()
+	defer backfill.Stop()
+	caughtUp := false
 	for {
 		select {
 		case <-stop:
@@ -507,11 +522,26 @@ func backgroundLoop(store *Store, stop <-chan struct{}) {
 			if err := store.RollupTick(time.Now().Unix()); err != nil {
 				log.Printf("rollup: %v", err)
 			}
+		case <-backfill.C:
+			if caughtUp {
+				continue
+			}
+			more, err := store.RollupBackfill(time.Now().Unix(), 7*86400)
+			if err != nil {
+				log.Printf("rollup backfill: %v", err)
+				continue
+			}
+			if !more {
+				caughtUp = true
+				log.Printf("aggregation tiers are complete: the long views cover everything measured")
+			}
 		case <-purge.C:
 			store.PurgeSessions()
 			if err := store.Purge(time.Now().Unix()); err != nil {
 				log.Printf("purge: %v", err)
 			}
+			// A purge can expose a new oldest row, so look again.
+			caughtUp = false
 		}
 	}
 }

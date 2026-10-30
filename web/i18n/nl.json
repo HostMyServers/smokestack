@@ -235,7 +235,12 @@
     "cores": "kernen",
     "ram": "Geheugen",
     "uptime": "Draait sinds",
-    "platform_k": "Systeem"
+    "platform_k": "Systeem",
+    "api": "Open data",
+    "api_lead": "Alles wat deze pagina toont wordt ook als JSON aangeboden, zonder sleutel en zonder verzoeklimiet. Privédoelen ontbreken, tenzij de aanvrager is aangemeld.",
+    "api_overview": "status van elk openbaar doel",
+    "api_version": "versie, bouwdatum en platform",
+    "api_health": "gezondheidscontrole"
   },
   "pairing": {
     "title": "Federatiekoppeling",
@@ -264,8 +269,7 @@
     "tech_body": "Ed25519-handtekeningen op berichtniveau, klokafwijking tot 5 minuten, bescherming tegen replay via een nonce-cache."
   },
   "footer": {
-    "powered": "Mogelijk gemaakt door smokestack",
-    "rights": "Alle metingen worden gepubliceerd zoals ze zijn, zonder garantie."
+    "powered": "Mogelijk gemaakt door smokestack"
   },
   "trace": {
     "title": "Traceroutes",

@@ -235,7 +235,12 @@
     "cores": "cœurs",
     "ram": "Mémoire",
     "uptime": "En service depuis",
-    "platform_k": "Système"
+    "platform_k": "Système",
+    "api": "Données ouvertes",
+    "api_lead": "Tout ce que montre cette page est aussi servi en JSON, sans clé et sans limite de débit. Les cibles privées en sont absentes, sauf pour un appelant authentifié.",
+    "api_overview": "état de chaque cible publique",
+    "api_version": "version, date de construction et plateforme",
+    "api_health": "contrôle de santé"
   },
   "pairing": {
     "title": "Appairage de fédération",
@@ -264,8 +269,7 @@
     "tech_body": "Signatures Ed25519 au niveau du message, tolérance d'horloge de 5 minutes, protection contre le rejeu par cache de nonces."
   },
   "footer": {
-    "powered": "Propulsé par smokestack",
-    "rights": "Les mesures sont publiées telles quelles, sans garantie."
+    "powered": "Propulsé par smokestack"
   },
   "trace": {
     "title": "Traceroutes",

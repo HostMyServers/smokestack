@@ -168,6 +168,9 @@
 
   const pause = ms => new Promise(done => setTimeout(done, ms));
 
+  // The longest a retry will ever wait, whatever the server asks for.
+  const RETRY_CAP_S = 30;
+
   // getJSON tries again when the failure is one that passes — the network,
   // a 429, a 5xx while the service restarts — and throws once it persists.
   async function getJSON(url, tries = 4) {
@@ -182,7 +185,14 @@
       }
       if (r.ok) return r.json();
       if (i >= tries || (r.status !== 429 && r.status < 500)) throw new Error(`${url}: HTTP ${r.status}`);
-      await pause(1000 * (+r.headers.get("Retry-After") || 2 ** (i - 1)));
+      // Retry-After is honoured, but capped: it is a number this page does
+      // not choose, and an hour of it would leave the page sitting on
+      // "loading" with nothing said. Only a positive number is taken — the
+      // header also allows an HTTP date, which gives NaN, and a zero or a
+      // negative value would otherwise skip the wait altogether and spend
+      // every attempt at once.
+      const after = +r.headers.get("Retry-After");
+      await pause(1000 * (after > 0 ? Math.min(after, RETRY_CAP_S) : 2 ** (i - 1)));
     }
   }
 

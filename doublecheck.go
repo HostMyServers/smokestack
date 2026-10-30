@@ -346,20 +346,28 @@ type dcRequest struct {
 	Slug string `json:"slug,omitempty"`
 }
 
-// dcCheckAddress refuses anything that is not a public unicast address.
-// A name is resolved and the resolved addresses are checked, not the
-// string: a name pointing at 127.0.0.1 would otherwise walk straight
-// through. Every answer must pass, not merely the first, because a name
-// that resolves to one public and one private address would otherwise be
-// a way in.
-func dcCheckAddress(host string, family int) error {
+// dcResolvePublicIP refuses anything that is not a public unicast address,
+// and returns the address the check will be pinned to.
+//
+// A name is resolved and the resolved addresses are checked, not the string:
+// a name pointing at 127.0.0.1 would otherwise walk straight through. Every
+// answer must pass, not merely the first, because a name that resolves to
+// one public and one private address would otherwise be a way in.
+//
+// Returning the address, rather than only a verdict, is what closes the gap
+// between checking and measuring. The check resolved the name and the probe
+// resolved it again, minutes later and every five minutes after that, so a
+// name whose answer changed in between was validated as one address and
+// measured as another — the private one, if whoever controls the name wanted
+// it to be. The caller pins what was validated. Reported by @Kofysh in #89.
+func dcResolvePublicIP(host string, family int) (string, error) {
 	name := hostOnly(host)
 	if name == "" {
-		return fmt.Errorf("missing host")
+		return "", fmt.Errorf("missing host")
 	}
 	if strings.EqualFold(name, "localhost") ||
 		strings.HasSuffix(strings.ToLower(name), ".localhost") {
-		return fmt.Errorf("refusing to measure this machine")
+		return "", fmt.Errorf("refusing to measure this machine")
 	}
 	ips := []net.IP{}
 	if ip := net.ParseIP(name); ip != nil {
@@ -367,10 +375,11 @@ func dcCheckAddress(host string, family int) error {
 	} else {
 		addrs, err := net.LookupIP(name)
 		if err != nil || len(addrs) == 0 {
-			return fmt.Errorf("the name %s does not resolve here", oneLine(name, 80))
+			return "", fmt.Errorf("the name %s does not resolve here", oneLine(name, 80))
 		}
 		ips = addrs
 	}
+	var pin net.IP
 	for _, ip := range ips {
 		if family == 4 && ip.To4() == nil {
 			continue
@@ -380,10 +389,16 @@ func dcCheckAddress(host string, family int) error {
 		}
 		if !isPublicIP(ip) || ip.IsMulticast() || ip.IsInterfaceLocalMulticast() ||
 			ip.IsLinkLocalMulticast() {
-			return fmt.Errorf("refusing to measure a non-public address (%s)", ip)
+			return "", fmt.Errorf("refusing to measure a non-public address (%s)", ip)
+		}
+		if pin == nil {
+			pin = ip
 		}
 	}
-	return nil
+	if pin == nil {
+		return "", fmt.Errorf("the name %s has no IPv%d address here", oneLine(name, 80), family)
+	}
+	return pin.String(), nil
 }
 
 // dcVerifyPublicTarget is guard 2, and the one that decides how narrow
@@ -482,7 +497,11 @@ func (f *Federation) dcAccept(peer *Peer, req dcRequest) (*DCCheck, error) {
 		return nil, fmt.Errorf("%s has asked for %d checks in the last twenty-four hours, "+
 			"the limit is %d", peer.ASN, today, g.PerDay)
 	}
-	if err := dcCheckAddress(req.Host, req.Family); err != nil {
+	// Resolved once here, and the answer pinned on the target below: the
+	// probe must measure the address this validated, not whatever the name
+	// resolves to by the time it runs.
+	pinIP, err := dcResolvePublicIP(req.Host, req.Family)
+	if err != nil {
 		return nil, err
 	}
 	if err := f.dcVerifyPublicTarget(peer, req); err != nil {
@@ -496,7 +515,7 @@ func (f *Federation) dcAccept(peer *Peer, req dcRequest) (*DCCheck, error) {
 		StartedAt: now, ExpiresAt: now + int64(req.Minutes)*60,
 		State: "running",
 	}
-	id, err := f.dcMakeTarget(c)
+	id, err := f.dcMakeTarget(c, pinIP)
 	if err != nil {
 		return nil, err
 	}
@@ -514,7 +533,7 @@ func (f *Federation) dcAccept(peer *Peer, req dcRequest) (*DCCheck, error) {
 // no public page and no availability figure of ours. Its measurements are
 // diverted before they reach the cascade, which is what keeps this from
 // being somebody else's data in our history.
-func (f *Federation) dcMakeTarget(c *DCCheck) (int64, error) {
+func (f *Federation) dcMakeTarget(c *DCCheck, pinIP string) (int64, error) {
 	cat, err := f.store.dcCategory()
 	if err != nil {
 		return 0, err
@@ -524,6 +543,9 @@ func (f *Federation) dcMakeTarget(c *DCCheck) (int64, error) {
 		Slug:       "dc-" + c.ID,
 		Title:      fmt.Sprintf("double-check for %s: %s", c.PeerASN, oneLine(c.Host, 80)),
 		Host:       c.Host, Proto: c.Proto, Port: c.Port, Family: c.Family,
+		// The address the guard above validated, so the probe measures that
+		// one and not whatever the name resolves to five minutes from now.
+		PinIP:     pinIP,
 		IntervalS: int64(c.IntervalS), Packets: 5, SpacingMs: 200, TimeoutMs: 2000,
 		Public: false, Enabled: true, AlertsOff: true, HideHost: true,
 		DCCheck: c.ID,

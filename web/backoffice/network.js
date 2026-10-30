@@ -20,7 +20,7 @@ async function viewNet(m){
         <tr><td>Main upstream neighbours</td><td>${(i.upstreams||[]).length
           ? (i.upstreams||[]).flatMap((u,n)=>n?[html`<br>`,`AS${u.asn} ${u.name||""}`]:[`AS${u.asn} ${u.name||""}`])
           : "—"}</td></tr>
-        <tr><td>PeeringDB record</td><td>${p?html`${p.url?html`<a href="${p.url}" target="_blank" rel="noopener noreferrer">${p.name}</a>`:p.name} · ${p.policy||""}`:"none"}</td></tr>
+        <tr><td>PeeringDB record</td><td>${p?html`${extLink(p.url,p.name)||p.name} · ${p.policy||""}`:"none"}</td></tr>
         <tr><td>Internet exchanges</td><td>${p?(p.ixs||[]).map(x=>x.name).join(", ")||"—":"—"}</td></tr>
         <tr><td>Facilities</td><td>${p?(p.facilities||[]).map(f=>f.name).join(", ")||"—":"—"}</td></tr>
         <tr><td>Fetched</td><td>${dt(i.fetched_at)}</td></tr>

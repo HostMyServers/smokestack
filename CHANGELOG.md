@@ -2,6 +2,142 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+**An instance can now be measured from several places at once.** Until this batch, one instance meant one probe, running on the instance's own machine: every graph described the path from that one machine to the target, and a loss of packets looked the same whether the target was down or the path from that single vantage point was. Probes can now run on other machines, report to the instance over HTTPS, and measure alongside the local one.
+
+**Nothing changes for an instance that does not want this.** The local probe still reaches the service through its Unix socket, still measures every active target, and is not affected by anything below. There is no migration, and no setting to revisit.
+
+The rest is what [nkglfr/smokestack](https://github.com/nkglfr/smokestack) published as 0.7.0 to 0.7.3 and this fork had not shipped yet. A private target's measurements could be kept by a cache in front of the instance and handed to a visitor, so **an instance behind a CDN or a caching reverse proxy should take this one**. Four smaller holes close with it, on the mail, federation, live stream and ingestion paths, and the address an instance announces to its peers can now be set in the back-office.
+
+### New
+
+- **An operator can enrol a probe and issue it a token.**
+
+  The ingestion endpoint has always authenticated remote probes — it reads a stored hash, compares it in constant time and refuses an empty one — but nothing could ever issue a token, so the remote mode could not be used at all. The missing half is here, in the back-office under *Instance → Probes* and as `smokestack probe add`, `probe token`, `probe revoke` and `probe list`.
+
+  Only the hash is stored, so a token is shown once when it is issued and cannot be recovered afterwards. Rotating issues a new one and the previous one stops working immediately; revoking withdraws it without issuing a replacement, which is what a probe decommissioned in a hurry needs.
+
+  The local probe is deliberately refused a token. It writes through a socket only a process on the host can open, and an HTTP credential as well would widen the surface for nothing.
+
+  There is no way to delete a probe, only to disable it. Measurements are stored against the probe that made them, in a separate database, so removing the probe would orphan every measurement it ever sent with no way to attribute them again. Disabling stops it at the door and keeps its history readable.
+
+- **The probe protocol is served over the network, not only on the socket.**
+
+  A remote probe speaks exactly the protocol the local one speaks — the same three endpoints, the same payloads — and the two differ only in how the service decides who is calling. On the socket, being able to connect is the authentication, as it always has been. Over the network, the caller is whatever its token resolves to, and nothing otherwise.
+
+  Set `probe.server` to the instance's base URL and `probe.token` to the issued token in the probe's configuration file. The URL must be `https`: a token travels on every request and the target list comes back on the same connection, so the probe refuses to start on plain HTTP rather than warning in a log nobody reads.
+
+  A remote probe does not follow the service's version. It has its own release tree on its own update cadence, so it stays where it is rather than restarting itself to chase a number it cannot reach.
+
+- **A remote probe measures only the targets it was assigned.**
+
+  Enrolling a probe does not hand it the instance's target list. Each probe is given an explicit set of targets, in the back-office beside the probe, and it sees and writes those and nothing else — a measurement or a traceroute naming any other target is refused rather than quietly filed.
+
+  A probe that has just been enrolled is assigned nothing, and therefore measures nothing until someone says what it should measure. That is the deliberate way round: the alternative is a probe that measures everything from the moment it exists, which is a decision nobody made.
+
+  The local probe takes no assignment at all and keeps measuring every active target.
+
+- **The instance records where each probe measures from.**
+
+  The address a probe connects from is recorded automatically, and the AS it falls in is resolved from the same lookup service the Host network page uses. Both appear beside the probe in the back-office.
+
+  Where the observed address would be wrong — a probe behind NAT, or an instance behind a reverse proxy that does not pass the original address on — an address can be stated by hand and takes precedence. Clearing it hands the question back to what the service observes, which keeps being recorded in the meantime, so clearing it lands on something current rather than something stale.
+
+- **A target names the probe that decides its status.**
+
+  With several probes measuring the same target, something has to say which one the target's status follows and which one runs its traceroutes. That is the target's primary probe, chosen among the probes it is assigned to, in the target's own form.
+
+  Leaving it unset means the instance's own local probe, which is what every target has and what every existing instance keeps. A probe cannot be made primary for a target it is not assigned, because that would produce a target whose status nobody is able to report.
+
+  Traceroute and immediate-check requests now go to that probe rather than to whichever probe asks for work first, so an anomaly is traced from the vantage point it was seen from. A request its probe has not collected within two minutes may be run by any probe: a primary that is not answering is itself something worth a traceroute, and running it elsewhere says more than not running it at all.
+
+- **The address of this instance is set in the back-office.**
+
+  `federation.base_url` in the configuration file was the only way to give an instance the one thing a pairing request cannot do without, and `install.sh` writes it from `--public-url` — which is optional. An operator who installed without that flag could not pair, and had nowhere in the interface to fix it.
+
+  *Publisher → Address of this instance*, beside the AS number, saved without a restart. It is deliberately not the **Website** field next to it: that one is the operator's own site and may be a different domain, and announcing it to peers would send them somewhere they cannot reach. An address that is not plainly `http(s)` is refused when saved rather than at the moment somebody tries to use it.
+
+  The file still wins where both are set, the same order the AS number and the organisation already follow — pin it there to keep it out of the interface's reach.
+
+- **There is a security policy, and a private way to use it.**
+
+  The cache leak below arrived as a public pull request, which disclosed the finding, the fix and the affected version at once, before any instance had upgraded. There was nowhere else to send it. [SECURITY.md](SECURITY.md) says where to report, what is in scope, and how a contribution on the security path is handled.
+
+- **The About page carries the three open endpoints.** Reducing the footer took away the only link from any public page to `/api/v1/overview`, `/api/v1/version` and `/healthz`, leaving them documented in the README and nowhere a visitor would look. They now sit on the About page, next to what the operator already publishes, which is where somebody wondering whether the figures are machine-readable actually goes.
+
+### Fixed
+
+- **A private target's measurements were announced as publicly cacheable.**
+
+  `/api/v1/series` set `Cache-Control: public, max-age=15` on every answer, including a target no visitor may read. A shared cache in front of an instance keys on the address, so it could keep an operator's answer and hand it to the next visitor who asked for the same one. Reported by Kofysh.
+
+  Looking at the endpoint reported turned up five more, so the rule is now checked across every read endpoint at once rather than remembered one at a time:
+
+  | | |
+  |---|---|
+  | `tree` | the operator's answer — every target, private ones included — carried no directive at all, because the authenticated branch returns before the line that sets one |
+  | `charts` | the same, in both directions |
+  | `availability` | no directive at all, on an endpoint with exactly the series shape |
+  | `aspath` | the directive was set at the end of the function, and the two early returns above it skipped it |
+  | a 404 | cacheable by default, so a visitor's *target not found* for a private target could be kept and handed back to the operator whose target it is |
+
+  The public pages stay plainly cacheable on purpose. A series reads the same for everyone allowed to see it, so the target's visibility decides and no `Vary` is added — `Vary` on a public page means one cache entry per visitor, which is the cache turned off on the pages that need it most during an incident.
+
+- **A target's title could add headers to every alert email.**
+
+  The subject of an alert is built from the title and reached the `Subject:` header unfiltered, on all three mail paths. A title carrying a newline added headers of its own — a `Bcc:`, for instance. Setting a title needs the editor role and configuring a channel needs the admin role, so this let the lesser role write into the greater role's mail.
+
+- **A recipient address could be a command-line option.**
+
+  A sendmail channel hands its sender and recipients to the mail program as arguments, and an argument starting with `-` is an option. Addresses are validated before they get there now, and `--` ends the option list as well. The executable is checked too: absolute, cleaned, and a recognised mail program — in any directory, because that is the part which varies between systems. Reported by Kofysh.
+
+- **A federated double-check resolved the name twice.**
+
+  The guard that refuses a non-public address resolved the name, and the probe resolved it again minutes later and every five minutes after that. A name whose answer changed in between was validated as one address and measured as another. The address the guard accepted is pinned to the check now. Reported by Kofysh.
+
+- **The live stream endpoint had no ceiling.**
+
+  `/api/v1/live` holds a connection, a goroutine and a poll for as long as a client keeps it open, with no limit on how many. It is bounded per address as well as in total — a single global ceiling would let one client take the endpoint from everybody. Nothing in the interface uses this endpoint; it is there for third parties. Reported by Kofysh.
+
+- **Ingestion read the body before the token.**
+
+  `POST /api/v1/ingest` parsed the whole request before checking whether the caller held a probe token, and had no ceiling on the batch. Both roads in — that endpoint and the Unix socket the local probe uses — share one pair of limits now. Reported by Kofysh.
+
+- **A single prefix from PeeringDB could put one exchange's name on every hop.**
+
+  The table of peering LANs decides what every hop of every traceroute is labelled with, and anyone with a member account can write to it. A `::/0` row would have labelled every IPv6 hop with one exchange. A prefix far wider than a peering LAN can be — /16 in IPv4, /32 in IPv6 — is now refused, at ingestion and again when a stored table is read back, and the refusal is logged.
+
+  Where two prefixes overlap, the more specific one wins. The lookup used to take the first match in an order that could change between two restarts of the same binary.
+
+- **Pairing failed with `HTTP 400: incomplete request` when the fault was a setting at home.**
+
+  A pairing request announces where to reach you. An instance with no address of its own announces nothing, and the instance being asked refuses the request as incomplete — so the operator read a 400 from the far end and went looking for a problem at the other operator's. Checked before anything is sent now, with a message that says where to set it. The instance being asked also names the missing field, so a request from a version without this check still produces something its sender can act on.
+
+- **Stopping the service left a `smokestack` process running, and the binary could not be replaced.**
+
+  In the default probe mode there are two systemd units running the same executable. Nothing tied them together, so `systemctl stop smokestack` left `smokestack-probe` running — a `smokestack` process in `ps`, holding the binary open, which reads exactly like a service that restarts itself and makes replacing the file fail with *text file busy*.
+
+  The probe unit is now `PartOf=smokestack.service`: stopping or restarting one does the same to the other, and the probe can still be restarted on its own. An instance installed before this keeps its old unit until `install.sh` is re-run; `systemctl stop smokestack smokestack-probe` stops both in the meantime.
+
+- **The installer said nothing when it left the instance without an address.** `--public-url` is optional, and skipping it silently removed any chance of pairing later. The installer now says so at the end, and names where to set it.
+
+- **Signing in from a deep address landed on the dashboard.** Signing in at `/admin/traces` showed the dashboard while the address went on saying `/admin/traces`. Signing in now lands on the screen the address names, falling back to the dashboard, with the address following, when the role may not open it.
+
+- **A server asking for an hour's wait left the page on *loading* for an hour.** A failed request follows `Retry-After`, which had no upper bound, and a zero or negative value spent every retry at once. Thirty seconds is the most a page waits now, and only a positive number is taken.
+
+- **Three links lost a safeguard when their pages moved onto the template.** A `javascript:` address in a PeeringDB record became a clickable link in the back-office again; the operator's contact links on the About page lost `noreferrer`; a PeeringDB record declaring no routing policy showed an empty row. All three are back to what they were.
+
+### Changed
+
+- **The aggregates are recovered in the background rather than on the first start.**
+
+  0.6.12 rebuilt every level of aggregates once, on its first start, after fixing the cascade that erased them. That rebuild is replaced by a backfill that extends each level backwards over whatever its source holds and it does not, one week at a time every twenty seconds, newest first, so the long views fill from their right-hand edge and the start-up only measures.
+
+  An instance that already ran 0.6.12 or later has little or nothing left to recover. The backfill also runs again after each purge, which can expose a new oldest row.
+
+- **SQLite moves to modernc.org/sqlite 1.61.0**, from 1.59.0.
+
 ## 0.6.14
 
 A security release. Go 1.26.10 refuses certificates issued through intermediate authorities known to be compromised, which a server whose trust store has not been updated would otherwise still accept. The standard library is linked into the binary, so 0.6.13 lacks that refusal whatever Go the server has installed.

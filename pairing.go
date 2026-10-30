@@ -230,6 +230,22 @@ func (f *Federation) RequestPairing(in PairingInput) (*PairingRequest, error) {
 	if me.ASN == "" {
 		return nil, fmt.Errorf("set your AS number before pairing")
 	}
+	// Checked here, next to the AS number, because the far end cannot say
+	// anything useful about it: a pairing request with no announced URL is
+	// refused there as an incomplete request, which reads as a fault at the
+	// other instance when it is a setting missing at this one. install.sh
+	// writes base_url from --public-url, so an install done without that
+	// flag has it empty and every pairing attempt failed with a 400 from
+	// whoever was being asked.
+	if me.URL == "" {
+		// The file is named, because "the configuration file" sent the last
+		// operator who met this message looking for a setting he could not
+		// find. The back-office field is named first: it needs no file and
+		// no restart.
+		return nil, fmt.Errorf("set the public address of this instance before pairing: "+
+			"Publisher → Address of this instance, or federation.base_url in %s "+
+			"followed by a restart. A peer needs it to reach this instance back", configPath)
+	}
 	if base == me.URL {
 		return nil, fmt.Errorf("this is the URL of this instance")
 	}
@@ -339,8 +355,20 @@ func (f *Federation) HandlePairingRequest(r *http.Request) (*PairingRequest, err
 	if err := json.Unmarshal(body, &in); err != nil {
 		return nil, err
 	}
-	if in.Token == "" || in.ASN == "" || in.URL == "" || in.PubKey == "" {
-		return nil, fmt.Errorf("incomplete request")
+	// Named rather than counted. "incomplete request" told the operator at
+	// the other end nothing about which of their own settings was missing,
+	// and the one that is actually missing is almost always the announced
+	// URL — an install done without --public-url leaves it empty. Saying
+	// which field it is discloses nothing about this instance: it is a
+	// statement about the request that just arrived.
+	for _, m := range []struct {
+		field, value string
+	}{{"token", in.Token}, {"asn", in.ASN}, {"url", in.URL}, {"pubkey", in.PubKey}} {
+		if m.value == "" {
+			return nil, fmt.Errorf("incomplete request: %s is missing. If this is your "+
+				"instance, set its address in Publisher → Address of this instance, "+
+				"and check your AS number on the same page", m.field)
+		}
 	}
 	just, err := checkJustification(in.Justification)
 	if err != nil {

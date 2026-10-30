@@ -82,6 +82,11 @@ async function viewTargets(m){
           <input id="thrs" type="number" min="0" max="720" value="0"></div>
         <div class="field"><label>Pinned address (optional)</label>
           <input id="tpin" placeholder="leave empty to resolve the name each time"></div>
+        <div class="field"><label>Measured from</label>
+          <select id="tprim" disabled><option value="0">This instance</option></select>
+          <div id="tprimnote" style="font-size:11px;color:var(--ink3);margin-top:3px"></div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:3px">The probe chosen here decides this
+            target's status and runs its traceroutes; the others, if any, still measure it.</div></div>
       </div>
       <label class="chk"><input type="checkbox" id="thide"><span>Hide the address on the public page
         <small>The graph stays public, the host or IP is not shown, and neither are its traceroutes.
@@ -255,7 +260,41 @@ async function viewTargets(m){
   showInherited($("#tcat").value);
   $("#tcat").onchange=()=>showInherited($("#tcat").value);
   syncProto();
+  // "Measured from": only enabled remote probes that are assigned this target are offered, because the
+  // server refuses any other. It is sent only once the operator changes it, so saving an unrelated edit
+  // never rewrites a choice made elsewhere in the meantime.
+  let primaryTouched=false;
+  $("#tprim").onchange=()=>{primaryTouched=true;};
+  if(!EDIT){
+    H.render($("#tprimnote"),html`Save the target first, then assign it to a probe on the Probes page.`);
+  }else{
+    const editId=EDIT.id, EDIT_PRIMARY=EDIT.primary_probe_id||0;
+    try{
+      const remote=((await api("GET","/api/v1/admin/probes")).probes||[]).filter(p=>p.enabled&&!p.local);
+      const assigned=await Promise.all(remote.map(async p=>
+        ((await api("GET","/api/v1/admin/probes/"+p.id+"/targets")).targets||[]).includes(editId)));
+      const offered=remote.filter((p,i)=>assigned[i]);
+      const cur=EDIT_PRIMARY;
+      // A primary that is no longer among the offered probes means it was unassigned from this target
+      // after being chosen. Showing it rather than silently falling back to "This instance" is what tells
+      // the operator their choice is no longer being honoured.
+      const stale=cur!==0&&!offered.some(p=>p.id===cur);
+      if(offered.length||stale){
+        H.render($("#tprim"),html`<option value="0">This instance</option>${offered.map(p=>
+          html`<option value="${p.id}">${p.name||p.slug}</option>`)}${stale?
+          html`<option value="${cur}">probe ${cur} — no longer assigned this target</option>`:""}`);
+        $("#tprim").value=String(cur);
+        $("#tprim").disabled=false;
+        if(stale) H.render($("#tprimnote"),html`The chosen probe is no longer assigned this target: assign it again on the Probes page, or pick another.`);
+      }else{
+        H.render($("#tprimnote"),html`Unavailable: this target must first be assigned to a probe on the Probes page.`);
+      }
+    }catch(e){
+      H.render($("#tprimnote"),html`Unavailable: the probes could not be read (${e.message}).`);
+    }
+  }
   $("#savetgt").onclick=async()=>{
+    const primaryId=(primaryTouched&&!$("#tprim").disabled)?parseInt($("#tprim").value,10):null;
     const body={category_id:parseInt($("#tcat").value,10),title:$("#ttitle").value,
       host:cleanHost($("#thost").value),family:parseInt($("#tfam").value,10),proto:$("#tproto").value,
       port:$("#tproto").value==="tcp"?parseInt($("#tport").value||"0",10):0,
@@ -270,7 +309,13 @@ async function viewTargets(m){
       if(EDIT){
         const sl=($("#tslug").value||"").trim();
         if(sl && sl!==EDIT.slug) body.slug=sl;
-        await api("PATCH","/api/v1/admin/targets/"+EDIT.id,body); EDIT=null; toast("Target saved"); }
+        await api("PATCH","/api/v1/admin/targets/"+EDIT.id,body);
+        const savedId=EDIT.id; EDIT=null; toast("Target saved");
+        // Its own request, right after the target is saved: a refusal must not hide that the target was saved.
+        if(primaryId!==null){
+          try{await api("PUT","/api/v1/admin/targets/"+savedId+"/primary",{probe_id:primaryId});}
+          catch(e){toast("Target saved, but the probe was not changed: "+e.message,true);}
+        } }
       else { await api("POST","/api/v1/admin/targets",Object.assign(body,{enabled:true})); toast("Target created, first measurement under way"); }
       render();
     }catch(e){toast(e.message,true);}

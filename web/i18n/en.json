@@ -235,7 +235,12 @@
     "cores": "cores",
     "ram": "Memory",
     "uptime": "Running for",
-    "platform_k": "System"
+    "platform_k": "System",
+    "api": "Open data",
+    "api_lead": "Everything this page shows is also served as JSON, without a key and without a rate limit. Private targets are left out unless the caller is signed in.",
+    "api_overview": "status of every public target",
+    "api_version": "version, build date and platform",
+    "api_health": "health check"
   },
   "pairing": {
     "title": "Federation pairing",
@@ -264,8 +269,7 @@
     "tech_body": "Message-level Ed25519 signatures, 5-minute clock tolerance, replay protection by nonce cache."
   },
   "footer": {
-    "powered": "Powered by smokestack",
-    "rights": "All measurements are published as-is, without warranty."
+    "powered": "Powered by smokestack"
   },
   "trace": {
     "title": "Traceroutes",

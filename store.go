@@ -84,6 +84,20 @@ CREATE TABLE IF NOT EXISTS probes (
   enabled      INTEGER NOT NULL DEFAULT 1,
   last_seen_at INTEGER
 );
+-- Which targets a remote probe may measure. A probe that authenticates with
+-- a token sees and writes these and nothing else, so enrolling one does not
+-- hand it the whole target list. An empty assignment means an empty list,
+-- which is the safe way round for something newly enrolled.
+--
+-- The local probe is deliberately absent from this table and unaffected by
+-- it: it reaches the service through a Unix socket only a process on the
+-- host can open, and restricting it would stop every existing instance
+-- measuring anything.
+CREATE TABLE IF NOT EXISTS probe_targets (
+  probe_id  INTEGER NOT NULL,
+  target_id INTEGER NOT NULL,
+  PRIMARY KEY (probe_id, target_id)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS categories (
   id        INTEGER PRIMARY KEY,
   parent_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
@@ -271,6 +285,21 @@ func OpenStore(dir string) (*Store, error) {
 	} {
 		addColumn(cfg, "categories", c)
 	}
+	// Where a probe measures from, in two columns rather than one. seen_address
+	// is what the service observes when the probe connects, which is right
+	// without anyone filling anything in; address is what the operator states,
+	// for the cases the observation gets wrong — a probe behind NAT, or an
+	// instance behind a reverse proxy, where what arrives is the proxy. The
+	// stated one wins when it is set, so the automatic case stays automatic
+	// and the awkward case stays repairable.
+	// Which probe decides this target's status, and receives the traceroute
+	// and immediate-check requests made for it. Zero means the instance's own
+	// local probe, which is what every target has until someone chooses
+	// otherwise — so an instance that never enrols a remote probe behaves
+	// exactly as it did before this column existed.
+	addColumn(cfg, "targets", "primary_probe_id INTEGER NOT NULL DEFAULT 0")
+	addColumn(cfg, "probes", "address TEXT NOT NULL DEFAULT ''")
+	addColumn(cfg, "probes", "seen_address TEXT NOT NULL DEFAULT ''")
 	migrateTCPPorts(cfg)
 	migratePathEventScope(cfg)
 
@@ -378,6 +407,12 @@ type Target struct {
 	// DCCheck is the id of the peer double-check this target exists for.
 	// Empty for every ordinary target.
 	DCCheck string `json:"dc_check,omitempty"`
+	// PrimaryProbeID is the probe that decides this target's status and runs
+	// its traceroutes. Zero is the instance's own local probe, which is what
+	// every target has until someone chooses otherwise. It is set through its
+	// own route rather than with the rest of these, because it is a statement
+	// about probes and is validated against what each probe may measure.
+	PrimaryProbeID int64 `json:"primary_probe_id"`
 }
 
 type Category struct {
@@ -464,7 +499,7 @@ func (s *Store) SetCategoryParams(id int64, p TargetParams) error {
 // targetCols is the column list every target query shares, so adding a
 // column is one edit rather than five.
 const targetCols = `id,category_id,slug,title,host,proto,interval_s,packets,
-	        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check`
+	        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id`
 
 // inheritableFields maps the name the interface uses to the column it
 // clears. Only these can be inherited; the host, the protocol, the port and
@@ -625,7 +660,7 @@ func (s *Store) TouchProbe(id int64) {
 func (s *Store) ActiveTargets() ([]*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id
 		   FROM targets WHERE enabled=1 AND archived_at=0 ORDER BY id`)
 	if err != nil {
 		return nil, err
@@ -648,7 +683,7 @@ func scanTargets(rows *sql.Rows) ([]*Target, error) {
 		if err := rows.Scan(&t.ID, &t.CategoryID, &t.Slug, &t.Title, &t.Host,
 			&t.Proto, &t.IntervalS, &t.Packets, &t.SpacingMs, &t.TimeoutMs,
 			&pub, &en, &t.Family, &t.Port, &t.PinIP, &off, &t.ArchivedAt, &t.TraceHours, &hide, &t.KeepDays,
-			&t.LossWarn, &t.LossCrit, &t.LatFactor, &certOff, &t.DCCheck); err != nil {
+			&t.LossWarn, &t.LossCrit, &t.LatFactor, &certOff, &t.DCCheck, &t.PrimaryProbeID); err != nil {
 			return nil, err
 		}
 		t.Public, t.Enabled, t.AlertsOff = pub == 1, en == 1, off == 1
@@ -696,7 +731,7 @@ func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 
 	trows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id
 		   FROM targets WHERE archived_at=0 AND dc_check='' ORDER BY title`)
 	if err != nil {
 		return nil, err
@@ -728,7 +763,7 @@ func (s *Store) Tree(publicOnly bool) ([]*Category, error) {
 func (s *Store) TargetByID(id int64) (*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id
 		   FROM targets WHERE id=?`, id)
 	if err != nil {
 		return nil, err
@@ -1439,7 +1474,7 @@ func (s *Store) ArchiveTarget(id int64) error {
 func (s *Store) ArchivedTargets() ([]*Target, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id,category_id,slug,title,host,proto,interval_s,packets,
-		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check
+		        spacing_ms,timeout_ms,public,enabled,family,port,pin_ip,alerts_off,archived_at,trace_hours,hide_host,keep_days,loss_warn,loss_crit,lat_factor,cert_off,dc_check,primary_probe_id
 		   FROM targets WHERE archived_at>0 ORDER BY archived_at DESC`)
 	if err != nil {
 		return nil, err
@@ -1611,13 +1646,15 @@ type agg struct {
 // idempotent, il rattrape une sonde en retard qui envoie des donnees
 // anciennes, et il coute quelques millisecondes.
 func (s *Store) RollupRange(src, dst string, secs, from, to int64) error {
-	// Whole buckets only. RollupTick slides the window by the second: a
-	// bucket rebuilt from the part of its sources after from loses the
-	// rest, and the last pass before the window leaves it deletes it.
+	// Read from the start of the destination bucket that contains `from`,
+	// not from `from` itself. The delete below clears whole buckets, so a
+	// read that started mid-bucket would rebuild that bucket from part of
+	// its source — and when no source row falls in the remaining part, it
+	// would not rebuild it at all. Since the aligned bound advances one
+	// bucket at a time while `from` sweeps continuously, that is exactly
+	// what erased the trailing bucket just before the window left it, and
+	// why a tier never held more than its own rebuild window (#68).
 	from -= mod(from, secs)
-	if r := mod(to, secs); r != 0 {
-		to += secs - r
-	}
 	rows, err := s.mx.Query(fmt.Sprintf(
 		`SELECT target_id,probe_id,bucket,sent,lost,cnt,min_us,max_us,
 		        sum_us,sumsq_us,sketch,passes,down
@@ -1723,35 +1760,58 @@ func (s *Store) RollupTick(now int64) error {
 	return nil
 }
 
-// RebuildRollups recomputes each aggregate level from the one below it,
-// over everything that level still holds, a few hours at a time so the
-// measurements waiting for the write connection are not held up.
-func (s *Store) RebuildRollups(now int64) error {
+// RollupBackfill extends a tier backwards over a period its source covers
+// and it does not. RollupTick only ever rebuilds a recent window, which is
+// right for keeping up but leaves nothing to recover history with: an
+// instance that was stopped, that ran a version where the cascade leaked,
+// or that is upgrading from one, keeps empty coarse tiers for ever and
+// draws empty 3-month and 1-year views over data it actually holds (#68).
+//
+// One bounded chunk per call, newest missing span first, so the long views
+// fill from the right-hand edge and the work never blocks a start-up.
+// Returns true while there is more to do.
+func (s *Store) RollupBackfill(now, chunk int64) (bool, error) {
+	if chunk <= 0 {
+		chunk = 7 * 86400
+	}
 	for i := 0; i+1 < len(cascade); i++ {
 		src, dst := cascade[i], cascade[i+1]
-		var lo, hi sql.NullInt64
-		if err := s.mx.QueryRow(fmt.Sprintf(
-			`SELECT MIN(bucket), MAX(bucket) FROM %s`, src.table)).Scan(&lo, &hi); err != nil {
-			return err
-		}
-		if !lo.Valid {
+		srcMin, ok := s.oldestBucket(src.table)
+		if !ok {
 			continue
 		}
-		from := lo.Int64
-		// The purge cuts a table mid-bucket: one whose oldest row sits near
-		// its retention limit may open on an incomplete bucket, which the
-		// level above still holds whole.
-		if src.keep > 0 && from < now-src.keep+dst.secs {
-			from += (dst.secs - mod(from, dst.secs)) % dst.secs
+		// Never reach further back than the destination is allowed to keep,
+		// or the next purge would undo the work.
+		if dst.keep > 0 && srcMin < now-dst.keep {
+			srcMin = now - dst.keep
 		}
-		step := max(6*3600, dst.secs)
-		for at := from - mod(from, step); at <= hi.Int64; at += step {
-			if err := s.RollupRange(src.table, dst.table, dst.secs, max(from, at), at+step); err != nil {
-				return fmt.Errorf("rebuild %s->%s: %w", src.table, dst.table, err)
-			}
+		dstMin, has := s.oldestBucket(dst.table)
+		if !has {
+			dstMin = now + dst.secs
 		}
+		dstMin -= mod(dstMin, dst.secs)
+		if srcMin >= dstMin {
+			continue // nothing older in the source than the tier already has
+		}
+		from := dstMin - chunk
+		if from < srcMin {
+			from = srcMin
+		}
+		if err := s.RollupRange(src.table, dst.table, dst.secs, from, dstMin); err != nil {
+			return false, fmt.Errorf("backfill %s->%s: %w", src.table, dst.table, err)
+		}
+		return true, nil
 	}
-	return nil
+	return false, nil
+}
+
+func (s *Store) oldestBucket(table string) (int64, bool) {
+	var b *int64
+	if err := s.mx.QueryRow(fmt.Sprintf(
+		`SELECT MIN(bucket) FROM %s`, table)).Scan(&b); err != nil || b == nil {
+		return 0, false
+	}
+	return *b, true
 }
 
 func (s *Store) Purge(now int64) error {

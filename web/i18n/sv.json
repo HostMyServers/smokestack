@@ -235,7 +235,12 @@
     "cores": "kärnor",
     "ram": "Minne",
     "uptime": "I drift sedan",
-    "platform_k": "System"
+    "platform_k": "System",
+    "api": "Öppna data",
+    "api_lead": "Allt denna sida visar levereras även som JSON, utan nyckel och utan hastighetsgräns. Privata mål saknas, om inte anroparen är inloggad.",
+    "api_overview": "status för varje offentligt mål",
+    "api_version": "version, byggdatum och plattform",
+    "api_health": "hälsokontroll"
   },
   "pairing": {
     "title": "Federationsparkoppling",
@@ -264,8 +269,7 @@
     "tech_body": "Ed25519-signaturer på meddelandenivå, 5 minuters klocktolerans, skydd mot uppspelning via nonce-cache."
   },
   "footer": {
-    "powered": "Drivs av smokestack",
-    "rights": "Alla mätningar publiceras i befintligt skick, utan garanti."
+    "powered": "Drivs av smokestack"
   },
   "trace": {
     "title": "Traceroutes",

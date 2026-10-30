@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -62,7 +63,192 @@ func probeSocketPath(cfg Config) string {
 
 // ---------------------------------------------------------------- service
 
-func ServeProbeSocket(path string, cache *TargetCache, writer *Writer, probeID int64, stop <-chan struct{}) error {
+// probeEndpoints registers the three endpoints the probe protocol is made of.
+//
+// The Unix socket and the public listener serve exactly these, because a
+// remote probe and a local one have to be measuring the same thing and
+// reporting it the same way. They differ in one respect: who is calling. The
+// socket is reachable only by a process on the host and answers for the local
+// probe without asking; the listener is reachable from anywhere and resolves
+// the probe from its token, refusing everything it cannot resolve.
+//
+// Keeping one protocol is also what keeps /api/v1/ingest honest. That
+// endpoint exists for anything speaking to us from outside and carries no
+// host field and no way to learn a target list, so a probe built on it would
+// have been a second, poorer dialect of this one.
+// probeCaller is who is on the other end of a probe request. allowed is the
+// set of targets that caller may see and write, or nil for no restriction at
+// all — which is the local probe, reached through a socket only a process on
+// the host can open.
+type probeCaller struct {
+	id      int64
+	allowed func() (map[int64]bool, error)
+	// primary is the set of targets this caller decides for, and therefore
+	// the traceroute and immediate-check requests it should run. Both probes
+	// resolve it; it is the queue, not the caller, that treats nil as "no
+	// routing".
+	primary func() (map[int64]bool, error)
+}
+
+func probeEndpoints(mux *http.ServeMux, cache *TargetCache, writer *Writer,
+	who func(*http.Request) (probeCaller, bool)) {
+	// Resolves the caller's assignment once per request. Returning nil means
+	// no restriction rather than an empty set, and the two must not be
+	// confused: an empty set is a probe that may measure nothing.
+	permit := func(w http.ResponseWriter, c probeCaller) (map[int64]bool, bool) {
+		if c.allowed == nil {
+			return nil, true
+		}
+		set, err := c.allowed()
+		if err != nil {
+			writeErr(w, 500, err.Error())
+			return nil, false
+		}
+		return set, true
+	}
+	mux.HandleFunc("GET /probe/v1/targets", func(w http.ResponseWriter, r *http.Request) {
+		c, ok := who(r)
+		if !ok {
+			writeErr(w, http.StatusUnauthorized, "a probe token is required")
+			return
+		}
+		probeID := c.id
+		allowed, ok := permit(w, c)
+		if !ok {
+			return
+		}
+		targets := cache.Targets()
+		if allowed != nil {
+			kept := make([]*Target, 0, len(allowed))
+			for _, t := range targets {
+				if allowed[t.ID] {
+					kept = append(kept, t)
+				}
+			}
+			targets = kept
+		}
+		// This answer carries every active target, private ones included,
+		// because a probe has to measure them. Nothing between a probe and
+		// the service may hold it, and over the listener that is not
+		// theoretical: a token is a read credential for the whole list.
+		cachePrivate(w)
+		// The traceroute and check queues are global and popped by whoever
+		// asks first. With a single probe that is the probe; with several it
+		// means an anomaly on one probe's target can be traced from another.
+		// Routing these per probe belongs with the per-target primary probe,
+		// which is a separate decision, so this stays as it is rather than
+		// growing a half-rule now.
+		// Requests are routed to the probe that decides the target, so that an
+		// anomaly on a target is traced from where the anomaly was seen. A
+		// failure to resolve that takes nothing rather than taking
+		// everything: wrongly claiming another probe's work is worse than
+		// leaving it for the next poll, five seconds later.
+		var mine map[int64]bool
+		if c.primary != nil {
+			m, err := c.primary()
+			if err != nil {
+				writeErr(w, 500, err.Error())
+				return
+			}
+			mine = m
+		}
+		now := time.Now().Unix()
+		writeJSON(w, probeTargetsResp{Version: Version, ProbeID: probeID, Targets: targets,
+			TraceRequests: traceRequests.PopFor(mine, now), CheckRequests: checkRequests.PopFor(mine, now)})
+	})
+	mux.HandleFunc("POST /probe/v1/traceroutes", func(w http.ResponseWriter, r *http.Request) {
+		c, ok := who(r)
+		if !ok {
+			writeErr(w, http.StatusUnauthorized, "a probe token is required")
+			return
+		}
+		allowed, ok := permit(w, c)
+		if !ok {
+			return
+		}
+		var list []*Traceroute
+		if err := json.NewDecoder(io.LimitReader(r.Body, 16<<20)).Decode(&list); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		n, refused := 0, 0
+		for _, tr := range list {
+			// Restricting what a probe reads without restricting what it
+			// writes would leave the restriction decorative: it could still
+			// file against any target by naming one.
+			if allowed != nil && !allowed[tr.TargetID] {
+				refused++
+				continue
+			}
+			// Forced from the caller's identity, never read from the body:
+			// otherwise a probe could file its traceroutes under another.
+			tr.ProbeID = c.id
+			writer.SubmitTrace(tr)
+			n++
+		}
+		writeJSON(w, map[string]int{"accepted": n, "refused": refused})
+	})
+	mux.HandleFunc("POST /probe/v1/measurements", func(w http.ResponseWriter, r *http.Request) {
+		c, ok := who(r)
+		if !ok {
+			writeErr(w, http.StatusUnauthorized, "a probe token is required")
+			return
+		}
+		probeID := c.id
+		allowed, ok := permit(w, c)
+		if !ok {
+			return
+		}
+		var batch []wireMeasure
+		// The same ceilings as the HTTP ingestion endpoint — see
+		// maxIngestBytes. One payload shape, one limit.
+		if err := json.NewDecoder(io.LimitReader(r.Body, maxIngestBytes)).Decode(&batch); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		if len(batch) > maxIngestBatch {
+			writeErr(w, http.StatusRequestEntityTooLarge, "too many measurements in one batch")
+			return
+		}
+		n, refused := 0, 0
+		for _, b := range batch {
+			if allowed != nil && !allowed[b.Measurement.TargetID] {
+				refused++
+				continue
+			}
+			b.Measurement.ProbeID = probeID
+			writer.Submit(b.Measurement, b.Host)
+			n++
+		}
+		writeJSON(w, map[string]int{"accepted": n, "refused": refused})
+	})
+}
+
+// ProbeRoutes exposes the probe protocol to probes that run on another
+// machine. It is registered only when the operator has enrolled at least the
+// possibility of one: with no token issued anywhere, every request here is
+// refused, which is the same thing as the endpoints not existing.
+func ProbeRoutes(mux *http.ServeMux, store *Store, cache *TargetCache, writer *Writer) {
+	probeEndpoints(mux, cache, writer, func(r *http.Request) (probeCaller, bool) {
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Bearer ") {
+			return probeCaller{}, false
+		}
+		id, ok := store.ProbeByToken(strings.TrimPrefix(auth, "Bearer "))
+		if !ok {
+			return probeCaller{}, false
+		}
+		// Records both that it spoke and where from. This is the only place
+		// the service learns a remote probe's address on its own.
+		store.SeenProbeFrom(id, clientIP(r))
+		return probeCaller{id: id,
+			allowed: func() (map[int64]bool, error) { return store.ProbeTargetIDs(id) },
+			primary: func() (map[int64]bool, error) { return store.PrimaryTargets(id) },
+		}, true
+	})
+}
+
+func ServeProbeSocket(path string, store *Store, cache *TargetCache, writer *Writer, probeID int64, stop <-chan struct{}) error {
 	os.Remove(path)
 	l, err := net.Listen("unix", path)
 	if err != nil {
@@ -70,33 +256,16 @@ func ServeProbeSocket(path string, cache *TargetCache, writer *Writer, probeID i
 	}
 	os.Chmod(path, 0o660)
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /probe/v1/targets", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, probeTargetsResp{Version: Version, ProbeID: probeID, Targets: cache.Targets(),
-			TraceRequests: traceRequests.Pop(), CheckRequests: checkRequests.Pop()})
-	})
-	mux.HandleFunc("POST /probe/v1/traceroutes", func(w http.ResponseWriter, r *http.Request) {
-		var list []*Traceroute
-		if err := json.NewDecoder(io.LimitReader(r.Body, 16<<20)).Decode(&list); err != nil {
-			writeErr(w, 400, err.Error())
-			return
-		}
-		for _, tr := range list {
-			tr.ProbeID = probeID
-			writer.SubmitTrace(tr)
-		}
-		writeJSON(w, map[string]int{"accepted": len(list)})
-	})
-	mux.HandleFunc("POST /probe/v1/measurements", func(w http.ResponseWriter, r *http.Request) {
-		var batch []wireMeasure
-		if err := json.NewDecoder(io.LimitReader(r.Body, 64<<20)).Decode(&batch); err != nil {
-			writeErr(w, 400, err.Error())
-			return
-		}
-		for _, b := range batch {
-			b.Measurement.ProbeID = probeID
-			writer.Submit(b.Measurement, b.Host)
-		}
-		writeJSON(w, map[string]int{"accepted": len(batch)})
+	// Reaching this socket already means being a process on the host under
+	// the service's group, which is the whole authentication it has ever had.
+	// A nil assignment means no restriction: this probe measures every active
+	// target, as it always has. It is still routed, though — a target whose
+	// primary is a remote probe should have its traceroutes run there, not
+	// here as well.
+	probeEndpoints(mux, cache, writer, func(*http.Request) (probeCaller, bool) {
+		return probeCaller{id: probeID,
+			primary: func() (map[int64]bool, error) { return store.PrimaryTargets(probeID) },
+		}, true
 	})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() {
@@ -113,6 +282,12 @@ func ServeProbeSocket(path string, cache *TargetCache, writer *Writer, probeID i
 
 type remoteLink struct {
 	client *http.Client
+	// Where the service is and how to prove who we are. Over the Unix socket
+	// the host in the URL is a placeholder the dialer ignores and there is no
+	// token, because reaching the socket is the proof. Over the network both
+	// carry their real meaning.
+	base  string
+	token string
 
 	mu      sync.RWMutex
 	targets []*Target
@@ -135,7 +310,45 @@ func newRemoteLink(sock string) *remoteLink {
 		},
 		MaxIdleConns: 2,
 	}
-	return &remoteLink{client: &http.Client{Transport: tr, Timeout: 15 * time.Second}}
+	return &remoteLink{base: "http://probe",
+		client: &http.Client{Transport: tr, Timeout: 15 * time.Second}}
+}
+
+// newRemoteLinkHTTP talks to a service on another machine. Everything past
+// this constructor is the same code as the socket, which is the point: the
+// two differ in their transport and in nothing else.
+//
+// The scheme is required to be https. A probe token travels on every request
+// and the target list comes back on the same connection, so plain http would
+// hand both to anyone on the path; the probe refuses rather than warning,
+// because a warning in a log nobody reads is not a choice the operator made.
+func newRemoteLinkHTTP(base, token string) (*remoteLink, error) {
+	base = strings.TrimSuffix(strings.TrimSpace(base), "/")
+	if !strings.HasPrefix(base, "https://") {
+		return nil, fmt.Errorf("probe.server must be an https:// URL, got %q", base)
+	}
+	if strings.TrimSpace(token) == "" {
+		return nil, fmt.Errorf("probe.token is required when probe.server is set")
+	}
+	tr := &http.Transport{MaxIdleConns: 2, IdleConnTimeout: 90 * time.Second}
+	return &remoteLink{base: base, token: strings.TrimSpace(token),
+		client: &http.Client{Transport: tr, Timeout: 15 * time.Second}}, nil
+}
+
+// do is the one place a request is built, so the token cannot be forgotten on
+// one of the three calls.
+func (l *remoteLink) do(method, path, contentType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(method, l.base+path, body)
+	if err != nil {
+		return nil, err
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	if l.token != "" {
+		req.Header.Set("Authorization", "Bearer "+l.token)
+	}
+	return l.client.Do(req)
 }
 
 func (l *remoteLink) Targets() []*Target {
@@ -180,7 +393,7 @@ func (l *remoteLink) CheckRequests() []int64 {
 }
 
 func (l *remoteLink) fetchTargets() error {
-	resp, err := l.client.Get("http://probe/probe/v1/targets")
+	resp, err := l.do("GET", "/probe/v1/targets", "", nil)
 	if err != nil {
 		return err
 	}
@@ -207,7 +420,7 @@ func (l *remoteLink) flush() error {
 	l.bmu.Unlock()
 	if len(traces) > 0 {
 		body, _ := json.Marshal(traces)
-		resp, err := l.client.Post("http://probe/probe/v1/traceroutes", "application/json", bytes.NewReader(body))
+		resp, err := l.do("POST", "/probe/v1/traceroutes", "application/json", bytes.NewReader(body))
 		if err != nil || resp.StatusCode != 200 {
 			l.bmu.Lock()
 			l.traces = append(traces, l.traces...)
@@ -228,7 +441,7 @@ func (l *remoteLink) flush() error {
 		return nil
 	}
 	body, _ := json.Marshal(batch)
-	resp, err := l.client.Post("http://probe/probe/v1/measurements", "application/json", bytes.NewReader(body))
+	resp, err := l.do("POST", "/probe/v1/measurements", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -270,9 +483,22 @@ func runProbe(args []string) error {
 	if err != nil {
 		return err
 	}
-	sock := probeSocketPath(cfg)
-	link := newRemoteLink(sock)
-	log.Printf("smokestack probe %s, service on %s", Version, sock)
+	// Remote when the operator named a service, local otherwise. The local
+	// path is untouched: an installation that has always used the socket
+	// never sets probe.server and never sees any of this.
+	remote := strings.TrimSpace(cfg.Probe.Server) != ""
+	var link *remoteLink
+	if remote {
+		link, err = newRemoteLinkHTTP(cfg.Probe.Server, cfg.Probe.Token)
+		if err != nil {
+			return err
+		}
+		log.Printf("smokestack probe %s, service at %s", Version, link.base)
+	} else {
+		sock := probeSocketPath(cfg)
+		link = newRemoteLink(sock)
+		log.Printf("smokestack probe %s, service on %s", Version, sock)
+	}
 
 	for i := 0; ; i++ {
 		if err := link.fetchTargets(); err == nil {
@@ -326,7 +552,13 @@ func runProbe(args []string) error {
 			link.mu.RUnlock()
 			// Le service a change de version (mise a jour ou retour
 			// arriere) : on se relance sur le binaire actif.
-			if v != "" && v != Version {
+			//
+			// Only when the two share a machine. A remote probe has its own
+			// release tree on its own update cadence, so chasing the
+			// service's version would restart it into the same binary again
+			// and again, forever, and the operator would see a probe that
+			// never settles rather than one that is simply a version behind.
+			if !remote && v != "" && v != Version {
 				if bin := currentBinary(); bin != "" {
 					link.flush()
 					log.Printf("service now runs version %s, restarting the probe", v)

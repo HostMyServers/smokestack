@@ -27,6 +27,10 @@ Usage:
   smokestack [-config FILE] [-ip IP] [-port PORT]   run the service (default)
                                                (also SMOKESTACK_LISTEN_IP / SMOKESTACK_LISTEN_PORT)
   smokestack probe [-config FILE]               run the isolated probe (probe.mode "external")
+  smokestack probe list                         list the registered probes
+  smokestack probe add -slug S [-name N] [-location L] [-address IP] [-token]   register a remote probe
+  smokestack probe token -slug S                issue or rotate its token (shown once)
+  smokestack probe revoke -slug S               withdraw its token
   smokestack languages [-default CODE] [-names]  list languages, set the public default
   smokestack version                            print version
   smokestack selftest                           check the binary is sound
@@ -56,7 +60,14 @@ func runCLI(args []string) bool {
 	case "languages":
 		err = cmdLanguages(args[1:])
 	case "probe":
-		err = runProbe(args[1:])
+		// Bare "probe", and "probe -config F", still run the isolated probe:
+		// that is what every existing unit file invokes. A bare word after it
+		// is an enrolment subcommand instead, so the two never collide.
+		if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
+			err = cmdProbe(args[1:])
+		} else {
+			err = runProbe(args[1:])
+		}
 	case "user":
 		err = cmdUser(args[1:])
 	case "update":

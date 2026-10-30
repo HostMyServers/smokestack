@@ -23,9 +23,7 @@ ARCHS        ?= amd64 arm64
 # people learn to ignore. Bumped deliberately; the CI keys its tool cache on
 # this file.
 #
-# Both require the go directive in go.mod to be at least 1.26, which is the
-# reason it is: the releases before these two were the last to build against
-# 1.25, and 1.25 itself has stopped receiving security fixes.
+# Both require the go directive in go.mod to be at least 1.26.
 GOVULNCHECK_VERSION ?= v1.8.0
 STATICCHECK_VERSION ?= v0.8.1
 
@@ -41,6 +39,14 @@ STATICCHECK_VERSION ?= v0.8.1
 # The current patch of the 1.26 line. Behind by a patch it reports a standard
 # library fix as still missing, which is a false alarm rather than a silence,
 # so it is worth bumping but not urgent.
+#
+# 1.26.9 -> 1.26.10 after the Monday audit of 26 October went red on a
+# crypto/x509 advisory in the standard library of 1.26.9. The releases
+# themselves were never affected: setup-go asks for the latest patch, and
+# `go version -m` on the published 0.7.3 binary reports go1.26.10, which
+# carries the fix. That gap between what ships and what the audit judges is
+# the whole reason this is a named version rather than whatever `go` the
+# machine has.
 AUDIT_TOOLCHAIN ?= go1.26.10
 
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.BuildDate=$(DATE) \

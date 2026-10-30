@@ -24,6 +24,7 @@ UNIT=/etc/systemd/system/smokestack.service
 PROBE_UNIT=/etc/systemd/system/smokestack-probe.service
 
 PACKAGE=""; ADMIN_EMAIL=""; LISTEN_IP=""; LISTEN_PORT=""; PUBLIC_URL=""; PUBLIC_LANG=""; ASSUME_YES=0
+MODE=""   # probe mode, read back from the configuration once systemd is set up
 ENVFILE=/etc/smokestack/smokestack.env
 NO_SERVICE=0; UNINSTALL=0; PURGE=0; EMBEDDED=0
 
@@ -340,6 +341,13 @@ EOF
 Description=smokestack latency monitoring (probe)
 After=network-online.target smokestack.service
 Wants=network-online.target
+# PartOf: stopping or restarting smokestack.service does the same to this
+# unit. Without it the probe is a second service under the same executable
+# name, so an operator who stopped smokestack still saw a smokestack
+# process running, still had the binary held open, and could not work out
+# what kept starting it. "systemctl stop smokestack" now stops both; the
+# probe can still be restarted on its own.
+PartOf=smokestack.service
 StartLimitIntervalSec=0
 
 [Service]
@@ -416,5 +424,15 @@ if [ -n "$CREDS" ]; then
 fi
 [ -n "$LANGS" ] && echo "    languages      $LANGS"
 [ -n "$DEFLANG" ] && echo "                   public pages default to $DEFLANG (change: smokestack languages -default CODE)"
+SVCS="smokestack"
+if [ "$MODE" = external ]; then
+  SVCS="smokestack and smokestack-probe (stopping the first stops both)"
+fi
+echo "    services       $SVCS"
 echo "    logs           journalctl -u smokestack -u smokestack-probe -f"
 echo "    update         sudo smokestack update smokestack-X.Y.Z-linux-$ARCH.zip   (or from the back-office)"
+if [ -z "$PUBLIC_URL" ] && [ "$FRESH" -eq 1 ]; then
+  echo
+  warn "no public address set (--public-url): federation pairing will refuse to start"
+  echo "    set it in the back-office, Publisher -> Address of this instance; no restart needed"
+fi

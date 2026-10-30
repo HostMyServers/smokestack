@@ -235,7 +235,12 @@
     "cores": "kerner",
     "ram": "Hukommelse",
     "uptime": "I drift siden",
-    "platform_k": "System"
+    "platform_k": "System",
+    "api": "Åbne data",
+    "api_lead": "Alt hvad denne side viser leveres også som JSON, uden nøgle og uden hastighedsgrænse. Private mål mangler, medmindre den, der spørger, er logget ind.",
+    "api_overview": "status for hvert offentligt mål",
+    "api_version": "version, byggedato og platform",
+    "api_health": "helbredstjek"
   },
   "pairing": {
     "title": "Føderationsparring",
@@ -264,8 +269,7 @@
     "tech_body": "Ed25519-signaturer på meddelelsesniveau, 5 minutters urtolerance, beskyttelse mod genafspilning via nonce-cache."
   },
   "footer": {
-    "powered": "Drevet af smokestack",
-    "rights": "Alle målinger offentliggøres, som de er, uden garanti."
+    "powered": "Drevet af smokestack"
   },
   "trace": {
     "title": "Traceroutes",

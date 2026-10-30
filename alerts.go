@@ -336,9 +336,13 @@ func sendAlert(cfg AlertConfig, subject, body string) error {
 	if n.SMTPHost == "" || n.From == "" {
 		return firstErr
 	}
+	toLine, err := checkMailAddresses("alerting", n.From, cfg.Recipients)
+	if err != nil {
+		return err
+	}
 	msg := []byte(fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n"+
 		"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s",
-		n.From, strings.Join(to, ", "), subject, body))
+		n.From, toLine, mailHeader(subject), body))
 	var auth smtp.Auth
 	if n.SMTPUser != "" {
 		auth = smtp.PlainAuth("", n.SMTPUser, n.SMTPPass, n.SMTPHost)

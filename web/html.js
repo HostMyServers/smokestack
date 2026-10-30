@@ -14,6 +14,25 @@
  * looks for H.raw, instead of reading every interpolation to decide
  * whether the value behind it could have come from a person.
  *
+ * Two things that default does NOT cover, and that reading for H.raw
+ * alone will not catch:
+ *
+ *   1. An href is not made safe by escaping. javascript:… survives it
+ *      and stays clickable, so every URL that came from somewhere else
+ *      — a peer, PeeringDB, anything an operator typed — goes through
+ *      H.url, which is opt-in exactly as esc() used to be. A template
+ *      interpolating a third-party value straight into href or src is
+ *      wrong even though nothing in it says H.raw.
+ *
+ *   2. esc() covers & < > " ' and nothing else — not space, not = —
+ *      so it is sound in text and in a *quoted* attribute, and unsound
+ *      in an unquoted one: title=${x} lets a value add attributes of
+ *      its own. Every attribute here is quoted, and new ones have to be.
+ *
+ * Both are invariants of the call sites rather than of this file, which
+ * is why they are written here: this is where someone comes to find out
+ * what the engine promises.
+ *
  * Values: null, undefined and both booleans render as nothing, so a
  * conditional fragment is `cond && H.html`...`` with no empty-string
  * branch. A boolean *attribute* therefore spells its value out —

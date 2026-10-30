@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -220,5 +221,118 @@ func TestChannelChecksAndShortText(t *testing.T) {
 			"Traceroute taken during the incident:\n   1  192.0.2.254\nGraph: https://x/t/y\n", 160)
 	if strings.Contains(short, "192.0.2.254") || !strings.Contains(short, "42.0 %") || len(short) > 160 {
 		t.Errorf("a phone-sized message was expected: %q", short)
+	}
+}
+
+// A target's title reaches the Subject header of every alert, and an editor
+// can set a title while only an admin may configure a channel. A title
+// carrying a newline therefore let the lesser role add headers of its own to
+// mail the greater role had set up — a Bcc, for instance.
+func TestSubjectCannotAddHeaders(t *testing.T) {
+	addr, got := fakeSMTP(t)
+	host, port, _ := net.SplitHostPort(addr)
+	p, _ := strconv.Atoi(port)
+	c := Channel{Kind: ChanSMTP, Host: host, Port: p, Security: "none",
+		From: "noc@example.net", To: "ops@example.net"}
+	subject := "[smokestack] Router\r\nBcc: attacker@example.com\r\nX-Injected: yes down for 5 min"
+	if err := c.Send(subject, "body"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	msg := <-got
+	// Line by line, and not a substring search: the point is that "Bcc:" is
+	// no longer the start of a header, not that the three characters are
+	// gone. Folding the newline into a space leaves the text on the Subject
+	// line, which is the right outcome — the operator still reads it.
+	var headers []string
+	for _, line := range strings.Split(msg, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if line == "" {
+			break // the blank line ends the header block
+		}
+		headers = append(headers, line)
+	}
+	for _, h := range headers {
+		for _, forbidden := range []string{"Bcc:", "X-Injected:"} {
+			if strings.HasPrefix(h, forbidden) {
+				t.Errorf("the subject added the header %q:\n%s", h, msg)
+			}
+		}
+	}
+	subjects := 0
+	for _, h := range headers {
+		if strings.HasPrefix(h, "Subject: ") {
+			subjects++
+		}
+	}
+	if subjects != 1 {
+		t.Errorf("want exactly one Subject header, got %d:\n%s", subjects, msg)
+	}
+	// The text survives, on one line: refusing the newline must not throw
+	// away what the operator is meant to read.
+	if !strings.Contains(msg, "Router") || !strings.Contains(msg, "down for 5 min") {
+		t.Errorf("the subject lost its text:\n%s", msg)
+	}
+}
+
+// An address handed to a command is an argument. sendmail reads one that
+// starts with "-" as an option, so a recipient can otherwise be a debug flag
+// that writes a trace file.
+func TestMailAddressesRefuseArgumentsAndHeaders(t *testing.T) {
+	for _, c := range []struct {
+		name, from, to string
+		ok             bool
+	}{
+		{"plain", "noc@example.net", "ops@example.net", true},
+		{"several", "noc@example.net", "a@example.net, b@example.net", true},
+		{"recipient is an option", "noc@example.net", "-X/tmp/trace@example.net", false},
+		{"sender is an option", "-X/tmp/trace@example.net", "ops@example.net", false},
+		{"newline in a recipient", "noc@example.net", "ops@example.net\r\nBcc: x@y.net", false},
+		{"newline in the sender", "noc@example.net\r\nBcc: x@y.net", "ops@example.net", false},
+		{"angle brackets", "noc@example.net", "<ops@example.net>", false},
+		{"no recipient", "noc@example.net", "   ", false},
+		{"not an address", "noc@example.net", "ops", false},
+	} {
+		_, err := checkMailAddresses("sendmail", c.from, c.to)
+		if (err == nil) != c.ok {
+			t.Errorf("%s: from=%q to=%q -> err=%v, want ok=%v", c.name, c.from, c.to, err, c.ok)
+		}
+	}
+}
+
+// The directory a mail command lives in is not the same question as which
+// command it is. Pinning the full path breaks an operator whose system puts
+// it elsewhere; leaving it free makes the setting an arbitrary exec.
+func TestMailCommandIsAMailCommandAnywhere(t *testing.T) {
+	for _, c := range []struct {
+		path string
+		ok   bool
+	}{
+		{"/usr/sbin/sendmail", true},
+		{"/usr/lib/sendmail", true},
+		{"/usr/local/sbin/sendmail", true}, // FreeBSD
+		{"/nix/store/abc123-postfix-3.9.0/bin/sendmail", true},
+		{"/usr/bin/msmtp", true},
+		{"/usr/bin/mailx", true},
+
+		{"/bin/sh", false},
+		{"/usr/bin/curl", false},
+		{"sendmail", false},                   // relative
+		{"/usr/sbin/../../bin/sh", false},     // not cleaned
+		{"/usr/sbin/sendmail\nrm -rf", false}, // not a plain path
+		{"", false},
+	} {
+		err := checkMailCommand(c.path)
+		if (err == nil) != c.ok {
+			t.Errorf("%q -> err=%v, want ok=%v", c.path, err, c.ok)
+		}
+	}
+	// And the channel check applies it, with the documented default.
+	ch := Channel{Kind: ChanSendmail, From: "noc@example.net", To: "ops@example.net"}
+	if err := checkChannel(&ch); err != nil || ch.Command != "/usr/sbin/sendmail" {
+		t.Errorf("default sendmail path expected: %q %v", ch.Command, err)
+	}
+	ch.Command = "/bin/sh"
+	if err := checkChannel(&ch); err == nil {
+		t.Error("a channel pointing at /bin/sh must be refused")
 	}
 }
