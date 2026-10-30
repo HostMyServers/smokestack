@@ -2,13 +2,15 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.15
 
 **An instance can now be measured from several places at once.** Until this batch, one instance meant one probe, running on the instance's own machine: every graph described the path from that one machine to the target, and a loss of packets looked the same whether the target was down or the path from that single vantage point was. Probes can now run on other machines, report to the instance over HTTPS, and measure alongside the local one.
 
 **Nothing changes for an instance that does not want this.** The local probe still reaches the service through its Unix socket, still measures every active target, and is not affected by anything below. There is no migration, and no setting to revisit.
 
 The rest is what [nkglfr/smokestack](https://github.com/nkglfr/smokestack) published as 0.7.0 to 0.7.3 and this fork had not shipped yet. A private target's measurements could be kept by a cache in front of the instance and handed to a visitor, so **an instance behind a CDN or a caching reverse proxy should take this one**. Four smaller holes close with it, on the mail, federation, live stream and ingestion paths, and the address an instance announces to its peers can now be set in the back-office.
+
+An instance on automatic updates installs this by itself. Nothing to reconfigure; re-running `install.sh` ties the probe unit to the service, as described below.
 
 ### New
 
