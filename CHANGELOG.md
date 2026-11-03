@@ -2,6 +2,36 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
+## Unreleased
+
+### New
+
+- **An alert says whether the other probes see the same thing.**
+
+  When a target is in trouble, the probes that also measure it are asked what they see of it, and the answer goes into the alert. Everyone sees it, so it is the target. Only the deciding probe sees it, so it is likely the path from there. Something in between is reported as what it is, rather than resolved into a verdict nobody can check.
+
+  This never changes whether an alert fires, only what it says. Requiring several probes to agree before alerting would turn a probe with a broken path into silence, which is the failure that costs the most and is noticed last.
+
+  A probe with no data, or one whose targets are under maintenance, has no opinion and is not counted either way: counting silence as agreement would manufacture a confirmation out of nothing.
+
+### Fixed
+
+- **A probe that stopped reporting declared its targets recovered.**
+
+  Missing data was treated like a healthy measurement: it closed any open incident and, where recovery notices are on, announced the target as back to normal. With one probe this was mostly hidden, because the only probe dying meant the whole instance was down and somebody noticed. With probes on several machines, one of them going quiet silently reported every target it decides as fine.
+
+  Missing data now closes nothing. An incident stays exactly as it is until something is measured again, and that measurement is what closes or confirms it. A planned maintenance is treated the same way, for the same reason: a window that was scheduled is not a recovery either.
+
+  Reported by mayssa-bm.
+
+- **Nothing watched the probes themselves.**
+
+  A probe that has not reported for five minutes now raises its own alert, and another when it comes back. Five minutes is well past the five seconds a probe waits between asking for work, so it means the probe is gone, its token was withdrawn, or it can no longer reach the service.
+
+  This is the other half of the fix above. A target whose probe is gone keeps its incident open and stops being judged, which is honest but says nothing — without this, an operator would find a target frozen mid-incident with no indication that the probe, rather than the target, is the reason.
+
+  A probe with nothing to measure is never called silent. Its last contact only moves when it has something to report, so an idle probe would otherwise look dead while being perfectly healthy.
+
 ## 0.6.15
 
 **An instance can now be measured from several places at once.** Until this batch, one instance meant one probe, running on the instance's own machine: every graph described the path from that one machine to the target, and a loss of packets looked the same whether the target was down or the path from that single vantage point was. Probes can now run on other machines, report to the instance over HTTPS, and measure alongside the local one.

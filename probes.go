@@ -54,6 +54,9 @@ type Probe struct {
 	// it follows a renumbering without a column to keep in step.
 	From string `json:"from,omitempty"`
 	ASN  string `json:"asn,omitempty"`
+	// SilentNotifiedAt is when its silence was last reported, zero when it is
+	// reporting normally. Internal bookkeeping, not part of the API.
+	SilentNotifiedAt int64 `json:"-"`
 }
 
 // EffectiveAddress is the stated address when there is one, the observed
@@ -298,6 +301,127 @@ func (s *Store) PrimaryTargets(probeID int64) (map[int64]bool, error) {
 			return nil, err
 		}
 		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// TargetPrimaries maps every target to the probe that decides it, with the
+// local probe's own id substituted for the zero that means "nobody chose".
+// Callers then have one rule instead of two.
+func (s *Store) TargetPrimaries(localProbeID int64) (map[int64]int64, error) {
+	rows, err := s.cfg.Query(`SELECT id, primary_probe_id FROM targets`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]int64{}
+	for rows.Next() {
+		var id, pid int64
+		if err := rows.Scan(&id, &pid); err != nil {
+			return nil, err
+		}
+		if pid == 0 {
+			pid = localProbeID
+		}
+		out[id] = pid
+	}
+	return out, rows.Err()
+}
+
+// TargetWatchers maps every target to the probes that measure it. The local
+// probe measures everything and is in no assignment row, so it is added to
+// every target rather than left out of all of them.
+func (s *Store) TargetWatchers(localProbeID int64) (map[int64][]int64, error) {
+	rows, err := s.cfg.Query(`SELECT pt.target_id, pt.probe_id FROM probe_targets pt
+	                          JOIN probes p ON p.id = pt.probe_id
+	                          WHERE p.enabled = 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64][]int64{}
+	for rows.Next() {
+		var tid, pid int64
+		if err := rows.Scan(&tid, &pid); err != nil {
+			return nil, err
+		}
+		out[tid] = append(out[tid], pid)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	trows, err := s.cfg.Query(`SELECT id FROM targets`)
+	if err != nil {
+		return nil, err
+	}
+	defer trows.Close()
+	for trows.Next() {
+		var tid int64
+		if err := trows.Scan(&tid); err != nil {
+			return nil, err
+		}
+		out[tid] = append(out[tid], localProbeID)
+	}
+	return out, trows.Err()
+}
+
+// ReportingProbes lists the probes that are expected to be heard from, with
+// when each last was and whether its silence has already been reported.
+//
+// Three conditions, and the third is the one that matters. last_seen_at only
+// moves when a probe writes measurements — and for a remote probe, whenever
+// it asks for work — so a probe with nothing to measure never touches it and
+// would look dead while being perfectly healthy. A probe is therefore only
+// expected to report once it has something to report about: an assignment for
+// a remote one, an active target for the local one.
+func (s *Store) ReportingProbes() ([]Probe, error) {
+	rows, err := s.cfg.Query(`
+		SELECT id, slug, name, COALESCE(location,''), local,
+		       COALESCE(last_seen_at,0), COALESCE(silent_notified_at,0)
+		  FROM probes p
+		 WHERE enabled = 1
+		   AND COALESCE(last_seen_at,0) > 0
+		   AND ( (local = 1 AND EXISTS(SELECT 1 FROM targets WHERE enabled=1 AND archived_at=0))
+		      OR (local = 0 AND EXISTS(SELECT 1 FROM probe_targets WHERE probe_id = p.id)) )
+		 ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Probe{}
+	for rows.Next() {
+		var p Probe
+		var local int
+		if err := rows.Scan(&p.ID, &p.Slug, &p.Name, &p.Location, &local,
+			&p.LastSeenAt, &p.SilentNotifiedAt); err != nil {
+			return nil, err
+		}
+		p.Local, p.Enabled = local == 1, true
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// MarkProbeSilent records that the operator has been told, or un-records it
+// when the probe comes back.
+func (s *Store) MarkProbeSilent(id, at int64) {
+	s.cfg.Exec(`UPDATE probes SET silent_notified_at=? WHERE id=?`, at, id)
+}
+
+// EnabledProbeIDs lists the probes worth asking for an opinion.
+func (s *Store) EnabledProbeIDs() ([]int64, error) {
+	rows, err := s.cfg.Query(`SELECT id FROM probes WHERE enabled=1 ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
 	}
 	return out, rows.Err()
 }

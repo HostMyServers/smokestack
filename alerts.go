@@ -174,6 +174,17 @@ func (a *Alerter) Tick(statuses map[int64]string, details map[int64]string) int 
 	// graphe — seule la notification est retenue.
 	maint := a.store.ActiveMaintenances(now)
 	for targetID, status := range statuses {
+		// No data is not a recovery, and neither is a planned maintenance.
+		// Both used to fall through to the branch below, which closed any
+		// open incident and announced the target as back to normal — so a
+		// probe that stopped reporting declared every target it decided
+		// recovered, in silence, which is the opposite of what this is for.
+		// An incident is left exactly as it is until something is measured
+		// again, and that measurement is what closes or confirms it.
+		// Reported by @mayssa-bm in #93.
+		if status == "nodata" || status == "maint" {
+			continue
+		}
 		inc, open := a.openFor(targetID)
 		if status != "crit" {
 			if !open {
@@ -385,24 +396,203 @@ func (a *Alerter) Loop(stop <-chan struct{}, probeID int64) {
 		case <-tick.C:
 			alertSMTP = loadNotifyConfig(a.store)
 			alertChannels = a.store.Channels()
-			ov, err := a.store.Overview(probeID, a.now(), false)
+			// Before the targets, because a silent probe explains what the
+			// targets are about to not say.
+			a.checkProbes(a.now())
+			statuses, details, err := a.gather(probeID)
 			if err != nil {
 				continue
-			}
-			statuses, details := map[int64]string{}, map[int64]string{}
-			for _, c := range ov.Categories {
-				for _, t := range c.Targets {
-					statuses[t.ID] = t.Status
-					if t.LossPct != nil && *t.LossPct > 0 {
-						details[t.ID] = fmt.Sprintf("%.1f %% packet loss", *t.LossPct)
-					} else if t.MedMs != nil {
-						details[t.ID] = fmt.Sprintf("median %.2f ms", *t.MedMs)
-					}
-				}
 			}
 			a.Tick(statuses, details)
 		}
 	}
+}
+
+// How long a probe may say nothing before somebody is told. A probe asks for
+// work every five seconds and flushes what it has measured every second, so
+// silence of this length is not a slow network: it is a probe that is gone,
+// a token that was revoked, or a service it can no longer reach.
+const probeSilentAfter = 5 * 60
+
+// checkProbes alerts on a probe that has stopped reporting, and says so again
+// when it comes back.
+//
+// This is the other half of refusing to treat missing data as a recovery. A
+// target whose probe is gone now keeps its incident open and stops being
+// judged, which is honest but silent — and silence is what this is for.
+// Without it, an operator would see a target frozen mid-incident with no
+// indication that the reason is the probe rather than the target.
+func (a *Alerter) checkProbes(now int64) int {
+	cfg := a.store.AlertConfig()
+	probes, err := a.store.ReportingProbes()
+	if err != nil {
+		return 0
+	}
+	sent := 0
+	for _, p := range probes {
+		silent := now-p.LastSeenAt >= probeSilentAfter
+		switch {
+		case silent && p.SilentNotifiedAt == 0:
+			// Recorded before the notice is sent, not after: a send that
+			// fails must not leave this alerting every minute.
+			a.store.MarkProbeSilent(p.ID, now)
+			if cfg.Enabled {
+				a.send(cfg, fmt.Sprintf("[smokestack] Probe silent: %s", p.Name),
+					fmt.Sprintf("Probe %s (%s) has not reported for %s.\n\n"+
+						"The targets it measures are no longer being judged from it, and any incident "+
+						"open on them stays open until it reports again.\n",
+						p.Name, p.Slug, humanSince(p.LastSeenAt, now)))
+				sent++
+			}
+		case !silent && p.SilentNotifiedAt > 0:
+			a.store.MarkProbeSilent(p.ID, 0)
+			if cfg.Enabled && cfg.Recovery {
+				a.send(cfg, fmt.Sprintf("[smokestack] Probe back: %s", p.Name),
+					fmt.Sprintf("Probe %s (%s) is reporting again after %s.\n",
+						p.Name, p.Slug, humanSince(p.SilentNotifiedAt, now)))
+				sent++
+			}
+		}
+	}
+	return sent
+}
+
+// probeView is one probe's opinion of every target it measures.
+type probeView struct {
+	status map[int64]string
+	detail map[int64]string
+}
+
+func (a *Alerter) view(probeID int64) (probeView, error) {
+	v := probeView{status: map[int64]string{}, detail: map[int64]string{}}
+	ov, err := a.store.Overview(probeID, a.now(), false)
+	if err != nil {
+		return v, err
+	}
+	for _, c := range ov.Categories {
+		for _, t := range c.Targets {
+			v.status[t.ID] = t.Status
+			if t.LossPct != nil && *t.LossPct > 0 {
+				v.detail[t.ID] = fmt.Sprintf("%.1f %% packet loss", *t.LossPct)
+			} else if t.MedMs != nil {
+				v.detail[t.ID] = fmt.Sprintf("median %.2f ms", *t.MedMs)
+			}
+		}
+	}
+	return v, nil
+}
+
+// gather decides each target's status from the probe that decides it, and
+// asks the others what they see of the same target.
+//
+// The verdict never changes whether an alert fires. A probe that cannot see a
+// target may be a probe with a broken path, and a quorum would then turn a
+// real outage into silence — the failure that costs the most and is noticed
+// last. What corroboration changes is what the alert says, which is the part
+// an operator acts on: everyone sees it, so it is the target; only the
+// deciding probe sees it, so it is the path from there.
+func (a *Alerter) gather(localProbeID int64) (map[int64]string, map[int64]string, error) {
+	primary, err := a.store.TargetPrimaries(localProbeID)
+	if err != nil {
+		return nil, nil, err
+	}
+	watchers, err := a.store.TargetWatchers(localProbeID)
+	if err != nil {
+		return nil, nil, err
+	}
+	ids, err := a.store.EnabledProbeIDs()
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(ids) == 0 {
+		ids = []int64{localProbeID}
+	}
+	views := map[int64]probeView{}
+	for _, id := range ids {
+		// One probe failing to produce a view must not silence every target.
+		// Its absence below reads as "no opinion", which is what it is.
+		if v, err := a.view(id); err == nil {
+			views[id] = v
+		}
+	}
+	if _, ok := views[localProbeID]; !ok && len(views) == 0 {
+		return nil, nil, fmt.Errorf("no probe produced a view")
+	}
+
+	statuses, details := map[int64]string{}, map[int64]string{}
+	for tid, pid := range primary {
+		deciding, ok := views[pid]
+		if !ok {
+			// The probe that decides this target has no view: fall back to
+			// the local one rather than leaving the target unjudged, since a
+			// target nobody judges is a target that never alerts.
+			if deciding, ok = views[localProbeID]; !ok {
+				continue
+			}
+			pid = localProbeID
+		}
+		st, ok := deciding.status[tid]
+		if !ok {
+			continue
+		}
+		statuses[tid] = st
+		detail := deciding.detail[tid]
+		if note := corroborate(tid, pid, st, watchers[tid], views); note != "" {
+			if detail != "" {
+				detail += " — " + note
+			} else {
+				detail = note
+			}
+		}
+		details[tid] = detail
+	}
+	return statuses, details, nil
+}
+
+// corroborate summarises what the other probes measuring this target see of
+// it. It says nothing when there is nobody else to ask, or when the deciding
+// probe sees nothing wrong: a note on a healthy target is noise.
+func corroborate(targetID, deciding int64, status string, watchers []int64, views map[int64]probeView) string {
+	// Only a target the deciding probe says is in trouble is worth a second
+	// opinion. "maint" is planned and "nodata" is the absence of a
+	// measurement rather than a bad one, so neither asks a question.
+	if status != "warn" && status != "crit" {
+		return ""
+	}
+	agree, seen := 0, 0
+	for _, pid := range watchers {
+		if pid == deciding {
+			continue
+		}
+		v, ok := views[pid]
+		if !ok {
+			continue
+		}
+		st, ok := v.status[targetID]
+		if !ok {
+			continue
+		}
+		// A probe with no data has no opinion. Counting its silence as
+		// agreement would manufacture a confirmation out of nothing, and
+		// counting it as disagreement would blame a path that may be fine.
+		if st == "nodata" || st == "maint" {
+			continue
+		}
+		seen++
+		if st != "ok" {
+			agree++
+		}
+	}
+	if seen == 0 {
+		return ""
+	}
+	if agree == seen {
+		return fmt.Sprintf("confirmed by %d other probe(s): the target itself", seen)
+	}
+	if agree == 0 {
+		return fmt.Sprintf("not seen by %d other probe(s): likely the path from the deciding probe", seen)
+	}
+	return fmt.Sprintf("seen by %d of %d other probes", agree, seen)
 }
 
 func loadNotifyConfig(s *Store) NotifyConfig {
