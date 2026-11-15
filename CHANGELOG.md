@@ -2,13 +2,15 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.16
 
 **Install this one: it is built with Go 1.26.11, which fixes a crash a stranger can trigger in the HTTP server every instance runs.** Every release of this fork up to 0.6.15 is built without it.
 
 **What a remote probe measures can now be read on the public pages, and a target keeps being judged when its probe goes away.** A target page offers the choice of the probe it is read from, a target can name the probes that take over while its own is silent, and a probe can be installed on a machine of its own and keeps what it measured across a restart. A target can also be measured with a UDP echo.
 
 All of it is what [nkglfr/smokestack](https://github.com/nkglfr/smokestack) published as 0.8.0 to 0.8.4 and has merged since, which this fork had not shipped yet. How long each resolution is kept also becomes an instance setting, and a probe that was turned off can no longer be read on the public pages through its id or its traceroutes.
+
+An instance on automatic updates installs this by itself. Nothing to reconfigure: the retention defaults are what the cascade already did, so the upgrade deletes nothing until a value is changed.
 
 ### New
 
