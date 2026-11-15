@@ -57,6 +57,9 @@ type Probe struct {
 	// SilentNotifiedAt is when its silence was last reported, zero when it is
 	// reporting normally. Internal bookkeeping, not part of the API.
 	SilentNotifiedAt int64 `json:"-"`
+	// AllTargets is true when this probe measures every target instead of an
+	// explicit list. The list it had is kept, so turning this off restores it.
+	AllTargets bool `json:"all_targets"`
 }
 
 // EffectiveAddress is the stated address when there is one, the observed
@@ -95,7 +98,7 @@ func (s *Store) Probes() ([]Probe, error) {
 	rows, err := s.cfg.Query(
 		`SELECT id, slug, name, COALESCE(location,''), local, enabled,
 		        COALESCE(last_seen_at,0), COALESCE(token_hash,'') <> '',
-		        COALESCE(address,''), COALESCE(seen_address,'')
+		        COALESCE(address,''), COALESCE(seen_address,''), COALESCE(all_targets,0)
 		   FROM probes ORDER BY local DESC, slug`)
 	if err != nil {
 		return nil, err
@@ -104,12 +107,12 @@ func (s *Store) Probes() ([]Probe, error) {
 	out := []Probe{}
 	for rows.Next() {
 		var p Probe
-		var local, enabled, hasTok int
+		var local, enabled, hasTok, all int
 		if err := rows.Scan(&p.ID, &p.Slug, &p.Name, &p.Location,
-			&local, &enabled, &p.LastSeenAt, &hasTok, &p.Address, &p.SeenAddress); err != nil {
+			&local, &enabled, &p.LastSeenAt, &hasTok, &p.Address, &p.SeenAddress, &all); err != nil {
 			return nil, err
 		}
-		p.Local, p.Enabled, p.HasToken = local == 1, enabled == 1, hasTok == 1
+		p.Local, p.Enabled, p.HasToken, p.AllTargets = local == 1, enabled == 1, hasTok == 1, all == 1
 		p.From = p.EffectiveAddress()
 		out = append(out, p)
 	}
@@ -201,8 +204,50 @@ func (s *Store) SetProbeEnabled(id int64, on bool) error {
 	return nil
 }
 
-// ProbeTargetIDs is the set of targets a probe may measure. It is consulted
-// on the probe's own hot path, so it returns a set rather than a list.
+// ProbeAllowedTargets is what a probe may measure: a set of target ids, or
+// nil when it may measure every target. Every path that enforces the
+// restriction asks this one function, so there is a single rule rather than
+// one per caller — and nil consistently means "no restriction", never "no
+// targets", which is the distinction a caller must not get wrong.
+//
+// A probe set to all targets keeps whatever explicit list it had. Turning the
+// option off puts that list back, instead of leaving the operator to rebuild
+// something they never asked to lose.
+func (s *Store) ProbeAllowedTargets(probeID int64) (map[int64]bool, error) {
+	var all int
+	err := s.cfg.QueryRow(`SELECT COALESCE(all_targets,0) FROM probes WHERE id=?`, probeID).Scan(&all)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	if all == 1 {
+		return nil, nil
+	}
+	return s.ProbeTargetIDs(probeID)
+}
+
+// SetProbeAllTargets switches a probe between an explicit list and everything.
+//
+// It refuses the local probe, which measures every target by construction and
+// is read from none of this: an option on it would be a setting that looks
+// meaningful and changes nothing.
+func (s *Store) SetProbeAllTargets(probeID int64, all bool) error {
+	v := 0
+	if all {
+		v = 1
+	}
+	res, err := s.cfg.Exec(`UPDATE probes SET all_targets=? WHERE id=? AND local=0`, v, probeID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("unknown probe")
+	}
+	return nil
+}
+
+// ProbeTargetIDs is the explicit set a probe was assigned. Callers enforcing
+// the restriction want ProbeAllowedTargets instead, which also accounts for a
+// probe set to measure everything; this one is the stored list as written.
 //
 // A probe with no assignment gets an empty set, and an empty set means an
 // empty target list. That is the safe way round: a probe enrolled today
@@ -350,6 +395,27 @@ func (s *Store) TargetWatchers(localProbeID int64) (map[int64][]int64, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	// The local probe, and any remote probe set to measure everything, are in
+	// no assignment row at all. They watch every target rather than none, so
+	// they are added to each one the way the local probe already was.
+	everyone := []int64{localProbeID}
+	arows, err := s.cfg.Query(`SELECT id FROM probes WHERE enabled=1 AND local=0 AND COALESCE(all_targets,0)=1`)
+	if err != nil {
+		return nil, err
+	}
+	for arows.Next() {
+		var pid int64
+		if err := arows.Scan(&pid); err != nil {
+			arows.Close()
+			return nil, err
+		}
+		everyone = append(everyone, pid)
+	}
+	arows.Close()
+	if err := arows.Err(); err != nil {
+		return nil, err
+	}
+
 	trows, err := s.cfg.Query(`SELECT id FROM targets`)
 	if err != nil {
 		return nil, err
@@ -360,7 +426,7 @@ func (s *Store) TargetWatchers(localProbeID int64) (map[int64][]int64, error) {
 		if err := trows.Scan(&tid); err != nil {
 			return nil, err
 		}
-		out[tid] = append(out[tid], localProbeID)
+		out[tid] = append(out[tid], everyone...)
 	}
 	return out, trows.Err()
 }
@@ -382,6 +448,8 @@ func (s *Store) ReportingProbes() ([]Probe, error) {
 		 WHERE enabled = 1
 		   AND COALESCE(last_seen_at,0) > 0
 		   AND ( (local = 1 AND EXISTS(SELECT 1 FROM targets WHERE enabled=1 AND archived_at=0))
+		      OR (local = 0 AND COALESCE(all_targets,0) = 1
+		          AND EXISTS(SELECT 1 FROM targets WHERE enabled=1 AND archived_at=0))
 		      OR (local = 0 AND EXISTS(SELECT 1 FROM probe_targets WHERE probe_id = p.id)) )
 		 ORDER BY id`)
 	if err != nil {
@@ -408,9 +476,52 @@ func (s *Store) MarkProbeSilent(id, at int64) {
 	s.cfg.Exec(`UPDATE probes SET silent_notified_at=? WHERE id=?`, at, id)
 }
 
+// MarkProbeBack notes the moment a probe started reporting again, which is
+// what probeReclaimAfter counts from. Stamped only on the transition: a probe
+// that never went quiet has nothing to wait for.
+func (s *Store) MarkProbeBack(id, at int64) {
+	s.cfg.Exec(`UPDATE probes SET silent_notified_at=0, reporting_since=? WHERE id=?`, at, id)
+}
+
 // EnabledProbeIDs lists the probes worth asking for an opinion.
+//
+// It is not the set a visitor may be told about, which is the complement of
+// DisabledProbeIDs below and not the same thing: the local probe is
+// deliberately absent from this table, and so is anything recorded before
+// probes existed. Asking "which are enabled" and hiding the rest would hide
+// those too.
 func (s *Store) EnabledProbeIDs() ([]int64, error) {
 	rows, err := s.cfg.Query(`SELECT id FROM probes WHERE enabled=1 ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// DisabledProbeIDs lists the probes an operator has turned off.
+//
+// The traceroute endpoints filter on this rather than on the enabled set,
+// and the difference matters more than it looks. The local probe is
+// deliberately absent from this table — it reaches the service over a Unix
+// socket and restricting it would stop every existing instance measuring —
+// and a traceroute recorded before probes existed carries probe_id 0, which
+// means that same local probe. An allow list of enabled probes excludes both,
+// so on an instance that has never enrolled a probe it would publish nothing
+// at all. I wrote that version first and it took two existing tests down.
+//
+// So: closed for what the operator actually disabled, open for everything the
+// table does not know about.
+func (s *Store) DisabledProbeIDs() ([]int64, error) {
+	rows, err := s.cfg.Query(`SELECT id FROM probes WHERE enabled=0 ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -449,13 +560,14 @@ func (s *Store) SetTargetPrimaryProbe(targetID, probeID int64) error {
 		if enabled != 1 {
 			return fmt.Errorf("that probe is disabled")
 		}
-		var n int
-		if err := s.cfg.QueryRow(
-			`SELECT COUNT(*) FROM probe_targets WHERE probe_id=? AND target_id=?`,
-			probeID, targetID).Scan(&n); err != nil {
+		// A probe measuring everything is assigned this target as much as one
+		// holding it in a list, so asking the allowed set rather than the
+		// table keeps the two kinds of assignment telling the same story.
+		allowed, err := s.ProbeAllowedTargets(probeID)
+		if err != nil {
 			return err
 		}
-		if n == 0 {
+		if allowed != nil && !allowed[targetID] {
 			return fmt.Errorf("that probe is not assigned this target, so it cannot be its primary")
 		}
 	}
@@ -508,6 +620,27 @@ func (s *Store) SetProbeAddress(id int64, addr string) error {
 // A disabled probe resolves to nothing, which is what makes disabling it stop
 // the measurements rather than merely hide it. So does the local probe, which
 // has no token and must stay reachable through the socket alone.
+// ProbeReadable says whether a caller may read measurements attributed to
+// this probe.
+//
+// The public probes endpoint lists enabled probes only, so an operator who
+// disables a probe has said it is no longer part of what this instance shows.
+// The data endpoints took ?probe= on trust and would keep answering for it,
+// which made the listing's filter decorative. The back-office is a different
+// matter: a disabled probe's history is exactly what someone looks at to
+// decide whether to enable it again.
+func (s *Store) ProbeReadable(id int64, authenticated bool) bool {
+	if id <= 0 {
+		return false
+	}
+	var enabled int
+	err := s.cfg.QueryRow(`SELECT enabled FROM probes WHERE id=?`, id).Scan(&enabled)
+	if err != nil {
+		return false
+	}
+	return authenticated || enabled == 1
+}
+
 func (s *Store) ProbeByToken(tok string) (int64, bool) {
 	if len(tok) < 16 {
 		return 0, false
@@ -628,7 +761,11 @@ func (a *API) probeTargetsGet(w http.ResponseWriter, r *http.Request, u *User) {
 		ids = append(ids, tid)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	writeJSON(w, map[string]any{"targets": ids})
+	var all int
+	a.store.cfg.QueryRow(`SELECT COALESCE(all_targets,0) FROM probes WHERE id=?`, id).Scan(&all)
+	// The stored list travels with the flag rather than instead of it: an
+	// operator switching back to an explicit list gets what they had.
+	writeJSON(w, map[string]any{"targets": ids, "all_targets": all == 1})
 }
 
 func (a *API) probeTargetsPut(w http.ResponseWriter, r *http.Request, u *User) {
@@ -677,6 +814,41 @@ func (a *API) targetPrimaryPut(w http.ResponseWriter, r *http.Request, u *User) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (a *API) targetBackupsGet(w http.ResponseWriter, r *http.Request, u *User) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "bad target id")
+		return
+	}
+	ids, err := a.store.TargetBackups(id)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"backups": ids})
+}
+
+func (a *API) targetBackupsPut(w http.ResponseWriter, r *http.Request, u *User) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, 400, "bad target id")
+		return
+	}
+	var in struct {
+		Backups []int64 `json:"backups"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	if err := a.store.SetTargetBackups(id, in.Backups); err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+	a.store.Audit(u, clientIP(r), "target_backups", "target", strconv.FormatInt(id, 10))
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (a *API) probesPatch(w http.ResponseWriter, r *http.Request, u *User) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -684,16 +856,24 @@ func (a *API) probesPatch(w http.ResponseWriter, r *http.Request, u *User) {
 		return
 	}
 	var in struct {
-		Enabled *bool   `json:"enabled"`
-		Address *string `json:"address"`
+		Enabled    *bool   `json:"enabled"`
+		Address    *string `json:"address"`
+		AllTargets *bool   `json:"all_targets"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeErr(w, 400, err.Error())
 		return
 	}
-	if in.Enabled == nil && in.Address == nil {
+	if in.Enabled == nil && in.Address == nil && in.AllTargets == nil {
 		writeErr(w, 400, "nothing to change")
 		return
+	}
+	if in.AllTargets != nil {
+		if err := a.store.SetProbeAllTargets(id, *in.AllTargets); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
+		a.store.Audit(u, clientIP(r), "probe_all_targets", "probe", strconv.FormatInt(id, 10))
 	}
 	// A pointer rather than a string, so that clearing the override is
 	// expressible: an absent field changes nothing, an empty one hands the
@@ -737,6 +917,7 @@ func cmdProbe(args []string) error {
 	location := fsn.String("location", "", "where it measures from")
 	address := fsn.String("address", "", "its public IP, when the observed one would be wrong (NAT, reverse proxy)")
 	targets := fsn.String("targets", "", "comma-separated target ids this probe measures (targets only)")
+	allTargets := fsn.Bool("all", false, "measure every target, now and as targets are added (targets only)")
 	withToken := fsn.Bool("token", false, "issue a token straight away (add only)")
 	fsn.Parse(args[1:])
 
@@ -772,7 +953,7 @@ func cmdProbe(args []string) error {
 			return err
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "SLUG\tNAME\tLOCATION\tFROM\tKIND\tSTATE\tTOKEN")
+		fmt.Fprintln(w, "SLUG\tNAME\tLOCATION\tFROM\tTARGETS\tKIND\tSTATE\tTOKEN")
 		for _, p := range list {
 			kind, state, tok := "remote", "disabled", "none"
 			if p.Local {
@@ -792,7 +973,13 @@ func cmdProbe(args []string) error {
 			} else if p.Address != "" {
 				from += " (stated)"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Slug, p.Name, p.Location, from, kind, state, tok)
+			scope := "list"
+			if p.Local {
+				scope = "all"
+			} else if p.AllTargets {
+				scope = "all"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p.Slug, p.Name, p.Location, from, scope, kind, state, tok)
 		}
 		return w.Flush()
 
@@ -836,6 +1023,20 @@ func cmdProbe(args []string) error {
 	case "targets":
 		id, err := bySlug()
 		if err != nil {
+			return err
+		}
+		if *allTargets {
+			if err := store.SetProbeAllTargets(id, true); err != nil {
+				return err
+			}
+			store.Audit(nil, "cli", "probe_all_targets", "probe", strconv.FormatInt(id, 10))
+			fmt.Printf("%s now measures every target, including ones added later\n", *slug)
+			return nil
+		}
+		// Naming a list turns the everything option off: the operator asked
+		// for these targets, so leaving the flag on would silently ignore
+		// what they just typed.
+		if err := store.SetProbeAllTargets(id, false); err != nil {
 			return err
 		}
 		// An empty -targets clears the assignment, which is the same thing
@@ -885,4 +1086,251 @@ func printProbeToken(tok string) {
 	fmt.Fprintln(os.Stderr, "token issued. It is shown once and only its hash is stored, so copy it now:")
 	fmt.Println(tok)
 	fmt.Fprintln(os.Stderr, "set it as probe.token in the probe's configuration file.")
+}
+
+// ------------------------------------------------------- public listing
+
+// publicProbe is what a visitor may know about where a measurement was made.
+// Deliberately the same answer for everybody, operator included.
+//
+// The alternative was to vary it by caller and let an operator see more, which
+// is what the admin listing is for. A public endpoint that varies by caller
+// needs Vary, and Vary on a page behind a CDN means one cache entry per
+// visitor — the cache turned off on exactly the pages that need it most,
+// during exactly the incident everyone is reloading. One answer for everyone
+// costs nothing to cache and cannot leak by misconfiguration, because there is
+// nothing in it to leak.
+type publicProbe struct {
+	ID       int64  `json:"id"`
+	Slug     string `json:"slug"`
+	Name     string `json:"name"`
+	Location string `json:"location,omitempty"`
+	Local    bool   `json:"local"`
+	// Masked, like every other address a visitor is shown: roughly the
+	// operator's network rather than the host.
+	From string `json:"from,omitempty"`
+	ASN  string `json:"asn,omitempty"`
+}
+
+// probesPublic lists where this instance measures from, so that a page can
+// offer the choice. A disabled probe is left out: it is not measuring, so
+// picking it would show an empty graph and say nothing about why.
+func (a *API) probesPublic(w http.ResponseWriter, r *http.Request) {
+	list, err := a.store.Probes()
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	out := []publicProbe{}
+	for _, p := range list {
+		if !p.Enabled {
+			continue
+		}
+		pp := publicProbe{ID: p.ID, Slug: p.Slug, Name: p.Name, Location: p.Location, Local: p.Local}
+		if addr := p.EffectiveAddress(); addr != "" {
+			pp.From = maskIP(addr)
+			if a.asn != nil {
+				if as, ok := a.asn.ASNOfIP(addr); ok {
+					pp.ASN = as
+				}
+			}
+		}
+		out = append(out, pp)
+	}
+	// No Vary: this answer does not depend on who is asking, which is the
+	// whole point of it being this shape.
+	w.Header().Set("Cache-Control", "public, max-age=60")
+	writeJSON(w, map[string]any{"probes": out})
+}
+
+// ------------------------------------------------------------- failover
+
+// How long a probe must have been reporting again before it takes back the
+// targets it decides. Without it, a probe flapping on a bad link would hand
+// its targets to a backup and reclaim them every few minutes, and every
+// handover is a moment where two views of the same target disagree.
+//
+// Longer than probeSilentAfter on purpose: coming back must cost more than
+// going away, or the hysteresis is not hysteresis.
+const probeReclaimAfter = 10 * 60
+
+// TargetBackups is the ordered list of probes a target falls back to.
+func (s *Store) TargetBackups(targetID int64) ([]int64, error) {
+	rows, err := s.cfg.Query(`SELECT probe_id FROM target_backups WHERE target_id=? ORDER BY pos`, targetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// SetTargetBackups replaces the list. Order is the caller's: first in the
+// slice is first in line.
+//
+// Every backup must be allowed to measure the target, for the same reason a
+// primary must: a probe that may not measure it could never decide it, and
+// the list would quietly skip over an entry nobody could see was dead.
+func (s *Store) SetTargetBackups(targetID int64, ids []int64) error {
+	t, err := s.TargetByID(targetID)
+	if err != nil {
+		return fmt.Errorf("unknown target")
+	}
+	seen := map[int64]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			return fmt.Errorf("probe %d is listed twice", id)
+		}
+		seen[id] = true
+		// A fallback that is the probe being fallen back from is not a
+		// fallback. Harmless at read time, since a silent probe is skipped
+		// wherever it appears, but an operator who writes it has misread
+		// what the list is for and nothing would tell them.
+		if t.PrimaryProbeID != 0 && id == t.PrimaryProbeID {
+			return fmt.Errorf("probe %d already decides this target, so it cannot stand in for itself", id)
+		}
+		var local, enabled int
+		err := s.cfg.QueryRow(`SELECT local, enabled FROM probes WHERE id=?`, id).Scan(&local, &enabled)
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("unknown probe %d", id)
+		}
+		if err != nil {
+			return err
+		}
+		if local == 1 {
+			return fmt.Errorf("the local probe is the fallback of last resort and is not listed")
+		}
+		if enabled != 1 {
+			return fmt.Errorf("probe %d is disabled, so it cannot stand in for anything", id)
+		}
+		allowed, err := s.ProbeAllowedTargets(id)
+		if err != nil {
+			return err
+		}
+		if allowed != nil && !allowed[targetID] {
+			return fmt.Errorf("probe %d is not assigned this target, so it cannot stand in for it", id)
+		}
+	}
+	tx, err := s.cfg.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM target_backups WHERE target_id=?`, targetID); err != nil {
+		return err
+	}
+	for i, id := range ids {
+		if _, err := tx.Exec(`INSERT INTO target_backups(target_id,pos,probe_id) VALUES(?,?,?)`,
+			targetID, i, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// probeLiveness is what deciding needs to know about every probe at once:
+// whether it is reporting, and since when it has been doing so again.
+type probeLiveness struct {
+	enabled        bool
+	lastSeen       int64
+	reportingSince int64
+}
+
+func (s *Store) probeLiveness() (map[int64]probeLiveness, error) {
+	rows, err := s.cfg.Query(`SELECT id, enabled, COALESCE(last_seen_at,0), COALESCE(reporting_since,0) FROM probes`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]probeLiveness{}
+	for rows.Next() {
+		var id int64
+		var en int
+		var l probeLiveness
+		if err := rows.Scan(&id, &en, &l.lastSeen, &l.reportingSince); err != nil {
+			return nil, err
+		}
+		l.enabled = en == 1
+		out[id] = l
+	}
+	return out, rows.Err()
+}
+
+// EffectivePrimaries says which probe decides each target right now, which is
+// not always the one the operator chose: a primary that has gone quiet hands
+// over to the first backup still reporting, and takes its targets back once it
+// has been reporting again for probeReclaimAfter.
+//
+// A target whose primary and every backup are silent stays with its primary.
+// Somebody has to own it, and leaving it owned by a probe that is not
+// answering is what keeps its incident open — which is the honest outcome,
+// and the one 0.8.0 was fixed to produce.
+func (s *Store) EffectivePrimaries(localProbeID, now int64) (map[int64]int64, error) {
+	stored, err := s.TargetPrimaries(localProbeID)
+	if err != nil {
+		return nil, err
+	}
+	live, err := s.probeLiveness()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.cfg.Query(`SELECT target_id, probe_id FROM target_backups ORDER BY target_id, pos`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	backups := map[int64][]int64{}
+	for rows.Next() {
+		var tid, pid int64
+		if err := rows.Scan(&tid, &pid); err != nil {
+			return nil, err
+		}
+		backups[tid] = append(backups[tid], pid)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// A probe nobody has ever heard from is not reporting. One that has
+	// reported within the silence threshold is.
+	reporting := func(id int64) bool {
+		l, ok := live[id]
+		return ok && l.enabled && l.lastSeen > 0 && now-l.lastSeen < probeSilentAfter
+	}
+
+	out := make(map[int64]int64, len(stored))
+	for tid, primary := range stored {
+		if len(backups[tid]) == 0 {
+			// No list, nothing to fail over to: the ordinary case, and the
+			// one every instance has until somebody writes a list.
+			out[tid] = primary
+			continue
+		}
+		if reporting(primary) {
+			// Back from silence, but not for long enough to be trusted with
+			// what it decides. A probe flapping on a bad link would otherwise
+			// take its targets back and lose them again every few minutes.
+			l := live[primary]
+			if l.reportingSince == 0 || now-l.reportingSince >= probeReclaimAfter {
+				out[tid] = primary
+				continue
+			}
+		}
+		chosen := primary
+		for _, b := range backups[tid] {
+			if reporting(b) {
+				chosen = b
+				break
+			}
+		}
+		out[tid] = chosen
+	}
+	return out, nil
 }

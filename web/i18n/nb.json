@@ -83,11 +83,14 @@
     "hosted_by": "Målt fra",
     "see_network": "Om dette nettet",
     "no_data": "Ingen målinger for dette målet ennå.",
+    "no_data_window": "Ingen målinger for denne perioden.",
     "refresh": "Oppdateres hvert 30. sekund",
     "once": "Unike mål",
     "once_hint": "Vis hvert mål bare én gang: et mål med feil blir stående i feilseksjonen og forsvinner fra de kritiske målene og fra kategorien sin."
   },
   "detail": {
+    "probe_from": "Målt fra",
+    "probe_default": "standard",
     "navigator": "Hele året — dra for å velge en periode",
     "hint": "Dra i diagrammet for å zoome, dobbeltklikk for å tilbakestille.",
     "resolution": "Oppløsning",

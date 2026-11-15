@@ -119,6 +119,9 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/admin/channels", a.need(RoleAdmin, a.channelsGet))
 	mux.HandleFunc("PUT /api/v1/admin/channels", a.need(RoleAdmin, a.channelsPut))
 	mux.HandleFunc("POST /api/v1/admin/channels/test", a.need(RoleAdmin, a.channelsTest))
+	mux.HandleFunc("GET /api/v1/admin/retention", a.need(RoleAdmin, a.retentionGet))
+	mux.HandleFunc("POST /api/v1/admin/retention/preview", a.need(RoleAdmin, a.retentionPreview))
+	mux.HandleFunc("PUT /api/v1/admin/retention", a.need(RoleAdmin, a.retentionPut))
 	mux.HandleFunc("GET /api/v1/admin/alerts", a.need(RoleAdmin, a.alertsGet))
 	mux.HandleFunc("PUT /api/v1/admin/alerts", a.need(RoleAdmin, a.alertsPut))
 	// Enrolling a probe hands out a credential that may write into the
@@ -127,7 +130,10 @@ func (a *API) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/admin/probes", a.need(RoleAdmin, a.probesGet))
 	mux.HandleFunc("POST /api/v1/admin/probes", a.need(RoleAdmin, a.probesPost))
 	mux.HandleFunc("PATCH /api/v1/admin/probes/{id}", a.need(RoleAdmin, a.probesPatch))
+	mux.HandleFunc("GET /api/v1/probes", a.probesPublic)
 	mux.HandleFunc("PUT /api/v1/admin/targets/{id}/primary", a.need(RoleAdmin, a.targetPrimaryPut))
+	mux.HandleFunc("GET /api/v1/admin/targets/{id}/backups", a.need(RoleAdmin, a.targetBackupsGet))
+	mux.HandleFunc("PUT /api/v1/admin/targets/{id}/backups", a.need(RoleAdmin, a.targetBackupsPut))
 	mux.HandleFunc("GET /api/v1/admin/probes/{id}/targets", a.need(RoleAdmin, a.probeTargetsGet))
 	mux.HandleFunc("PUT /api/v1/admin/probes/{id}/targets", a.need(RoleAdmin, a.probeTargetsPut))
 	mux.HandleFunc("POST /api/v1/admin/probes/{id}/token", a.need(RoleAdmin, a.probeTokenPost))
@@ -353,12 +359,7 @@ func (a *API) series(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing target parameter")
 		return
 	}
-	probeID := a.probeID
-	if v := q.Get("probe"); v != "" {
-		if p, err := strconv.ParseInt(v, 10, 64); err == nil {
-			probeID = p
-		}
-	}
+	probeID, probePriv := a.resolveProbe(r, a.probeID)
 	now := time.Now().Unix()
 	from := parseTime(q.Get("from"), now-3*3600)
 	to := parseTime(q.Get("to"), now)
@@ -382,10 +383,15 @@ func (a *API) series(w http.ResponseWriter, r *http.Request) {
 	if points < 0 || points > 5000 {
 		points = 0
 	}
-	// Arrondi de la fenetre au pas de la resolution : deux visiteurs qui
-	// regardent le meme graphe a quelques secondes d'ecart partagent la
-	// meme entree de cache.
-	_, step := pickTable(to - from)
+	// Rounding the window to the resolution's step: two visitors looking at
+	// the same graph a few seconds apart share one cache entry.
+	//
+	// The same decision as the one Series will make, age included. Rounding
+	// to a step finer than the tier actually served would quantise to 30 s a
+	// window answered from hourly buckets, which costs nothing in
+	// correctness — the key carries from and to — and quietly spends the
+	// cache on entries nobody hits twice.
+	_, step := pickTableFrom(from, to, now)
 	quant := step
 	if quant < 30 {
 		quant = 30
@@ -422,7 +428,9 @@ func (a *API) series(w http.ResponseWriter, r *http.Request) {
 	// share link, and this line used to announce its measurements as
 	// publicly cacheable with no Vary — so a shared cache could keep them
 	// and hand them to the next visitor who asked for the same URL.
-	if t.Public {
+	// probePriv: the answer used a privilege the next visitor does not have,
+	// so this URL's one shared cache entry must not be filled with it.
+	if t.Public && !probePriv {
 		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", maxAge))
 	} else {
 		cachePrivate(w)
@@ -656,14 +664,17 @@ func (a *API) ingest(w http.ResponseWriter, r *http.Request) {
 	// may write. Restricting one without the other would leave the
 	// restriction decorative: a probe could still move any graph by naming
 	// the target it wanted.
-	allowed, err := a.store.ProbeTargetIDs(id)
+	// nil means this probe may measure everything, which is not the same as
+	// an empty set. Reading one as the other would either refuse every
+	// measurement or accept every one of them.
+	allowed, err := a.store.ProbeAllowedTargets(id)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
 	}
 	n, refused := 0, 0
 	for _, m := range body.Batch {
-		if !allowed[m.TargetID] {
+		if allowed != nil && !allowed[m.TargetID] {
 			refused++
 			continue
 		}

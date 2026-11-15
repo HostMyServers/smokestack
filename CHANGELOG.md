@@ -4,6 +4,12 @@ Versions are published as signed releases; servers with automatic updates instal
 
 ## Unreleased
 
+**Install this one: it is built with Go 1.26.11, which fixes a crash a stranger can trigger in the HTTP server every instance runs.** Every release of this fork up to 0.6.15 is built without it.
+
+**What a remote probe measures can now be read on the public pages, and a target keeps being judged when its probe goes away.** A target page offers the choice of the probe it is read from, a target can name the probes that take over while its own is silent, and a probe can be installed on a machine of its own and keeps what it measured across a restart. A target can also be measured with a UDP echo.
+
+All of it is what [nkglfr/smokestack](https://github.com/nkglfr/smokestack) published as 0.8.0 to 0.8.4 and has merged since, which this fork had not shipped yet. How long each resolution is kept also becomes an instance setting, and a probe that was turned off can no longer be read on the public pages through its id or its traceroutes.
+
 ### New
 
 - **An alert says whether the other probes see the same thing.**
@@ -14,7 +20,99 @@ Versions are published as signed releases; servers with automatic updates instal
 
   A probe with no data, or one whose targets are under maintenance, has no opinion and is not counted either way: counting silence as agreement would manufacture a confirmation out of nothing.
 
+- **A probe can be set to measure every target.**
+
+  An explicit list does not survive a growing instance. A target created after a probe was configured was measured by no remote probe until every probe's list was updated by hand, which on a deployment with fifty probes is fifty edits for one new target.
+
+  A probe can now be set to measure everything, including targets added later. The explicit list it had is kept rather than discarded, so turning the option off puts it straight back.
+
+  The default is unchanged and deliberately so: a probe enrolled today still measures nothing until somebody says what it should measure. This is an option for the ordinary case, not a new default.
+
+  Reported by mayssa-bm.
+
+- **UDP echo targets, for equipment that answers from the forwarding hardware.**
+
+  ICMP and a TCP handshake both answer from the wrong place for some measurements. A router replies to an ICMP echo from its routing engine, so the round trip carries whatever the control plane was busy with, and those replies are rate-limited on most platforms. A datagram echoed by the forwarding hardware has neither problem — on Junos, a `probe-server` listening for RFC 862 echo answers with a hardware timestamp.
+
+  A UDP target measures a plain RFC 862 echo: the datagram goes out, the same bytes come back, and the round trip is timed here. Port 7 by default, settable, since a receiver can be told to use the 49160–65535 range instead.
+
+  Three outcomes rather than two. An echo is a round trip, silence is loss, and a host that answers with an ICMP port-unreachable is reported as exactly that — up, with nothing listening on the port — rather than as a path problem. A firewall that swallows the ICMP error leaves it reading as silence, which is the honest answer when nothing was said.
+
+  Each packet carries a sequence number and a nonce for the pass, so a reply that arrives late is recognised as belonging to an earlier packet and dropped instead of being timed against the current one. Without that, a straggler would report a latency far below the truth, and nothing about the resulting graph would look wrong.
+
+  The payload is 56 bytes, the same as an ICMP one, so the three protocols measure comparable datagrams. The reply is never larger than the request and the source address is always the instance's own, so the probe can be neither an amplifier nor a reflector. It needs no privilege, unlike ICMP, so a UDP target works in either probe mode.
+
+  The response-time breakdown stays TCP-only — there is no handshake to break down — and a peer double-check still accepts only ICMP and TCP, since an echo target is usually equipment on your own network that a peer could not reach anyway.
+
+  Asked for by blakedot.
+
+- **The installer can set up a probe on its own.**
+
+  `sudo ./install.sh --probe-only --server https://your-instance --token TOKEN` installs the probe and nothing else: no web service, no database, no admin account, and a single systemd unit. Until now the only way to get a probe onto a machine was to install a whole instance and turn most of it off.
+
+  A probe installed beside a service belongs to it, so stopping one stops the other. A probe installed alone has nothing to belong to, and its unit says so rather than naming a service that does not exist — which would have kept it from starting at all.
+
+  Re-running the installer on such a machine keeps it as it is. It reads what the machine is from its configuration rather than from the command line, so an upgrade run without the flag does not install a web service beside a probe that never asked for one.
+
+  Asked for by mayssa-bm.
+
+- **A target page can be read from any probe.**
+
+  Where an instance has more than one probe, the target page offers the choice, and the graph, the availability figure, the traceroutes and the AS path all follow it. With a single probe nothing appears: a control that offers no choice is furniture that explains nothing.
+
+  The choice travels in the address, so a view from one vantage point is a link somebody else can open. Copying the link already copied the view; it now copies which probe the view is from.
+
+  A probe that is disabled is not offered. It is not measuring, so picking it would show an empty graph and say nothing about why it is empty.
+
+- **An endpoint that says where this instance measures from.**
+
+  `GET /api/v1/probes` lists the probes a visitor may know about: name, location, masked address and AS. It is deliberately the same answer for everybody, operator included, so that it can be cached once and shared. Varying it by caller would mean one cache entry per visitor, on exactly the pages that need the cache most during an incident — and the back-office listing already serves the operator.
+
+- **Traceroutes and the AS path can be narrowed to one probe.**
+
+  A traceroute only means something alongside the vantage point it was run from. Showing every probe's on one page invites comparing a path from one city with a path from another and concluding something about neither.
+
+  A probe that is named but no longer exists is read as no choice rather than as an error, so an old bookmark shows the page instead of a refusal.
+
+- **A target can name the probes to fall back to.**
+
+  An ordered list, set beside the probe that decides the target. While that probe is silent the first fallback still reporting takes over, and the chosen probe takes its targets back once it has been reporting again for ten minutes.
+
+  That delay is the feature rather than a detail: coming back deliberately costs more than going away. Without it a probe flapping on a bad link would hand its targets over and reclaim them every few minutes, and every handover is a moment when two views of the same target disagree.
+
+  A target whose probe and every fallback are silent stays with the probe that was chosen for it. Somebody has to own it, and leaving it owned by something that is not answering is what keeps its incident open.
+
+  An instance that writes no list behaves exactly as before: with nowhere to fall back to, the chosen probe decides, silent or not.
+
+  Every fallback must already be allowed to measure the target, and cannot be the probe it stands in for. The form offers two levels; the API and the command line accept more.
+
+  Asked for by mayssa-bm.
+
+- **An incident records which probe decided it.**
+
+  With one probe the question never arose. With a probe that can hand over to another, an incident that does not say where it was seen from cannot be read a week later.
+
+- **How long each resolution is kept is now an instance setting.**
+
+  Every measurement is stored five times over at falling resolution, and how long each of those was kept was compiled in: raw passes 48 hours, one-minute buckets a year, five-minute buckets three years, hourly and daily for ever. The only setting near it was *Keep measurements for* on a target, which cuts every resolution at the same date. So an instance could not drop the minute while keeping the hour, and an instance with the disk for it could not keep the minute beyond a year.
+
+  That stopped being a detail when an instance started measuring from several places. One probe writes one row per target per minute; fifty probes write fifty. At twelve hundred targets the one-minute tier is the great majority of the rows after a year, and a year of history from every vantage point is affordable at one point per hour and not at one per minute. The setting exists to be asymmetric — keep the hour and the day for ever, keep the minute for a week.
+
+  The defaults are exactly what the cascade did, so an upgrade deletes nothing until you change something. It is in *Instance → Storage*, and on the command line as `smokestack retention`.
+
+  Two rules are enforced rather than advised, because breaking either loses measurements instead of history. A tier may not be kept for less than the window that rolls it up: the minute is rebuilt from the raw samples over two hours, the hour from the five minutes over three days, and a tier purged before it has been rolled up is gone rather than coarse. And a coarser tier may not be kept for less than a finer one, which inverts the point of the cascade: every row in the minute tier stands for sixty raw ones, so keeping the expensive detail longer than the cheap summary is almost always a transposed pair of numbers, and it costs disk for months before anyone notices. A value breaking either is refused and the previous one kept — there is no half-applied retention, since the damage would arrive with the next purge rather than with the save.
+
+  **Shortening a tier deletes two things, and the second is the one nobody expects.** The old rows go at the next purge, within six hours, and that cannot be undone. It also removes the only source for rebuilding the tier above it over that period: with the minute kept seven days, the five-minute tier can never again be recovered beyond seven days, whatever happens later. That is the mechanism that brings the long views back after a stop. So both are stated before anything is saved — the back-office counts the rows and names the tier that stops being recoverable, and the command line prints the same and saves nothing without `-apply`. Reported in nkglfr/smokestack#115.
+
 ### Fixed
+
+- **The published binaries are built with the Go patch that fixes GO-2026-6859.**
+
+  The Monday audit's whole purpose is to say that a released version became vulnerable without a line of it changing, and this is it saying so. `GO-2026-6859` is an HTTP/1 server crash in `net/http`, from a race on the headers while a request body is being limited. It is reachable from this code — a public status page is an HTTP/1 server that strangers send requests to — and it is fixed in Go 1.26.11.
+
+  Nothing in smokestack caused it and nothing in smokestack can work around it: the fix is the toolchain the binaries are compiled with. This fork's releases up to 0.6.15 are built with 1.26.10 or older and are affected. An instance behind a reverse proxy that terminates the connection itself is reached only through whatever that proxy forwards, which is a mitigation and not a fix.
+
+  Both workflows now name the patch they compile with instead of taking whatever `setup-go` hands out. The runner image's manifest trails a security release by days — the audit run that caught this was handed a cached 1.26.10 while asking for the newest — so naming it is what puts the fix in the build on the day it exists. Bumping only the audit's own pin would have turned the job green over a binary still built on the affected patch, which is worse than the red that found it.
 
 - **A probe that stopped reporting declared its targets recovered.**
 
@@ -31,6 +129,62 @@ Versions are published as signed releases; servers with automatic updates instal
   This is the other half of the fix above. A target whose probe is gone keeps its incident open and stops being judged, which is honest but says nothing — without this, an operator would find a target frozen mid-incident with no indication that the probe, rather than the target, is the reason.
 
   A probe with nothing to measure is never called silent. Its last contact only moves when it has something to report, so an idle probe would otherwise look dead while being perfectly healthy.
+
+- **A probe restart threw away everything it had not sent.**
+
+  A probe holds what it has measured in memory until the service accepts it. That is the right place while the service is reachable, and exactly the wrong place when the probe is restarted during an outage — an hour of measurements from the one vantage point that was still working went with the process.
+
+  What is pending is now written down: while the service is unreachable, and once more when the probe is asked to stop. It is read back at the next start and sent oldest first, then the file is removed so that nothing is replayed twice.
+
+  It is written at most once a minute rather than on every failed send: at the buffer's ceiling the file is tens of megabytes, and rewriting it every second would turn a service outage into a disk problem. A file that cannot be read is discarded with a line in the log rather than stopping the probe, because measuring now matters more than recovering what was measured before.
+
+  Reported by mayssa-bm.
+
+- **A target could claim one protocol and be measured with another.**
+
+  Nothing validated the protocol — not the target form's own checks, not the API, and the prober was a switch that fell through to ICMP for anything it did not recognise. A target created through the API saying `udp`, or `quux`, or nothing at all, was stored as written, shown that way in the back-office, named that way in its alerts, and measured with ICMP throughout.
+
+  Every surface agreed on the same wrong answer, which is why this lasted: nothing looked out of place. It was found while designing the UDP echo probe in discussion nkglfr/smokestack#69, not by anyone noticing a wrong graph.
+
+  An unknown protocol is now refused when a target is created or changed, and the prober reports one it does not recognise as an error instead of measuring something else. An empty protocol means ICMP, which is what the prober has always done with it — existing targets are normalised on upgrade, so nothing changes about what they measure.
+
+- **Disabling a probe hid it from the listing and left its measurements readable by id.**
+
+  The public endpoint that says where an instance measures from lists enabled probes only, so turning a probe off is how an operator says it is no longer part of what the instance shows. The endpoints that serve the data took `?probe=` on trust: a graph, an availability figure, a traceroute list or an AS path would keep answering for a probe that had been turned off, and the ids are small integers. The listing's filter was decorative.
+
+  One function now decides it for every endpoint that takes the parameter. A probe the caller may not read is treated exactly as no parameter at all — the rule already applied to a malformed one — so a stale link still shows the page, and a request naming an id nobody may read is indistinguishable from one naming no probe at all. There is nothing to learn by walking the ids that the public listing does not already say.
+
+  The back-office is unaffected: a disabled probe's history is exactly what someone looks at to decide whether to turn it back on, so an authenticated caller still reads it. The selector on the public pages is built from the listing and never offered a disabled probe in the first place.
+
+  Two smaller things fell out of unifying it. A graph and an availability figure accepted `?probe=0` and `?probe=-3`, where the traceroute endpoints had always refused them. And the fallback is now the caller's rather than a constant, because it is not the same everywhere: a series reads from one probe, a traceroute list reads from every probe when none is named, and handing the second a probe id would have silently narrowed a page that has always shown the lot.
+
+  Threading the caller's authentication into that decision opened a second hole, and this entry would be dishonest without it. A series and an availability figure carry no `Vary`, deliberately: one shared cache entry per URL, because one entry per visitor is not a cache. Their cache directive was decided by the target's visibility alone, so an operator reading a disabled probe on a public target would have had that answer announced as publicly cacheable — and a CDN would have handed it to every visitor who asked for the same URL. Exactly the leak being closed, arriving by the back door. The resolution now reports when it used a privilege, and those two endpoints mark the response private when it did. The traceroute list already set `Vary: Cookie, Authorization` and needed nothing; the AS path view already varied by viewer.
+
+  Low severity, and worth being plain about it: what was reachable is latency measurements for targets the operator had already made public, from a probe they had turned off. No private target, no credential, no setting. It is an inconsistency between two halves of the same feature rather than a way in.
+
+- **A disabled probe's traceroutes were still published, with its id on them.**
+
+  `/api/v1/probes` lists enabled probes only, so turning a probe off is how an operator says it is no longer part of what the instance shows. The traceroute list answered from every probe when none was named, and every entry carries its `probe_id`, so one endpoint published the existence of a probe the other deliberately hid — the same inconsistency as the one fixed above for `?probe=`, one layer down.
+
+  A visitor is no longer shown paths from a probe the operator turned off, on the traceroute list or on the AS path. An operator reads all of them, which is what the back-office is for. The filter names what to hide rather than what to show, because the local probe is deliberately absent from the probes table and a path recorded before probes existed carries its id as 0: listing only the enabled ones would have published nothing at all on an instance that never enrolled a probe. And it is applied inside the query rather than to its results, so asking for forty paths still returns forty rather than however many survived.
+
+  This does hide history an operator chose to publish, which is why it is worth saying where the line is: a probe with no target assigned measures nothing and is never reported silent, so "keep the paths visible, stop measuring" is said by clearing a probe's targets rather than by disabling it. Disabling now means the same thing everywhere.
+
+- **A short window over an old period said the target had never been measured.**
+
+  The resolution to read was chosen from the length of the window and nothing else. Three hours is a window the raw samples serve, and the raw samples are kept 48 hours, so zooming into a few hours from three days ago read a table that no longer held them. The graph came back empty, the median, p95, jitter and uptime figures came back blank, and the page announced "No measurement yet for this target." on a target measured for weeks. The same happened to a window of up to four days more than a year old, and up to 45 days more than three years old.
+
+  The choice now accounts for how far back the window reaches, not only how long it is: the finest resolution that still holds the start of the window. A window ending now reads exactly what it read before. One reaching further back than its resolution is kept moves to the next, so three hours from three days ago is drawn from the 1-minute buckets instead of nothing.
+
+  A target with its own retention can leave that resolution empty while a coarser one still holds the period, which no amount of arithmetic on the clock can know. When the chosen table comes back empty the next one is read, so the view falls back to whatever the instance actually kept.
+
+  And the empty state no longer lies. A target nothing has ever measured still reads "No measurement yet for this target."; a target measured outside the window being looked at now reads "No measurement for this period." The first was being shown for both, which turned a question about a date range into a false statement about the target. Reported in nkglfr/smokestack#114.
+
+- **`update` and `rollback` left a probe-only machine running the old binary.**
+
+  They staged and installed the new release correctly, then looked for a `smokestack` unit to restart. A machine installed with `--probe-only` deliberately has no such unit — the installer removes it and leaves `smokestack-probe` — so the command ended on "restart the service to run the new version", naming no service, on a machine whose only service it had just declined to name. The probe kept measuring with the old binary until someone worked it out.
+
+  Both units are now tried, and the message names what it restarted or what to restart. The service is asked for first because on a full install the probe unit is `PartOf=smokestack.service`, so restarting the service restarts the probe with it; the second name is only reached on a machine that has no service at all. Reported in nkglfr/smokestack#111.
 
 ## 0.6.15
 

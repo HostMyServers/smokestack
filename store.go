@@ -93,6 +93,17 @@ CREATE TABLE IF NOT EXISTS probes (
 -- it: it reaches the service through a Unix socket only a process on the
 -- host can open, and restricting it would stop every existing instance
 -- measuring anything.
+-- The probes a target falls back to, in order, when the one that decides it
+-- has gone quiet. Separate from probe_targets because being allowed to
+-- measure a target and being next in line to decide it are different
+-- questions: every backup must be assigned the target, but most probes
+-- assigned a target are not backups for it.
+CREATE TABLE IF NOT EXISTS target_backups (
+  target_id INTEGER NOT NULL,
+  pos       INTEGER NOT NULL,
+  probe_id  INTEGER NOT NULL,
+  PRIMARY KEY (target_id, pos)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS probe_targets (
   probe_id  INTEGER NOT NULL,
   target_id INTEGER NOT NULL,
@@ -302,8 +313,25 @@ func OpenStore(dir string) (*Store, error) {
 	// somebody once rather than every minute. Cleared the moment it reports
 	// again, which is also what sends the notice that it is back.
 	addColumn(cfg, "probes", "silent_notified_at INTEGER NOT NULL DEFAULT 0")
+	// A probe set to measure every target, rather than an explicit list. It
+	// exists because the explicit list does not survive a growing instance:
+	// a target created later is measured by no remote probe until every
+	// probe's list is updated by hand, which at fifty probes is fifty edits
+	// for one new target. Reported by @mayssa-bm in #93.
+	addColumn(cfg, "probes", "all_targets INTEGER NOT NULL DEFAULT 0")
+	// When this probe last went from silent back to reporting. A probe that
+	// has just returned is not yet trusted with the targets it decides: see
+	// probeReclaimAfter.
+	addColumn(cfg, "probes", "reporting_since INTEGER NOT NULL DEFAULT 0")
 	addColumn(cfg, "probes", "address TEXT NOT NULL DEFAULT ''")
 	addColumn(cfg, "probes", "seen_address TEXT NOT NULL DEFAULT ''")
+	// Rows written before the protocol was validated. An empty one has always
+	// been measured with ICMP, so this records what was already happening
+	// rather than changing it; anything else is left alone and surfaces as an
+	// error on its next pass, because quietly turning it into ICMP would
+	// repeat the defect this fixes.
+	cfg.Exec(`UPDATE targets SET proto='icmp' WHERE TRIM(COALESCE(proto,''))=''`)
+	cfg.Exec(`UPDATE targets SET proto=LOWER(TRIM(proto)) WHERE proto<>LOWER(TRIM(proto))`)
 	migrateTCPPorts(cfg)
 	migratePathEventScope(cfg)
 
@@ -1275,6 +1303,20 @@ func normalizeHost(raw string) (string, error) {
 
 // checkTarget validates the settings shared by creation and update. The
 // burst must fit in the interval, with a margin.
+// The protocols a target may be measured with. One list, so that adding one
+// is a single edit and so that nothing can be stored that Prober.Run would
+// not recognise.
+var knownProtos = []string{"icmp", "tcp", "udp"}
+
+func validProto(p string) bool {
+	for _, k := range knownProtos {
+		if p == k {
+			return true
+		}
+	}
+	return false
+}
+
 func checkTarget(t *Target) error {
 	// The host is cleaned before anything else: a tab pasted in front of an
 	// address must not create a target that can never be measured.
@@ -1308,6 +1350,25 @@ func checkTarget(t *Target) error {
 	if t.Family != 0 && t.Family != 4 && t.Family != 6 {
 		return fmt.Errorf("family must be 0 (auto), 4 or 6")
 	}
+	// The protocol was never checked anywhere: not here, not in the API, and
+	// Prober.Run is a switch whose default is ICMP. A target could therefore
+	// say "udp", or "quux", be stored as it was written, be shown as that in
+	// the back-office and named as that in its alerts — and be measured with
+	// ICMP throughout. Every surface agreed on the same wrong answer, which
+	// is the worst shape a defect of this kind can take, because nothing
+	// looks out of place. Found while designing the UDP echo probe, in
+	// discussion #69.
+	//
+	// Empty means ICMP rather than being refused. It is what the prober has
+	// always done with it, so reading it that way changes no measurement; it
+	// only writes down what was already true.
+	t.Proto = strings.ToLower(strings.TrimSpace(t.Proto))
+	if t.Proto == "" {
+		t.Proto = "icmp"
+	}
+	if !validProto(t.Proto) {
+		return fmt.Errorf("protocol must be one of %s", strings.Join(knownProtos, ", "))
+	}
 	if t.Proto == "tcp" {
 		if t.Port == 0 {
 			if _, p, err := net.SplitHostPort(t.Host); err == nil {
@@ -1318,6 +1379,17 @@ func checkTarget(t *Target) error {
 		}
 		if t.Port < 1 || t.Port > 65535 {
 			return fmt.Errorf("a TCP target needs a port between 1 and 65535")
+		}
+	}
+	// An echo target defaults to 7, the RFC 862 port, which is what a Junos
+	// probe-server listens on. It stays settable because a receiver can be
+	// told to use the 49160-65535 range instead.
+	if t.Proto == "udp" {
+		if t.Port == 0 {
+			t.Port = udpEchoPort
+		}
+		if t.Port < 1 || t.Port > 65535 {
+			return fmt.Errorf("a UDP echo target needs a port between 1 and 65535 (7 by default)")
 		}
 	}
 	// Zero means "inherit from the category, then from what the binary
@@ -1820,12 +1892,19 @@ func (s *Store) oldestBucket(table string) (int64, bool) {
 
 func (s *Store) Purge(now int64) error {
 	s.PurgeTraceroutes(now)
-	for _, g := range cascade {
-		if g.keep == 0 {
-			continue
+	// Per resolution, from the instance setting rather than from the
+	// cascade's compiled `keep` (#115). The setting defaults to exactly those
+	// values, so an instance that has never touched it purges what it always
+	// purged; cascade.keep stays as the documentation of that default and is
+	// no longer what decides.
+	days := s.RetentionConfig().Days()
+	for i, g := range cascade {
+		if days[i] == 0 {
+			continue // unlimited
 		}
 		if _, err := s.mxw.Exec(fmt.Sprintf(
-			`DELETE FROM %s WHERE bucket < ?`, g.table), now-g.keep); err != nil {
+			`DELETE FROM %s WHERE bucket < ?`, g.table),
+			now-int64(days[i])*86400); err != nil {
 			return err
 		}
 	}
@@ -1879,11 +1958,21 @@ type Series struct {
 	P75      []*float64 `json:"p75"`
 	P95      []*float64 `json:"p95"`
 	Loss     []*float64 `json:"loss"`
+	// EverMeasured distinguishes the two reasons a series comes back empty:
+	// a target nothing has ever measured, and one measured outside the window
+	// being looked at. Announcing the first when the second is true is what
+	// made #114 report a target measured for weeks as never measured. Only
+	// set when the series is empty, because that is the only time it decides
+	// anything.
+	EverMeasured bool `json:"ever_measured,omitempty"`
 }
 
-// pickTable choisit la resolution la plus fine qui produit un nombre
-// de points raisonnable pour la fenetre demandee. C'est ce qui rend
-// le zoom transparent : l'appelant ne connait que from et to.
+// pickTable chooses the finest resolution that yields a reasonable number of
+// points for the requested span. This is what makes zooming transparent: the
+// caller knows only from and to.
+//
+// It answers on the span alone, which is right for a window that ends now and
+// wrong for one that does not: see pickTableFrom.
 func pickTable(span int64) (string, int64) {
 	switch {
 	case span <= 6*3600:
@@ -1899,20 +1988,71 @@ func pickTable(span int64) (string, int64) {
 	}
 }
 
+// tierOf returns the index in cascade of a table named by pickTable.
+func tierOf(table string) int {
+	for i, g := range cascade {
+		if g.table == table {
+			return i
+		}
+	}
+	return 0
+}
+
+// tierFrom returns the index in cascade of the finest tier the span justifies
+// that still holds the start of the window.
+//
+// The span alone cannot say this. Three hours is a samples-sized window, but
+// samples is kept 48 h, so three hours taken three days ago reads an empty
+// table and the page announces a target that has never been measured (#114).
+// A window ending now keeps reading exactly the table it reads today; only
+// one reaching further back than its tier's retention moves to the next.
+//
+// Retention is nominal here: the instance tiers and the clock, no query. A
+// target with its own keep_days may hold nothing that old in any table, which
+// this cannot know and Series handles when the read comes back empty.
+func tierFrom(from, to, now int64) int {
+	table, _ := pickTable(to - from)
+	i := tierOf(table)
+	// Walk coarser while the tier no longer reaches back to `from`. The last
+	// tier is kept for ever, so this always terminates on it at the latest.
+	for i+1 < len(cascade) && cascade[i].keep > 0 && from < now-cascade[i].keep {
+		i++
+	}
+	return i
+}
+
+// pickTableFrom is tierFrom named by table and step, for callers that want
+// the resolution rather than the tier.
+func pickTableFrom(from, to, now int64) (string, int64) {
+	g := cascade[tierFrom(from, to, now)]
+	return g.table, g.secs
+}
+
 type seriesRow struct {
 	bucket, sent, lost, cnt int64
 	sk                      *Sketch
 }
 
-// Series lit une serie a la resolution adaptee a la fenetre. maxPoints
-// (0 = sans limite) fusionne les points consecutifs pour alleger la
-// reponse, sans fausser les percentiles.
-func (s *Store) Series(targetID, probeID, from, to int64, maxPoints int) (*Series, error) {
-	table, step := pickTable(to - from)
-	out := &Series{TargetID: targetID, ProbeID: probeID, Table: table, StepS: step,
-		T: []int64{}, Med: []*float64{}, P05: []*float64{}, P25: []*float64{},
-		P75: []*float64{}, P95: []*float64{}, Loss: []*float64{}}
+// hasAnyMeasurement answers whether this probe ever measured this target, at
+// any resolution and at any date. roll_1d is asked first and roll_1h second
+// because they are kept for ever, so one of them holds a row whenever any
+// table does, and they are the two smallest.
+func (s *Store) hasAnyMeasurement(targetID, probeID int64) bool {
+	for _, tbl := range []string{"roll_1d", "roll_1h", "roll_5m", "roll_1m", "samples"} {
+		var one int64
+		err := s.mx.QueryRow(fmt.Sprintf(
+			`SELECT 1 FROM %s WHERE target_id=? AND probe_id=? LIMIT 1`, tbl),
+			targetID, probeID).Scan(&one)
+		if err == nil {
+			return true
+		}
+	}
+	return false
+}
 
+// seriesRows reads one tier over a window. Split out of Series so that the
+// tier it reads can be decided by a loop rather than once at the top.
+func (s *Store) seriesRows(table string, targetID, probeID, from, to int64) ([]seriesRow, error) {
 	rows, err := s.mx.Query(fmt.Sprintf(
 		`SELECT bucket,sent,lost,cnt,sketch FROM %s
 		  WHERE target_id=? AND probe_id=? AND bucket>=? AND bucket<=?
@@ -1920,21 +2060,53 @@ func (s *Store) Series(targetID, probeID, from, to int64, maxPoints int) (*Serie
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	var list []seriesRow
 	for rows.Next() {
 		var r seriesRow
 		var blob []byte
 		if err := rows.Scan(&r.bucket, &r.sent, &r.lost, &r.cnt, &blob); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		r.sk = UnmarshalSketch(blob)
 		list = append(list, r)
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
+	return list, rows.Err()
+}
+
+// Series lit une serie a la resolution adaptee a la fenetre. maxPoints
+// (0 = sans limite) fusionne les points consecutifs pour alleger la
+// reponse, sans fausser les percentiles.
+func (s *Store) Series(targetID, probeID, from, to int64, maxPoints int) (*Series, error) {
+	// The nominal tier can still come back empty when the target carries its
+	// own keep_days, which tierFrom cannot see. Walking on costs one indexed
+	// query per coarser tier, and only in that case: a window that holds
+	// anything stops on the first read.
+	var table string
+	var step int64
+	var list []seriesRow
+	for i := tierFrom(from, to, time.Now().Unix()); ; i++ {
+		table, step = cascade[i].table, cascade[i].secs
+		rows, err := s.seriesRows(table, targetID, probeID, from, to)
+		if err != nil {
+			return nil, err
+		}
+		list = rows
+		if len(list) > 0 || i+1 >= len(cascade) {
+			break
+		}
 	}
+
+	out := &Series{TargetID: targetID, ProbeID: probeID, Table: table, StepS: step,
+		T: []int64{}, Med: []*float64{}, P05: []*float64{}, P25: []*float64{},
+		P75: []*float64{}, P95: []*float64{}, Loss: []*float64{}}
+
+	// One extra query, and only when there is nothing to draw: the page has
+	// to say which kind of nothing this is.
+	if len(list) == 0 {
+		out.EverMeasured = s.hasAnyMeasurement(targetID, probeID)
+	}
+
 	list, factor := downsample(list, maxPoints)
 	if factor > 1 && out.StepS > 0 {
 		out.StepS *= int64(factor)

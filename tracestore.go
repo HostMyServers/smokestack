@@ -187,10 +187,62 @@ func (s *Store) RecentPathChange(targetID int64, since int64) (string, bool) {
 	return title, true
 }
 
+// Traceroutes keeps the shape every caller already had: every probe's, which
+// is what a page that does not offer a choice of vantage point wants. The
+// callers that do offer one use TraceroutesFrom, so adding the filter costs
+// nothing to the six that do not.
 func (s *Store) Traceroutes(targetID int64, kinds []string, limit int) ([]*Traceroute, error) {
+	return s.TraceroutesFrom(targetID, 0, kinds, limit)
+}
+
+// TraceroutesFrom narrows to one probe. Zero means any, so that the caller
+// deciding this does not have to special-case "no choice made" itself.
+//
+// The existing index is on (target_id, ts), so the probe is a filter inside
+// one target's rows rather than a seek. That is cheap at the number of
+// traceroutes a target keeps; it would want (target_id, probe_id, ts) if that
+// ever stopped being true, and this comment is here so that the next person
+// measuring a slow page knows where to look.
+func (s *Store) TraceroutesFrom(targetID, probeID int64, kinds []string, limit int) ([]*Traceroute, error) {
+	return s.TraceroutesOf(targetID, probeID, kinds, limit, nil)
+}
+
+// TraceroutesOf is TraceroutesFrom with the probes this caller must not be
+// shown. Empty or nil hides nothing, which is what the back-office gets and
+// what every call meant before this existed.
+//
+// A deny list rather than an allow list, which is the whole of the design
+// here: the local probe is absent from the probes table on purpose and a
+// traceroute from before probes existed carries probe_id 0, so allowing only
+// the enabled ones would publish nothing on an instance that never enrolled a
+// probe. Closed for what the operator disabled, open for what the table does
+// not know about.
+//
+// The two databases cannot be joined — traceroutes live in metrics.db and
+// probes in config.db — so the set is read first and passed in as a list.
+// It is applied before the LIMIT on purpose: filtering the rows afterwards
+// would return fewer than asked whenever the newest paths belong to a probe
+// the caller may not see, and a short page is a worse answer than a slower
+// query.
+func (s *Store) TraceroutesOf(targetID, probeID int64, kinds []string, limit int, deny []int64) ([]*Traceroute, error) {
 	q := `SELECT id,target_id,probe_id,ts,kind,reason,family,dest,reached,hops
 	        FROM traceroutes WHERE target_id=?`
 	args := []any{targetID}
+	if probeID > 0 {
+		q += ` AND probe_id=?`
+		args = append(args, probeID)
+	}
+	if len(deny) > 0 {
+		q += ` AND probe_id NOT IN (`
+		for i, id := range deny {
+			if i > 0 {
+				q += ","
+			}
+			q += "?"
+			args = append(args, id)
+		}
+		q += `)`
+	}
 	if len(kinds) > 0 {
 		q += ` AND kind IN (`
 		for i, k := range kinds {
@@ -594,9 +646,15 @@ func (a *API) asPathView(w http.ResponseWriter, r *http.Request) {
 
 	// The middle comes from the last healthy traceroute, or the last one of
 	// any kind if none is healthy yet.
-	trs, err := a.store.Traceroutes(id, []string{"reference"}, 1)
+	// 0 keeps today's meaning here: the reference path from whichever probe
+	// recorded one, when the caller named none.
+	probe, _ := a.resolveProbe(r, 0)
+	// Same rule as the traceroute list: a visitor is shown paths from the
+	// probes the public listing admits to, and nothing else.
+	hidden, _ := a.hiddenProbes(r)
+	trs, err := a.store.TraceroutesOf(id, probe, []string{"reference"}, 1, hidden)
 	if err != nil || len(trs) == 0 {
-		trs, _ = a.store.Traceroutes(id, nil, 1)
+		trs, _ = a.store.TraceroutesOf(id, probe, nil, 1, hidden)
 	}
 	if len(trs) == 0 {
 		// Nothing was recorded yet. A reference path is taken once a day by
@@ -654,6 +712,59 @@ func (a *API) TracerouteRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/admin/traceroutes", a.need(RoleEditor, a.traceroutesRequest))
 }
 
+// probeParam reads an optional ?probe=. Anything unparseable is no choice at
+// all rather than an error: a stale bookmark naming a probe that has since
+// gone should show the page, not a refusal.
+//
+// It does not say whether the caller may read that probe. Use resolveProbe,
+// which applies the same rule to a probe that exists but is not theirs to
+// read, so one function decides it for every endpoint that takes ?probe=.
+func probeParam(r *http.Request) int64 {
+	if v := r.URL.Query().Get("probe"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 0
+}
+
+// resolveProbe turns an optional ?probe= into the probe to read from, and
+// returns fallback when the parameter names no probe this caller may read.
+//
+// A probe the caller may not read is treated exactly as no parameter at all,
+// which is the rule probeParam already applied to a malformed one. Falling
+// back rather than refusing keeps a stale link working, and makes a request
+// for an unreadable id indistinguishable from one that named no probe: there
+// is nothing to learn by walking the ids that the public probes endpoint does
+// not already say.
+//
+// The fallback is the caller's because it is not the same everywhere. A
+// series and an availability figure are read from one probe, so theirs is the
+// instance's own. A traceroute list reads from every probe when none is
+// named, and 0 is what says so — handing it a probe id there would silently
+// narrow a page that has always shown the lot.
+//
+// The second return says the answer used a privilege an anonymous caller does
+// not have, which is to say that the same URL would answer differently to the
+// next visitor. A caller that may cache its response publicly must not do so
+// when this is true: the headers here carry no Vary, deliberately, so one
+// shared cache entry per URL is all there is, and storing the authenticated
+// answer in it would hand a disabled probe's measurements to everyone. That
+// is the leak this function exists to close, arriving by the back door.
+func (a *API) resolveProbe(r *http.Request, fallback int64) (int64, bool) {
+	n := probeParam(r)
+	if n == 0 {
+		return fallback, false
+	}
+	if a.store.ProbeReadable(n, false) {
+		return n, false
+	}
+	if a.store.ProbeReadable(n, true) && a.authenticated(r) {
+		return n, true
+	}
+	return fallback, false
+}
+
 func (a *API) listTraceroutes(w http.ResponseWriter, r *http.Request, public bool) {
 	id, err := strconv.ParseInt(r.URL.Query().Get("target"), 10, 64)
 	if err != nil {
@@ -673,7 +784,16 @@ func (a *API) listTraceroutes(w http.ResponseWriter, r *http.Request, public boo
 	if k := r.URL.Query().Get("kind"); k != "" {
 		kinds = []string{k}
 	}
-	list, err := a.store.Traceroutes(id, kinds, limit)
+	// The privilege flag is not needed here: this handler sets
+	// Vary: Cookie, Authorization below, so its public entry already varies
+	// by caller rather than being one entry for every visitor.
+	probe, _ := a.resolveProbe(r, 0)
+	hidden, err := a.hiddenProbes(r)
+	if err != nil {
+		writeErr(w, 500, err.Error())
+		return
+	}
+	list, err := a.store.TraceroutesOf(id, probe, kinds, limit, hidden)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -959,4 +1079,25 @@ func (s *Store) BuildASGraph(targetID int64, originASN, destASN string, limit in
 	}
 	sort.Slice(g.Edges, func(i, j int) bool { return g.Edges[i].Seen > g.Edges[j].Seen })
 	return g
+}
+
+// hiddenProbes is what a request must not be shown: nothing for an operator,
+// who may read every probe, and the disabled ones for a visitor.
+//
+// Disabling a probe is how an operator says it is no longer part of what this
+// instance shows, and /api/v1/probes has always honoured that. The traceroute
+// list did not: it answered from every probe when none was named, and every
+// entry carries its probe_id, so a disabled probe's existence was published
+// by one endpoint while being hidden by the other.
+//
+// The history is not lost to the operator, and an operator who wants it shown
+// publicly has a better way to say so than leaving the probe enabled while it
+// measures: a probe with no target assigned measures nothing and is never
+// called silent, so "keep the paths visible, stop measuring" is said by
+// clearing its targets.
+func (a *API) hiddenProbes(r *http.Request) ([]int64, error) {
+	if a.authenticated(r) {
+		return nil, nil
+	}
+	return a.store.DisabledProbeIDs()
 }
