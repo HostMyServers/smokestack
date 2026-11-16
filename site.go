@@ -68,6 +68,11 @@ type Site struct {
 	// site (pages.go). It names what is hidden rather than what is shown, so
 	// an instance configured before it existed hides nothing.
 	HiddenPages []string `json:"hidden_pages,omitempty"`
+	// PublicIncidents adds the incidents this instance detects to the Atom
+	// feed. Off by default, upgrades included: the current state is on the
+	// home page already, but a dated record of other people's outages,
+	// pushed to every subscriber, is a publication the operator chooses.
+	PublicIncidents bool `json:"public_incidents"`
 	// Thresholds applied to every target that does not set its own.
 	Thresholds Thresholds `json:"thresholds,omitempty"`
 	// MaskAddresses : sur les pages publiques, une adresse IP n'est montree
