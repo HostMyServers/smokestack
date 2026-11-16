@@ -785,8 +785,17 @@ included, and listed on the same screen.
 `GET /metrics` serves the instance in the Prometheus text format, so a
 Grafana that already watches the rest of your network can watch this too.
 It takes the same credentials as the API, from the viewer role up, and
-includes private targets. The `admin_token` from `config.json` works; it is
-the master key, so keep the file that holds it readable by Prometheus only.
+includes private targets. Give Prometheus a viewer API key of its own
+([§ 4](#scripts-and-automation-an-api-key-not-the-admin-token)):
+
+```sh
+smokestack apikey create -email noc@example.net -name prometheus -role viewer
+```
+
+A viewer key can read everything `/metrics` exports and change nothing, and it
+is revoked without touching anything else. The `admin_token` from
+`config.json` also works, but it is the master key: a Prometheus server
+holding it holds the whole instance.
 
 ```yaml
 # prometheus.yml
@@ -795,12 +804,12 @@ scrape_configs:
     scheme: https
     scrape_interval: 15s
     authorization:
-      credentials_file: /etc/prometheus/smokestack.token   # or credentials: "<token>"
+      credentials_file: /etc/prometheus/smokestack.key   # or credentials: "ssk_…"
     static_configs:
       - targets: ['smokestack.example.net']
 ```
 
-Scrape over HTTPS, or from the host itself: the token travels in a header.
+Scrape over HTTPS, or from the host itself: the key travels in a header.
 
 Each target is labelled `target` (its slug), `target_id`, `category`,
 `proto` and, for what a probe measured, `probe`. Figures are those of the

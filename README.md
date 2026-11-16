@@ -343,7 +343,7 @@ Adding a language is a single JSON file, without rebuilding: see
 
 ## API
 
-Public, read-only, JSON:
+Public, read-only:
 
 | Endpoint | |
 |---|---|
@@ -357,6 +357,8 @@ Public, read-only, JSON:
 | `GET /api/v1/fed/peers` | Public federation peers |
 | `GET /api/v1/traceroutes?target=ID` | Traceroutes, if made public by the operator |
 | `GET /badge/<slug>.svg` | Status badge (SVG) of a target on the public overview, the same answer for every caller; `?metric=uptime&window=24h\|7d\|30d\|1y`, `?metric=latency`, `?label=` |
+| `GET /feed.atom` | Atom feed of planned maintenance and events, and of detected incidents if the operator publishes them; `/t/<slug>/feed.atom` for one target |
+| `GET /healthz` | Health check |
 
 `series`, `availability`, `traceroutes` and the AS path take an optional
 `&probe=ID` to answer from one vantage point. Without it they answer from the
@@ -367,7 +369,9 @@ cookie, or `Authorization: Bearer` with the admin token or an API key) sees
 them, and `/api/v1/overview?all=1` returns them too. The badge is the
 exception: it is embedded in pages anyone reads, so a private target has none,
 whoever asks and whatever share link they hold.
-| `GET /healthz` | Health check |
+
+`GET /metrics` serves the same data to Prometheus, from the viewer role up:
+see [DEPLOY.md](DEPLOY.md#graphing-and-alerting-from-prometheus).
 
 Rate limit on `/api/`: 20 requests/s per client IP, bursts of 80.
 
