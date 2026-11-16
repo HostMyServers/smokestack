@@ -2,11 +2,13 @@
 
 Versions are published as signed releases; servers with automatic updates install the newest one directly, whatever versions came in between. The release workflow reads a section straight out of this file and publishes it as the release notes, so how an entry is written matters — see [DEPLOY.md § 6](DEPLOY.md#6-publishing-your-own-releases).
 
-## Unreleased
+## 0.6.17
 
 **DNS resolvers are measured on real queries, scripts get API keys of their own, and an instance can be read from Prometheus, an Atom feed or a badge embedded anywhere.** The operator can also take the Federation, Host network and Pairing pages off the public site.
 
 **Nothing changes on upgrade.** The new public surfaces publish only what the public pages already show, detected incidents stay out of the feed until the operator publishes them, and no page is hidden until somebody hides it. Two existing behaviours change, both described under the API keys: a password change counts against the sign-in budget, and a live stream checks its credential again every five seconds. Upgrade a remote probe before assigning it a DNS target: an older one pings the resolver or measures nothing.
+
+An instance on automatic updates installs this by itself, and nothing needs reconfiguring.
 
 ### New
 
